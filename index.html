@@ -66,9 +66,13 @@
         </div>
 
         <div>
-            <div class="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-                <button class="bg-navy text-white px-5 py-2 rounded-full whitespace-nowrap text-sm font-bold shadow-md">☕ ساخن</button>
-                <button class="bg-white border border-gray-200 text-gray-600 px-5 py-2 rounded-full whitespace-nowrap text-sm hover:bg-gray-50 transition">🥤 بارد</button>
+            <div class="flex gap-2 overflow-x-auto pb-2 scrollbar-hide" id="categoryButtons">
+                <button onclick="filterMenu('all')" id="btn_all" class="cat-btn bg-navy text-white px-5 py-2 rounded-full whitespace-nowrap text-sm font-bold shadow-md transition">الكل</button>
+                <button onclick="filterMenu('cat_hot')" id="btn_cat_hot" class="cat-btn bg-white border border-gray-200 text-gray-600 px-5 py-2 rounded-full whitespace-nowrap text-sm hover:bg-gray-50 transition">☕ ساخن</button>
+                <button onclick="filterMenu('cat_cold')" id="btn_cat_cold" class="cat-btn bg-white border border-gray-200 text-gray-600 px-5 py-2 rounded-full whitespace-nowrap text-sm hover:bg-gray-50 transition">🥤 بارد</button>
+                <button onclick="filterMenu('cat_sandwiches')" id="btn_cat_sandwiches" class="cat-btn bg-white border border-gray-200 text-gray-600 px-5 py-2 rounded-full whitespace-nowrap text-sm hover:bg-gray-50 transition">🥪 سندويشات</button>
+                <button onclick="filterMenu('cat_choc')" id="btn_cat_choc" class="cat-btn bg-white border border-gray-200 text-gray-600 px-5 py-2 rounded-full whitespace-nowrap text-sm hover:bg-gray-50 transition">🍫 شوكلاتة</button>
+                <button onclick="filterMenu('cat_chips')" id="btn_cat_chips" class="cat-btn bg-white border border-gray-200 text-gray-600 px-5 py-2 rounded-full whitespace-nowrap text-sm hover:bg-gray-50 transition">🍟 شبسي</button>
             </div>
         </div>
 
@@ -90,28 +94,81 @@
     </div>
 
     <script>
-        // تعريف قائمة الأسعار
+        // دمج كافة الأصناف من كود البايثون السابق مع أقسامها وأسعارها
         const menuItems = [
-            { id: 'item1', name: 'قهوة مزاج وسط', price: 2 },
-            { id: 'item2', name: 'شاي', price: 1 },
-            { id: 'item3', name: 'نسكافيه مكس', price: 2 },
-            { id: 'item4', name: 'كابتشينو جوداي', price: 3 },
-            { id: 'item5', name: 'كوكاكولا', price: 4 },
-            { id: 'item6', name: 'مولتو ميني', price: 2 }
+            // مشروبات ساخنة
+            { id: 'h1', name: 'شاي', price: 1, category: 'cat_hot' },
+            { id: 'h2', name: 'قهوة مزاج وسط', price: 2, category: 'cat_hot' },
+            { id: 'h3', name: 'قهوة مزاج كبير', price: 3, category: 'cat_hot' },
+            { id: 'h4', name: 'نسكافيه مكس', price: 2, category: 'cat_hot' },
+            { id: 'h5', name: 'كفي مكس', price: 2, category: 'cat_hot' },
+            { id: 'h6', name: 'كابتشينو جوداي', price: 3, category: 'cat_hot' },
+            
+            // مشروبات باردة
+            { id: 'c1', name: 'كوكاكولا', price: 4, category: 'cat_cold' },
+            { id: 'c2', name: 'بلو أزرق', price: 4, category: 'cat_cold' },
+            { id: 'c3', name: 'مراعي حليب شوكلاتة', price: 2, category: 'cat_cold' },
+            { id: 'c4', name: 'عصير كوكتيل فواكه', price: 2, category: 'cat_cold' },
+            { id: 'c5', name: 'لتر عصير برتقال', price: 7, category: 'cat_cold' },
+            { id: 'c6', name: 'لتر عصير مانجا', price: 7, category: 'cat_cold' },
+            
+            // سندويشات
+            { id: 's1', name: 'سندويش فينو فيتا', price: 3, category: 'cat_sandwiches' },
+            { id: 's2', name: 'سندويش فينو مرتديلا', price: 3, category: 'cat_sandwiches' },
+            
+            // شوكلاتة وتسالي
+            { id: 'ch1', name: 'سنيكرز', price: 3, category: 'cat_choc' },
+            { id: 'ch2', name: 'تويكس', price: 3, category: 'cat_choc' },
+            { id: 'ch3', name: 'مارس', price: 3, category: 'cat_choc' },
+            { id: 'ch4', name: 'مستر بايت', price: 4, category: 'cat_choc' },
+            { id: 'ch5', name: 'قسماط حجم وسط', price: 4, category: 'cat_choc' },
+            { id: 'ch6', name: 'بسكويت مالح', price: 2, category: 'cat_choc' },
+            { id: 'ch7', name: 'بسكويت ديمة فانيلا', price: 2, category: 'cat_choc' },
+            { id: 'ch8', name: 'مولتو ميني', price: 2, category: 'cat_choc' },
+            { id: 'ch9', name: 'شكلاتة تجارية ب 2شيكل', price: 2, category: 'cat_choc' },
+            { id: 'ch10', name: 'شكلاتة تجارية ب 1 شيكل', price: 1, category: 'cat_choc' },
+            { id: 'ch11', name: 'حلو نعنع سكوتش', price: 1, category: 'cat_choc' },
+            
+            // شبسي
+            { id: 'cp1', name: 'برنجلز أحمر صغير', price: 6, category: 'cat_chips' },
+            { id: 'cp2', name: 'برنجلز أحمر كبير', price: 11, category: 'cat_chips' },
+            { id: 'cp3', name: 'برنجلز أحمر كبير شطة', price: 11, category: 'cat_chips' },
+            { id: 'cp4', name: 'كيك فراولة', price: 7, category: 'cat_chips' }
         ];
 
-        // سلة المشتريات (تخزن الكميات لكل صنف)
         let cart = {};
+        let currentCategory = 'all';
 
-        // دالة عرض الأصناف في الصفحة
+        // دالة الفلترة وتلوين الزر النشط
+        function filterMenu(category) {
+            currentCategory = category;
+            
+            // تحديث ستايل الأزرار
+            const buttons = document.querySelectorAll('.cat-btn');
+            buttons.forEach(btn => {
+                btn.classList.remove('bg-navy', 'text-white', 'shadow-md');
+                btn.classList.add('bg-white', 'text-gray-600');
+            });
+
+            const activeBtn = document.getElementById('btn_' + category);
+            activeBtn.classList.remove('bg-white', 'text-gray-600');
+            activeBtn.classList.add('bg-navy', 'text-white', 'shadow-md');
+
+            renderMenu();
+        }
+
+        // دالة عرض الأصناف بناءً على القسم النشط
         function renderMenu() {
             const container = document.getElementById('menuContainer');
             container.innerHTML = '';
 
-            menuItems.forEach(item => {
+            const filteredItems = currentCategory === 'all' 
+                ? menuItems 
+                : menuItems.filter(item => item.category === currentCategory);
+
+            filteredItems.forEach(item => {
                 const quantity = cart[item.id] || 0;
                 
-                // تحديد شكل الزر: إذا كان في السلة يظهر كعداد، وإلا يظهر كزر "إضافة"
                 let buttonHTML = '';
                 if (quantity > 0) {
                     buttonHTML = `
@@ -142,7 +199,7 @@
             });
         }
 
-        // دالة تحديث كمية صنف في السلة
+        // دالة تحديث سلة المشتريات
         function updateCart(itemId, change) {
             if (!cart[itemId]) cart[itemId] = 0;
             cart[itemId] += change;
@@ -155,7 +212,7 @@
             updateCartBar();
         }
 
-        // دالة تحديث شريط السلة السفلي
+        // دالة تحديث شريط الأسفل
         function updateCartBar() {
             let totalQty = 0;
             let totalPrice = 0;
@@ -171,9 +228,9 @@
 
             const cartBar = document.getElementById('cartBar');
             if (totalQty > 0) {
-                cartBar.classList.remove('translate-y-full'); // إظهار الشريط
+                cartBar.classList.remove('translate-y-full');
             } else {
-                cartBar.classList.add('translate-y-full'); // إخفاء الشريط
+                cartBar.classList.add('translate-y-full');
             }
         }
 
@@ -184,8 +241,14 @@
                 alert("الرجاء إدخال رقم مكتبك أولاً!");
                 return;
             }
-            alert("سيتم إرسال الطلب للمكتب: " + office);
-            // هنا سيتم لاحقاً كتابة كود إرسال البيانات إلى Supabase
+            
+            let orderDetails = [];
+            for (const [id, qty] of Object.entries(cart)) {
+                const item = menuItems.find(i => i.id === id);
+                orderDetails.push(`${qty} ${item.name}`);
+            }
+            
+            alert("سيتم إرسال الطلب للمكتب: " + office + "\\nالأصناف: " + orderDetails.join("، "));
         }
 
         // دالة إرسال طلب الذكاء الاصطناعي
@@ -193,10 +256,9 @@
             const aiText = document.getElementById('aiInput').value;
             if (!aiText) return alert("الرجاء كتابة طلبك أولاً");
             alert("سيتم معالجة الطلب بالذكاء الاصطناعي: " + aiText);
-            // هنا سيتم الربط مع الـ API لاحقاً
         }
 
-        // تشغيل الدالة عند تحميل الصفحة لبناء المنيو
+        // التهيئة الأولية
         renderMenu();
     </script>
 </body>
