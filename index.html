@@ -234,21 +234,63 @@
             }
         }
 
-        // دالة تأكيد الطلب
-        function confirmOrder() {
+        // دالة تأكيد الطلب وإرساله للسيرفر (الباك إند)
+        async function confirmOrder() {
             const office = document.getElementById('officeNumber').value;
             if (!office) {
-                alert("الرجاء إدخال رقم مكتبك أولاً!");
+                alert("⚠️ الرجاء إدخال رقم مكتبك أولاً!");
                 return;
             }
             
-            let orderDetails = [];
+            // تجميع الأصناف من السلة
+            let orderItems = [];
+            let totalPrice = 0;
             for (const [id, qty] of Object.entries(cart)) {
                 const item = menuItems.find(i => i.id === id);
-                orderDetails.push(`${qty} ${item.name}`);
+                for(let k=0; k<qty; k++) {
+                    orderItems.push(item.name);
+                }
+                totalPrice += (item.price * qty);
             }
+
+            // 🛑 ركز هنا: هذا رابط السيرفر تبعك (البايثون) اللي شغال على Render
+            // تأكد إن الرابط صح، ولازم ينتهي بـ /api/order
+            const backendUrl = "https://lego-food-bot.onrender.com/api/order"; 
             
-            alert("سيتم إرسال الطلب للمكتب: " + office + "\\nالأصناف: " + orderDetails.join("، "));
+            // تغيير شكل الزر ليدل على التحميل
+            const btn = document.querySelector('#cartBar button');
+            const originalHtml = btn.innerHTML;
+            btn.innerHTML = "جاري الإرسال... ⏳";
+            btn.disabled = true;
+
+            try {
+                // إرسال البيانات للسيرفر (كأننا بنبعت الطرد)
+                const response = await fetch(backendUrl, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ 
+                        office: "مكتب " + office, 
+                        items: orderItems, 
+                        total_price: totalPrice 
+                    })
+                });
+
+                if(response.ok) {
+                    alert("✅ تم إرسال طلبك للكاشير بنجاح! صحة وهنا.");
+                    // تصفير السلة بعد نجاح الطلب
+                    cart = {};
+                    renderMenu();
+                    updateCartBar();
+                } else {
+                    alert("⚠️ حدث خطأ أثناء إرسال الطلب.");
+                }
+            } catch(error) {
+                alert("⚠️ تعذر الاتصال بالسيرفر. تأكد أن السيرفر يعمل.");
+            } finally {
+                // إرجاع شكل الزر لشكله الطبيعي
+                btn.innerHTML = originalHtml;
+                btn.disabled = false;
+            }
         }
 
         // دالة إرسال طلب الذكاء الاصطناعي
