@@ -12,9 +12,9 @@
             theme: {
                 extend: {
                     colors: {
-                        navy: '#2E3468', /* الكحلي من اللوجو */
-                        gold: '#F7CC46', /* الأصفر الذهبي من اللوجو */
-                        light: '#F8F9FA' /* لون خلفية مريح للعين (Light Mode) */
+                        navy: '#2E3468', 
+                        gold: '#F7CC46', 
+                        light: '#F8F9FA'
                     },
                     fontFamily: {
                         sans: ['Cairo', 'sans-serif'],
@@ -25,7 +25,6 @@
     </script>
     <style>
         body { font-family: 'Cairo', sans-serif; background-color: #F8F9FA; }
-        /* إخفاء شريط التمرير للأقسام الأفقية */
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
@@ -35,9 +34,7 @@
     <header class="bg-white shadow-sm p-4 sticky top-0 z-50">
         <div class="flex items-center justify-between max-w-md mx-auto">
             <div class="flex items-center gap-3">
-                <div class="font-bold text-3xl flex tracking-tighter">
-                    <span class="text-navy">L</span><span class="text-gold">E</span>
-                </div>
+                <img src="logo.png" alt="LE Logo" class="h-10 object-contain">
                 <h1 class="font-bold text-lg border-r-2 border-gray-200 pr-3">كوفي كورنر</h1>
             </div>
             <button class="bg-gray-100 p-2 rounded-full text-navy hover:bg-gray-200 transition">
@@ -51,95 +48,156 @@
     <main class="max-w-md mx-auto p-4 space-y-6">
         
         <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
-            <label class="block text-sm font-bold mb-2 text-gray-600">📍 رقم مكتبك</label>
-            <input type="text" placeholder="مثال: 15" class="w-full border-2 border-gray-100 rounded-xl p-3 focus:outline-none focus:border-navy focus:ring-1 focus:ring-navy transition-all bg-gray-50">
+            <label class="block text-sm font-bold mb-2 text-gray-600">📍 رقم مكتبك (أو اسمك)</label>
+            <input type="text" id="officeNumber" placeholder="مثال: 15" class="w-full border-2 border-gray-100 rounded-xl p-3 focus:outline-none focus:border-navy focus:ring-1 focus:ring-navy transition-all bg-gray-50">
         </div>
 
         <div class="bg-navy text-white p-5 rounded-2xl shadow-md relative overflow-hidden">
             <div class="absolute top-0 right-0 w-2 h-full bg-gold"></div>
-            
             <h2 class="font-bold mb-3 flex items-center gap-2 text-lg">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6 text-gold">
-                    <path d="M9.346 14.715l... (SVG shortened for brevity) ... " />
+                    <path d="M9.346 14.715l... " />
                     <path fill-rule="evenodd" d="M9 4.5a.75.75 0 01.721.544l.813 2.846a3.75 3.75 0 002.576 2.576l2.846.813a.75.75 0 010 1.442l-2.846.813a3.75 3.75 0 00-2.576 2.576l-.813 2.846a.75.75 0 01-1.442 0l-.813-2.846a3.75 3.75 0 00-2.576-2.576l-2.846-.813a.75.75 0 010-1.442l2.846-.813A3.75 3.75 0 007.466 7.89l.813-2.846A.75.75 0 019 4.5zM18 1.5a.75.75 0 01.728.568l.258 1.036c.236.94.97 1.674 1.91 1.91l1.036.258a.75.75 0 010 1.456l-1.036.258c-.94.236-1.674.97-1.91 1.91l-.258 1.036a.75.75 0 01-1.456 0l-.258-1.036a2.625 2.625 0 00-1.91-1.91l-1.036-.258a.75.75 0 010-1.456l1.036-.258a2.625 2.625 0 001.91-1.91l.258-1.036A.75.75 0 0118 1.5z" clip-rule="evenodd" />
                 </svg>
                 اطلب بالذكاء الاصطناعي
             </h2>
-            <textarea placeholder="اكتب طلبك براحتك، مثلا: بدي 2 قهوة وسط وواحد شاي..." class="w-full bg-white/10 border border-white/20 rounded-xl p-3 text-white placeholder-white/60 focus:outline-none focus:border-gold resize-none" rows="2"></textarea>
-            <button class="mt-3 w-full bg-gold text-navy font-bold py-3 rounded-xl hover:bg-yellow-400 transition-colors shadow-lg shadow-gold/20">إرسال الطلب السريع</button>
+            <textarea id="aiInput" placeholder="اكتب طلبك براحتك، مثلا: بدي 2 قهوة وسط وواحد شاي..." class="w-full bg-white/10 border border-white/20 rounded-xl p-3 text-white placeholder-white/60 focus:outline-none focus:border-gold resize-none" rows="2"></textarea>
+            <button onclick="sendAIOrder()" class="mt-3 w-full bg-gold text-navy font-bold py-3 rounded-xl hover:bg-yellow-400 transition-colors shadow-lg shadow-gold/20">إرسال الطلب السريع</button>
         </div>
 
         <div>
             <div class="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
                 <button class="bg-navy text-white px-5 py-2 rounded-full whitespace-nowrap text-sm font-bold shadow-md">☕ ساخن</button>
                 <button class="bg-white border border-gray-200 text-gray-600 px-5 py-2 rounded-full whitespace-nowrap text-sm hover:bg-gray-50 transition">🥤 بارد</button>
-                <button class="bg-white border border-gray-200 text-gray-600 px-5 py-2 rounded-full whitespace-nowrap text-sm hover:bg-gray-50 transition">🍫 تسالي</button>
-                <button class="bg-white border border-gray-200 text-gray-600 px-5 py-2 rounded-full whitespace-nowrap text-sm hover:bg-gray-50 transition">🥪 سندويشات</button>
             </div>
         </div>
 
-        <div class="grid grid-cols-2 gap-4">
-            
-            <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between hover:shadow-md transition">
-                <div>
-                    <h3 class="font-bold text-gray-800">قهوة مزاج وسط</h3>
-                    <p class="text-gold font-bold text-lg mt-1">2 ₪</p>
-                </div>
-                <button class="mt-4 w-full border-2 border-navy text-navy font-bold py-2 rounded-xl hover:bg-navy hover:text-white transition-colors text-sm flex justify-center items-center gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
-                    إضافة
-                </button>
+        <div id="menuContainer" class="grid grid-cols-2 gap-4">
             </div>
-
-            <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between hover:shadow-md transition">
-                <div>
-                    <h3 class="font-bold text-gray-800">شاي</h3>
-                    <p class="text-gold font-bold text-lg mt-1">1 ₪</p>
-                </div>
-                <button class="mt-4 w-full border-2 border-navy text-navy font-bold py-2 rounded-xl hover:bg-navy hover:text-white transition-colors text-sm flex justify-center items-center gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
-                    إضافة
-                </button>
-            </div>
-            
-            <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between hover:shadow-md transition">
-                <div>
-                    <h3 class="font-bold text-gray-800">نسكافيه مكس</h3>
-                    <p class="text-gold font-bold text-lg mt-1">2 ₪</p>
-                </div>
-                <button class="mt-4 w-full border-2 border-navy text-navy font-bold py-2 rounded-xl hover:bg-navy hover:text-white transition-colors text-sm flex justify-center items-center gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
-                    إضافة
-                </button>
-            </div>
-
-            <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between hover:shadow-md transition">
-                <div>
-                    <h3 class="font-bold text-gray-800">كابتشينو جوداي</h3>
-                    <p class="text-gold font-bold text-lg mt-1">3 ₪</p>
-                </div>
-                <div class="mt-4 w-full flex items-center justify-between bg-navy text-white py-1.5 px-3 rounded-xl font-bold text-sm">
-                    <button class="p-1 hover:text-gold"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14" /></svg></button>
-                    <span>1</span>
-                    <button class="p-1 hover:text-gold"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg></button>
-                </div>
-            </div>
-
-        </div>
     </main>
 
-    <div class="fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 p-4 pb-safe shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+    <div id="cartBar" class="fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 p-4 pb-safe shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] transform translate-y-full transition-transform duration-300">
         <div class="max-w-md mx-auto flex justify-between items-center">
             <div class="flex flex-col">
                 <span class="text-xs text-gray-500 font-bold">المجموع</span>
-                <span class="font-bold text-2xl text-navy">3 ₪</span>
+                <span id="totalPrice" class="font-bold text-2xl text-navy">0 ₪</span>
             </div>
-            <button class="bg-navy text-white px-8 py-3.5 rounded-xl font-bold shadow-lg hover:bg-opacity-90 transition-all flex items-center gap-3">
+            <button onclick="confirmOrder()" class="bg-navy text-white px-8 py-3.5 rounded-xl font-bold shadow-lg hover:bg-opacity-90 transition-all flex items-center gap-3">
                 تأكيد الطلب 
-                <span class="bg-gold text-navy w-6 h-6 rounded-full flex items-center justify-center text-sm">2</span>
+                <span id="cartCount" class="bg-gold text-navy w-6 h-6 rounded-full flex items-center justify-center text-sm">0</span>
             </button>
         </div>
     </div>
 
+    <script>
+        // تعريف قائمة الأسعار
+        const menuItems = [
+            { id: 'item1', name: 'قهوة مزاج وسط', price: 2 },
+            { id: 'item2', name: 'شاي', price: 1 },
+            { id: 'item3', name: 'نسكافيه مكس', price: 2 },
+            { id: 'item4', name: 'كابتشينو جوداي', price: 3 },
+            { id: 'item5', name: 'كوكاكولا', price: 4 },
+            { id: 'item6', name: 'مولتو ميني', price: 2 }
+        ];
+
+        // سلة المشتريات (تخزن الكميات لكل صنف)
+        let cart = {};
+
+        // دالة عرض الأصناف في الصفحة
+        function renderMenu() {
+            const container = document.getElementById('menuContainer');
+            container.innerHTML = '';
+
+            menuItems.forEach(item => {
+                const quantity = cart[item.id] || 0;
+                
+                // تحديد شكل الزر: إذا كان في السلة يظهر كعداد، وإلا يظهر كزر "إضافة"
+                let buttonHTML = '';
+                if (quantity > 0) {
+                    buttonHTML = `
+                        <div class="mt-4 w-full flex items-center justify-between bg-navy text-white py-1.5 px-3 rounded-xl font-bold text-sm">
+                            <button onclick="updateCart('${item.id}', -1)" class="p-1 hover:text-gold w-8 h-8 flex items-center justify-center text-xl">-</button>
+                            <span>${quantity}</span>
+                            <button onclick="updateCart('${item.id}', 1)" class="p-1 hover:text-gold w-8 h-8 flex items-center justify-center text-xl">+</button>
+                        </div>
+                    `;
+                } else {
+                    buttonHTML = `
+                        <button onclick="updateCart('${item.id}', 1)" class="mt-4 w-full border-2 border-navy text-navy font-bold py-2 rounded-xl hover:bg-navy hover:text-white transition-colors text-sm flex justify-center items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+                            إضافة
+                        </button>
+                    `;
+                }
+
+                container.innerHTML += `
+                    <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between hover:shadow-md transition">
+                        <div>
+                            <h3 class="font-bold text-gray-800">${item.name}</h3>
+                            <p class="text-gold font-bold text-lg mt-1">${item.price} ₪</p>
+                        </div>
+                        ${buttonHTML}
+                    </div>
+                `;
+            });
+        }
+
+        // دالة تحديث كمية صنف في السلة
+        function updateCart(itemId, change) {
+            if (!cart[itemId]) cart[itemId] = 0;
+            cart[itemId] += change;
+            
+            if (cart[itemId] <= 0) {
+                delete cart[itemId];
+            }
+            
+            renderMenu();
+            updateCartBar();
+        }
+
+        // دالة تحديث شريط السلة السفلي
+        function updateCartBar() {
+            let totalQty = 0;
+            let totalPrice = 0;
+
+            for (const [id, qty] of Object.entries(cart)) {
+                const item = menuItems.find(i => i.id === id);
+                totalQty += qty;
+                totalPrice += (item.price * qty);
+            }
+
+            document.getElementById('cartCount').innerText = totalQty;
+            document.getElementById('totalPrice').innerText = totalPrice + ' ₪';
+
+            const cartBar = document.getElementById('cartBar');
+            if (totalQty > 0) {
+                cartBar.classList.remove('translate-y-full'); // إظهار الشريط
+            } else {
+                cartBar.classList.add('translate-y-full'); // إخفاء الشريط
+            }
+        }
+
+        // دالة تأكيد الطلب
+        function confirmOrder() {
+            const office = document.getElementById('officeNumber').value;
+            if (!office) {
+                alert("الرجاء إدخال رقم مكتبك أولاً!");
+                return;
+            }
+            alert("سيتم إرسال الطلب للمكتب: " + office);
+            // هنا سيتم لاحقاً كتابة كود إرسال البيانات إلى Supabase
+        }
+
+        // دالة إرسال طلب الذكاء الاصطناعي
+        function sendAIOrder() {
+            const aiText = document.getElementById('aiInput').value;
+            if (!aiText) return alert("الرجاء كتابة طلبك أولاً");
+            alert("سيتم معالجة الطلب بالذكاء الاصطناعي: " + aiText);
+            // هنا سيتم الربط مع الـ API لاحقاً
+        }
+
+        // تشغيل الدالة عند تحميل الصفحة لبناء المنيو
+        renderMenu();
+    </script>
 </body>
 </html>
