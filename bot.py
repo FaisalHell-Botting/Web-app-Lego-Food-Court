@@ -179,6 +179,45 @@ async def get_active_orders():
     except Exception as e:
         return {"status": "error"}
 
+@app.get("/api/admin/orders")
+async def get_admin_orders():
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        c = conn.cursor()
+        
+        # 1. الطلبات بانتظار التأكيد (الجارية)
+        c.execute("SELECT id, details, total_price, location, timestamp FROM orders WHERE status='انتظار' ORDER BY id DESC")
+        rows = c.fetchall()
+        orders = [{"id": r[0], "details": r[1], "total_price": r[2], "location": r[3], "timestamp": r[4]} for r in rows]
+
+        # 2. حساب أرباح آخر 7 أيام (للطلبات المقبولة أو المكتملة)
+        seven_days_ago = (datetime.utcnow() + timedelta(hours=3) - timedelta(days=7)).strftime("%Y-%m-%d")
+        c.execute("SELECT SUM(total_price) FROM orders WHERE status IN ('مقبول', 'مكتمل') AND timestamp >= %s", (seven_days_ago,))
+        sales_7_days = c.fetchone()[0] or 0
+        
+        # 3. إجمالي الفواتير داخل الكوفي كورنر (كل المبيعات المقبولة منذ البداية)
+        c.execute("SELECT SUM(total_price) FROM orders WHERE status IN ('مقبول', 'مكتمل')")
+        total_invoices = c.fetchone()[0] or 0
+
+        # 4. إجمالي الديون المعلقة (كل ما هو 'مقبول/مكتمل' ولم يُدفع بعد)
+        c.execute("SELECT SUM(total_price) FROM orders WHERE is_paid=0 AND status IN ('مقبول', 'مكتمل')")
+        total_outstanding_debts = c.fetchone()[0] or 0
+        
+        c.close()
+        conn.close()
+        
+        return {
+            "orders": orders, 
+            "stats": {
+                "pending": len(orders),
+                "sales_7_days": sales_7_days,
+                "total_invoices": total_invoices,
+                "total_debts": total_outstanding_debts
+            }
+        }
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
 @app.get("/api/admin/history")
 async def get_history():
     try:
