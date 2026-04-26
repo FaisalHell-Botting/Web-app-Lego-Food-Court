@@ -69,7 +69,7 @@
 
         async function fetchOrders() {
             try {
-                const res = await fetch(`${API_URL}/admin/orders`);
+                const res = await fetch(`${API_URL}/admin/active_orders`);
                 const data = await res.json();
                 
                 if (data.status === "error") {
