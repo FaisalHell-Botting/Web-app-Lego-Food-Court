@@ -39,13 +39,22 @@ def get_pal_time():
 def init_db():
     conn = psycopg2.connect(DATABASE_URL)
     c = conn.cursor()
-    # جدول الطلبات (تم إضافة حقل للإيصالات)
+    # إنشاء الجدول لو مش موجود
     c.execute('''CREATE TABLE IF NOT EXISTS orders
                  (id SERIAL PRIMARY KEY, user_id BIGINT, details TEXT, total_price INTEGER, 
-                 location TEXT, timestamp TEXT, status TEXT, is_paid INTEGER DEFAULT 0, receipt TEXT)''')
-    # جدول التذكيرات للمكاتب
+                 location TEXT, timestamp TEXT, status TEXT, is_paid INTEGER DEFAULT 0)''')
+    
+    # التأكد من إضافة الأعمدة الجديدة للجداول القديمة (عشان ما يعطي Error)
+    try:
+        c.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS receipt TEXT")
+        c.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS is_paid INTEGER DEFAULT 0")
+    except:
+        pass # لو الأعمدة موجودة أصلاً رح يتجاهل الأمر
+        
+    # جدول التذكيرات
     c.execute('''CREATE TABLE IF NOT EXISTS reminders
                  (id SERIAL PRIMARY KEY, office TEXT, message TEXT, is_read INTEGER DEFAULT 0)''')
+    
     conn.commit()
     c.close()
     conn.close()
