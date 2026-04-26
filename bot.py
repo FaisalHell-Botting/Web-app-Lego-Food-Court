@@ -11,7 +11,7 @@ from pydantic import BaseModel
 
 app = FastAPI()
 
-# تفعيل CORS ليعمل الموقع ولوحة التحكم بسلاسة
+# تفعيل CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -20,7 +20,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# الإعدادات من Render
 DATABASE_URL = os.environ.get('DATABASE_URL')
 GEMINI_KEYS_ENV = os.environ.get('GEMINI_API_KEY', '')
 GEMINI_KEYS = [k.strip() for k in GEMINI_KEYS_ENV.split(',') if k.strip()] if GEMINI_KEYS_ENV else []
@@ -37,12 +36,50 @@ PRICES = {
 def get_pal_time():
     return (datetime.utcnow() + timedelta(hours=3)).strftime("%Y-%m-%d %H:%M")
 
-# --- نماذج البيانات (API Models) ---
-class OrderStatusUpdate(BaseModel):
+def init_db():
+    conn = psycopg2.connect(DATABASE_URL)
+    c = conn.cursor()
+    # جدول الطلبات (تم إضافة حقل للإيصالات)
+    c.execute('''CREATE TABLE IF NOT EXISTS orders
+                 (id SERIAL PRIMARY KEY, user_id BIGINT, details TEXT, total_price INTEGER, 
+                 location TEXT, timestamp TEXT, status TEXT, is_paid INTEGER DEFAULT 0, receipt TEXT)''')
+    # جدول التذكيرات للمكاتب
+    c.execute('''CREATE TABLE IF NOT EXISTS reminders
+                 (id SERIAL PRIMARY KEY, office TEXT, message TEXT, is_read INTEGER DEFAULT 0)''')
+    conn.commit()
+    c.close()
+    conn.close()
+
+init_db()
+
+class StatusUpdate(BaseModel):
     id: int
     status: str
 
-# ---Endpoints للموظفين (الويب أب) ---
+class ReminderReq(BaseModel):
+    office: str
+    amount: int
+
+# ==========================================
+# 1. API المستخدمين (الموقع)
+# ==========================================
+
+@app.post("/api/ai_process")
+async def ai_process(request: Request):
+    data = await request.json()
+    text = data.get('text')
+    if not GEMINI_KEYS: return {"status": "error", "message": "No API Keys"}
+    try:
+        genai.configure(api_key=random.choice(GEMINI_KEYS))
+        model = genai.GenerativeModel('gemini-2.5-flash')
+        prompt = f"أنت كاشير ذكي. استخرج الأصناف من: '{text}'. قائمة الأصناف: {list(PRICES.keys())}. رد بصيغة JSON فقط: {{'items': ['شاي'], 'unmatched': []}}"
+        response = await model.generate_content_async(prompt)
+        result = json.loads(response.text.replace('```json', '').replace('```', '').strip())
+        total = sum(PRICES.get(item, 0) for item in result.get('items', []))
+        result['total_price'] = total
+        return result
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 @app.post("/api/order")
 async def create_order(request: Request):
@@ -50,13 +87,18 @@ async def create_order(request: Request):
     office = data.get('office')
     items = data.get('items')
     total_price = data.get('total_price')
+    receipt = data.get('receipt', '') # للزوار
+    
     details = ", ".join(items)
+    is_guest = "زائر" in office
+    status = "مقبول" if is_guest else "انتظار"
+    is_paid = 1 if is_guest else 0
 
     try:
         conn = psycopg2.connect(DATABASE_URL)
         c = conn.cursor()
-        c.execute("INSERT INTO orders (user_id, details, total_price, location, timestamp, status, is_paid) VALUES (%s, %s, %s, %s, %s, %s, %s)",
-                  (0, details, total_price, office, get_pal_time(), "انتظار", 0))
+        c.execute("INSERT INTO orders (user_id, details, total_price, location, timestamp, status, is_paid, receipt) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                  (0, details, total_price, office, get_pal_time(), status, is_paid, receipt))
         conn.commit()
         c.close()
         conn.close()
@@ -64,56 +106,103 @@ async def create_order(request: Request):
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
-@app.post("/api/ai_process")
-async def ai_process(request: Request):
-    data = await request.json()
-    text = data.get('text')
-    
-    if not GEMINI_KEYS: return {"status": "error", "message": "No API Keys"}
-
-    try:
-        genai.configure(api_key=random.choice(GEMINI_KEYS))
-        model = genai.GenerativeModel('gemini-2.5-flash')
-        prompt = f"أنت كاشير ذكي. استخرج الأصناف ورقم المكتب من النص: '{text}'. قائمة الأصناف: {list(PRICES.keys())}. رد بصيغة JSON فقط: {{'office': '15', 'items': ['شاي'], 'unmatched': []}}"
-        response = await model.generate_content_async(prompt)
-        result = json.loads(response.text.replace('```json', '').replace('```', '').strip())
-        
-        # حساب السعر الإجمالي للأصناف المكتشفة
-        total = sum(PRICES.get(item, 0) for item in result.get('items', []))
-        result['total_price'] = total
-        return result
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
-
-# --- Endpoints للكاشير (لوحة التحكم) ---
-
-@app.get("/api/admin/orders")
-async def get_admin_orders():
+@app.get("/api/ledger/{office}")
+async def get_ledger(office: str):
     try:
         conn = psycopg2.connect(DATABASE_URL)
         c = conn.cursor()
-        
-        # جلب الطلبات بانتظار التأكيد
-        c.execute("SELECT id, details, total_price, location, timestamp FROM orders WHERE status='انتظار' ORDER BY id DESC")
+        c.execute("SELECT id, details, total_price, timestamp, is_paid, status FROM orders WHERE location=%s ORDER BY id DESC", (office,))
         rows = c.fetchall()
-        orders = [{"id": r[0], "details": r[1], "total_price": r[2], "location": r[3], "timestamp": r[4]} for r in rows]
-
-        # جلب الإحصائيات (مبيعات اليوم والديون)
-        today = datetime.utcnow().strftime("%Y-%m-%d")
-        c.execute("SELECT SUM(total_price) FROM orders WHERE timestamp LIKE %s AND status='مقبول'", (f"{today}%",))
-        sales = c.fetchone()[0] or 0
         
-        c.execute("SELECT SUM(total_price) FROM orders WHERE is_paid=0 AND status='مقبول'")
-        debts = c.fetchone()[0] or 0
-        
+        # فحص التذكيرات
+        c.execute("SELECT id, message FROM reminders WHERE office=%s AND is_read=0", (office,))
+        reminder = c.fetchone()
+        if reminder:
+            c.execute("UPDATE reminders SET is_read=1 WHERE id=%s", (reminder[0],))
+            conn.commit()
+            
         c.close()
         conn.close()
-        return {"orders": orders, "stats": {"pending": len(orders), "sales": sales, "debts": debts}}
+        
+        orders = [{"id": r[0], "details": r[1], "total_price": r[2], "timestamp": r[3], "is_paid": r[4], "status": r[5]} for r in rows]
+        total_debt = sum(r["total_price"] for r in orders if r["is_paid"] == 0 and r["status"] in ["مقبول", "مكتمل"])
+        
+        return {"status": "success", "orders": orders, "total_debt": total_debt, "reminder": reminder[1] if reminder else None}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
+@app.post("/api/pay_debt")
+async def pay_debt(request: Request):
+    data = await request.json()
+    office = data.get('office')
+    receipt = data.get('receipt')
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        c = conn.cursor()
+        # إضافة طلب تسديد دين كحركة مالية
+        c.execute("INSERT INTO orders (user_id, details, total_price, location, timestamp, status, is_paid, receipt) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                  (0, "تسديد ديون سابقة", 0, office, get_pal_time(), "تأكيد دفع", 1, receipt))
+        # تصفير الديون
+        c.execute("UPDATE orders SET is_paid=1 WHERE location=%s", (office,))
+        conn.commit()
+        c.close()
+        conn.close()
+        return {"status": "success"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+# ==========================================
+# 2. API الكاشير (لوحة التحكم)
+# ==========================================
+
+@app.get("/api/admin/active_orders")
+async def get_active_orders():
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        c = conn.cursor()
+        c.execute("SELECT id, details, total_price, location, timestamp, status, receipt FROM orders WHERE status IN ('انتظار', 'تأكيد دفع') ORDER BY id ASC")
+        rows = c.fetchall()
+        orders = [{"id": r[0], "details": r[1], "total_price": r[2], "location": r[3], "timestamp": r[4], "status": r[5], "receipt": r[6]} for r in rows]
+        c.close()
+        conn.close()
+        return {"orders": orders}
+    except Exception as e:
+        return {"status": "error"}
+
+@app.get("/api/admin/history")
+async def get_history():
+    try:
+        week_ago = (datetime.utcnow() + timedelta(hours=3) - timedelta(days=7)).strftime("%Y-%m-%d")
+        conn = psycopg2.connect(DATABASE_URL)
+        c = conn.cursor()
+        c.execute("SELECT id, details, total_price, location, timestamp, status, is_paid FROM orders WHERE timestamp >= %s ORDER BY id DESC", (week_ago,))
+        rows = c.fetchall()
+        orders = [{"id": r[0], "details": r[1], "total_price": r[2], "location": r[3], "timestamp": r[4], "status": r[5], "is_paid": r[6]} for r in rows]
+        
+        sales = sum(r['total_price'] for r in orders if r['status'] in ['مقبول', 'مكتمل'])
+        c.close()
+        conn.close()
+        return {"orders": orders, "total_sales": sales}
+    except Exception as e:
+        return {"status": "error"}
+
+@app.get("/api/admin/debts")
+async def get_debts():
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        c = conn.cursor()
+        c.execute("SELECT location, SUM(total_price) FROM orders WHERE is_paid=0 AND status IN ('مقبول', 'مكتمل') AND location NOT LIKE 'زائر%%' GROUP BY location")
+        rows = c.fetchall()
+        debts = [{"office": r[0], "amount": r[1]} for r in rows if r[1] > 0]
+        c.close()
+        conn.close()
+        return {"debts": debts}
+    except Exception as e:
+        return {"status": "error"}
+
 @app.post("/api/admin/update_status")
-async def update_order_status(data: OrderStatusUpdate):
+async def update_status(data: StatusUpdate):
     try:
         conn = psycopg2.connect(DATABASE_URL)
         c = conn.cursor()
@@ -123,7 +212,21 @@ async def update_order_status(data: OrderStatusUpdate):
         conn.close()
         return {"status": "success"}
     except Exception as e:
-        return {"status": "error", "message": str(e)}
+        return {"status": "error"}
+
+@app.post("/api/admin/remind")
+async def send_reminder(data: ReminderReq):
+    try:
+        msg = f"🔔 تذكير من الكاشير: يرجى تسديد الديون المتراكمة على مكتبك بقيمة {data.amount} شيكل."
+        conn = psycopg2.connect(DATABASE_URL)
+        c = conn.cursor()
+        c.execute("INSERT INTO reminders (office, message) VALUES (%s, %s)", (data.office, msg))
+        conn.commit()
+        c.close()
+        conn.close()
+        return {"status": "success"}
+    except Exception as e:
+        return {"status": "error"}
 
 @app.get("/")
 def home():
