@@ -6,117 +6,145 @@
     <title>لوحة التحكم | LE Coffee</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
-    <script>
-        tailwind.config = {
-            theme: { extend: { colors: { navy: '#2E3468', gold: '#F7CC46' }, fontFamily: { sans: ['Cairo', 'sans-serif'] } } }
-        }
-    </script>
+    <script>tailwind.config = { theme: { extend: { colors: { navy: '#2E3468', gold: '#F7CC46' }, fontFamily: { sans: ['Cairo', 'sans-serif'] } } } }</script>
 </head>
-<body class="bg-gray-50 font-sans text-navy">
+<body class="bg-gray-50 font-sans text-navy pb-10">
 
-    <header class="bg-navy text-white p-4 shadow-lg sticky top-0 z-50">
+    <header class="bg-navy text-white p-4 shadow-md sticky top-0 z-50">
         <div class="max-w-6xl mx-auto flex justify-between items-center">
-            <div class="flex items-center gap-4">
-                <img src="logo.png" alt="Logo" class="h-10 brightness-0 invert">
-                <h1 class="text-xl font-bold">لوحة تحكم الطلبات</h1>
-            </div>
-            <div class="flex gap-4">
-                <button onclick="fetchOrders()" class="bg-gold text-navy px-4 py-2 rounded-lg font-bold hover:bg-yellow-400 transition">🔄 تحديث</button>
-            </div>
+            <h1 class="text-xl font-bold flex items-center gap-2">👨‍💻 كاشير أدمن</h1>
+            <button onclick="fetchAll()" class="bg-gold text-navy px-4 py-1.5 rounded-lg font-bold text-sm">تحديث البيانات</button>
+        </div>
+        <div class="max-w-6xl mx-auto flex gap-4 mt-4 overflow-x-auto">
+            <button onclick="switchTab('active')" id="tab_active" class="pb-2 border-b-4 border-gold font-bold">الطلبات الجارية</button>
+            <button onclick="switchTab('history')" id="tab_history" class="pb-2 border-b-4 border-transparent text-gray-300 font-bold">سجل 7 أيام</button>
+            <button onclick="switchTab('debts')" id="tab_debts" class="pb-2 border-b-4 border-transparent text-gray-300 font-bold">إدارة الديون</button>
         </div>
     </header>
 
-    <main class="max-w-6xl mx-auto p-4 sm:p-6">
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8 text-center">
-            <div class="bg-white p-4 rounded-2xl shadow-sm border-b-4 border-gold">
-                <p class="text-gray-500 text-sm font-bold">طلبات بانتظار التأكيد</p>
-                <p id="pendingCount" class="text-3xl font-bold mt-1">0</p>
+    <main class="max-w-6xl mx-auto p-4 mt-4">
+        
+        <div id="view_active">
+            <h2 class="font-bold mb-4">🚨 بانتظار الإجراء</h2>
+            <div id="activeOrdersList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+        </div>
+
+        <div id="view_history" class="hidden">
+            <div class="bg-white p-4 rounded-xl shadow-sm mb-4 border-r-4 border-green-500">
+                <p class="text-sm text-gray-500">أرباح ومبيعات آخر 7 أيام</p>
+                <p id="totalSales7Days" class="text-2xl font-bold text-green-600">0 ₪</p>
             </div>
-            <div class="bg-white p-4 rounded-2xl shadow-sm border-b-4 border-green-500">
-                <p class="text-gray-500 text-sm font-bold">مبيعات اليوم</p>
-                <p id="todaySales" class="text-3xl font-bold mt-1 text-green-600">0 ₪</p>
-            </div>
-            <div class="bg-white p-4 rounded-2xl shadow-sm border-b-4 border-navy">
-                <p class="text-gray-500 text-sm font-bold">ديون لم تُسدد</p>
-                <p id="totalDebts" class="text-3xl font-bold mt-1 text-red-500">0 ₪</p>
+            <div class="bg-white rounded-xl shadow-sm overflow-hidden overflow-x-auto">
+                <table class="w-full text-right text-sm">
+                    <thead class="bg-navy text-white">
+                        <tr><th class="p-3">رقم</th><th class="p-3">التاريخ</th><th class="p-3">المكان</th><th class="p-3">الطلب</th><th class="p-3">السعر</th><th class="p-3">الحالة</th></tr>
+                    </thead>
+                    <tbody id="historyTable" class="divide-y divide-gray-100"></tbody>
+                </table>
             </div>
         </div>
 
-        <h2 class="text-lg font-bold mb-4 flex items-center gap-2">🚨 الطلبات الواردة</h2>
-        
-        <div id="ordersList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            </div>
+        <div id="view_debts" class="hidden">
+            <h2 class="font-bold mb-4">🔴 ديون المكاتب المتراكمة</h2>
+            <div id="debtsList" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+        </div>
+
     </main>
 
+    <div id="receiptModal" class="fixed inset-0 bg-black/90 z-[100] flex items-center justify-center p-4 hidden">
+        <div class="bg-white p-2 rounded-xl max-w-lg w-full text-center">
+            <img id="receiptImgTag" src="" class="w-full max-h-[70vh] object-contain rounded-lg mb-4">
+            <button onclick="document.getElementById('receiptModal').classList.add('hidden')" class="bg-red-500 text-white px-6 py-2 rounded-lg font-bold">إغلاق</button>
+        </div>
+    </div>
+
     <script>
-        // --- غيّر هذا الرابط برابط السيرفر تبعك على Render ---
         const API_URL = "https://lego-food-bot.onrender.com/api";
 
-        async function fetchOrders() {
-            try {
-                const res = await fetch(`${API_URL}/admin/orders`);
-                const data = await res.json();
-                renderOrders(data.orders);
-                updateStats(data.stats);
-            } catch (e) { console.error("Error fetching orders", e); }
+        function switchTab(tab) {
+            ['active', 'history', 'debts'].forEach(t => {
+                document.getElementById(`view_${t}`).classList.add('hidden');
+                document.getElementById(`tab_${t}`).classList.replace('border-gold', 'border-transparent');
+                document.getElementById(`tab_${t}`).classList.replace('text-white', 'text-gray-300');
+            });
+            document.getElementById(`view_${tab}`).classList.remove('hidden');
+            document.getElementById(`tab_${tab}`).classList.replace('border-transparent', 'border-gold');
+            document.getElementById(`tab_${tab}`).classList.replace('text-gray-300', 'text-white');
+            fetchAll();
         }
 
-        function renderOrders(orders) {
-            const list = document.getElementById('ordersList');
-            if (orders.length === 0) {
-                list.innerHTML = '<p class="text-gray-400 col-span-full text-center py-10">لا توجد طلبات جديدة حالياً...</p>';
-                return;
-            }
+        function showReceipt(base64) {
+            document.getElementById('receiptImgTag').src = base64;
+            document.getElementById('receiptModal').classList.remove('hidden');
+        }
 
-            list.innerHTML = orders.map(order => `
-                <div class="bg-white rounded-2xl shadow-md overflow-hidden border border-gray-100 flex flex-col h-full">
-                    <div class="p-4 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
-                        <span class="font-bold text-navy">طلب #${order.id}</span>
-                        <span class="text-xs text-gray-500">${order.timestamp}</span>
+        async function fetchAll() {
+            // 1. جلب الطلبات النشطة
+            const resAct = await fetch(`${API_URL}/admin/active_orders`);
+            const dataAct = await resAct.json();
+            document.getElementById('activeOrdersList').innerHTML = dataAct.orders.map(o => `
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+                    <div class="flex justify-between mb-2">
+                        <span class="font-bold">#${o.id} | ${o.location}</span>
+                        <span class="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded">${o.status}</span>
                     </div>
-                    <div class="p-5 flex-grow">
-                        <p class="text-sm text-gray-500 font-bold mb-1">📍 المكان:</p>
-                        <p class="text-lg font-bold mb-4">${order.location}</p>
-                        
-                        <p class="text-sm text-gray-500 font-bold mb-1">📦 الطلب:</p>
-                        <ul class="text-navy space-y-1 mb-4">
-                            ${order.details.split(',').map(item => `<li class="flex items-center gap-2">🔹 ${item}</li>`).join('')}
-                        </ul>
-                    </div>
-                    <div class="p-4 bg-gray-50 border-t border-gray-100 mt-auto">
-                        <div class="flex justify-between items-center mb-4">
-                            <span class="font-bold text-gray-600">الإجمالي:</span>
-                            <span class="text-xl font-bold text-gold">${order.total_price} ₪</span>
-                        </div>
-                        <div class="grid grid-cols-2 gap-2">
-                            <button onclick="updateStatus(${order.id}, 'مقبول')" class="bg-navy text-white font-bold py-2 rounded-xl hover:bg-opacity-90 transition">✅ تأكيد</button>
-                            <button onclick="updateStatus(${order.id}, 'صنف ناقص')" class="bg-white border-2 border-red-200 text-red-500 font-bold py-2 rounded-xl hover:bg-red-50 transition">❌ ناقص</button>
-                        </div>
+                    <p class="text-sm text-gray-600 mb-2">${o.details}</p>
+                    <p class="font-bold text-lg text-gold mb-3">${o.total_price} ₪</p>
+                    
+                    ${o.receipt ? `<button onclick="showReceipt('${o.receipt}')" class="w-full mb-2 bg-blue-50 text-blue-600 text-sm py-1 rounded border border-blue-200">📄 عرض الإشعار المرفق</button>` : ''}
+                    
+                    <div class="grid grid-cols-2 gap-2 mt-auto">
+                        <button onclick="updateStatus(${o.id}, 'مقبول')" class="bg-navy text-white text-sm py-2 rounded">✅ قبول</button>
+                        <button onclick="updateStatus(${o.id}, 'مكتمل')" class="bg-green-500 text-white text-sm py-2 rounded">🏁 تسليم/تأكيد مال</button>
                     </div>
                 </div>
             `).join('');
+
+            // 2. جلب السجل
+            if(!document.getElementById('view_history').classList.contains('hidden')){
+                const resHist = await fetch(`${API_URL}/admin/history`);
+                const dataHist = await resHist.json();
+                document.getElementById('totalSales7Days').innerText = dataHist.total_sales + ' ₪';
+                document.getElementById('historyTable').innerHTML = dataHist.orders.map(o => `
+                    <tr><td class="p-3">#${o.id}</td><td class="p-3">${o.timestamp.split(' ')[0]}</td><td class="p-3">${o.location}</td>
+                    <td class="p-3">${o.details.substring(0,20)}...</td><td class="p-3 font-bold">${o.total_price}₪</td>
+                    <td class="p-3 text-xs">${o.is_paid ? 'مسدد' : 'دين'}</td></tr>
+                `).join('');
+            }
+
+            // 3. جلب الديون
+            if(!document.getElementById('view_debts').classList.contains('hidden')){
+                const resDebts = await fetch(`${API_URL}/admin/debts`);
+                const dataDebts = await resDebts.json();
+                document.getElementById('debtsList').innerHTML = dataDebts.debts.map(d => `
+                    <div class="bg-white p-4 rounded-xl border border-red-200 shadow-sm flex justify-between items-center">
+                        <div>
+                            <p class="font-bold">${d.office}</p>
+                            <p class="text-xl font-bold text-red-500">${d.amount} ₪</p>
+                        </div>
+                        <button onclick="sendReminder('${d.office}', ${d.amount})" class="bg-red-50 text-red-600 border border-red-200 px-3 py-2 rounded-lg text-sm font-bold hover:bg-red-100">إرسال تذكير 🔔</button>
+                    </div>
+                `).join('');
+            }
         }
 
-        async function updateStatus(orderId, newStatus) {
-            try {
-                await fetch(`${API_URL}/admin/update_status`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ id: orderId, status: newStatus })
-                });
-                fetchOrders(); // تحديث القائمة بعد التغيير
-            } catch (e) { alert("خطأ في التحديث"); }
+        async function updateStatus(id, status) {
+            await fetch(`${API_URL}/admin/update_status`, {
+                method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({id, status})
+            });
+            fetchAll();
         }
 
-        function updateStats(stats) {
-            document.getElementById('pendingCount').innerText = stats.pending;
-            document.getElementById('todaySales').innerText = stats.sales + ' ₪';
-            document.getElementById('totalDebts').innerText = stats.debts + ' ₪';
+        async function sendReminder(office, amount) {
+            await fetch(`${API_URL}/admin/remind`, {
+                method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({office, amount})
+            });
+            alert("تم إرسال تنبيه للمكتب. سيظهر له فور فتح الموقع.");
         }
 
-        // تحديث تلقائي كل 30 ثانية
-        setInterval(fetchOrders, 30000);
-        fetchOrders(); // تحميل أول مرة
+        // تشغيل أولي
+        fetchAll();
+        setInterval(fetchAll, 15000); // تحديث صامت كل 15 ثانية
     </script>
 </body>
 </html>
