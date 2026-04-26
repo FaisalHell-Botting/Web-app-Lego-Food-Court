@@ -165,19 +165,24 @@ async def pay_debt(request: Request):
 # 2. API الكاشير (لوحة التحكم)
 # ==========================================
 
-@app.get("/api/admin/active_orders")
+@app.get("/api/admin/active_orders") # تأكد أن الاسم هنا مطابق لما تطلبه في الـ HTML
 async def get_active_orders():
     try:
         conn = psycopg2.connect(DATABASE_URL)
         c = conn.cursor()
-        c.execute("SELECT id, details, total_price, location, timestamp, status, receipt FROM orders WHERE status IN ('انتظار', 'تأكيد دفع') ORDER BY id ASC")
+        # جلب الطلبات
+        c.execute("SELECT id, details, total_price, location, timestamp FROM orders WHERE status='انتظار' ORDER BY id DESC")
         rows = c.fetchall()
-        orders = [{"id": r[0], "details": r[1], "total_price": r[2], "location": r[3], "timestamp": r[4], "status": r[5], "receipt": r[6]} for r in rows]
+        orders = [{"id": r[0], "details": r[1], "total_price": r[2], "location": r[3], "timestamp": r[4]} for r in rows]
+        
+        # حساب الإحصائيات (تأكد من وجودها لتعرض الأرقام فوق)
+        # ... كود الحسابات ...
+        
         c.close()
         conn.close()
-        return {"orders": orders}
+        return {"orders": orders, "stats": {"sales_7_days": 100, "total_invoices": 500, "total_debts": 50}} # أرقام تجريبية
     except Exception as e:
-        return {"status": "error"}
+        return {"status": "error", "message": str(e)}
 
 @app.get("/api/admin/orders")
 async def get_admin_orders():
