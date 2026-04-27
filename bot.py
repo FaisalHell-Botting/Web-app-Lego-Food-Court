@@ -67,11 +67,11 @@ init_db()
 async def ai_process(request: Request):
     data = await request.json()
     text = data.get('text')
-    if not GEMINI_KEYS: return {"status": "error", "message": "لا يوجد مفاتيح API للذكاء الاصطناعي"}
+    if not GEMINI_KEYS: return {"status": "error", "message": "لا يوجد مفاتيح API"}
     try:
         genai.configure(api_key=random.choice(GEMINI_KEYS))
         model = genai.GenerativeModel('gemini-2.5-flash')
-        prompt = f"أنت كاشير ذكي. استخرج الأصناف من النص: '{text}'. قائمة الأصناف المتاحة: {list(PRICES.keys())}. رد بصيغة JSON فقط: {{\"items\": [\"شاي\"]}}"
+        prompt = f"أنت كاشير ذكي. استخرج الأصناف من النص: '{text}'. قائمة الأصناف: {list(PRICES.keys())}. رد بصيغة JSON فقط: {{\"items\": [\"شاي\"]}}"
         response = await model.generate_content_async(prompt)
         res_text = response.text.replace('```json', '').replace('```', '').strip()
         result = json.loads(res_text)
@@ -105,13 +105,14 @@ async def create_order(request: Request):
         conn.close()
         return {"status": "success"}
     except Exception as e:
-        return {"status": "error", "message": str(e)}
+        return {"status": "error"}
 
 @app.get("/api/user/sync/{office}")
 async def sync_user(office: str):
     try:
         conn = psycopg2.connect(DATABASE_URL)
         c = conn.cursor()
+        
         c.execute("SELECT id, details, total_price, status, missing_note, order_type FROM orders WHERE location=%s AND status IN ('انتظار', 'صنف_ناقص') ORDER BY id DESC LIMIT 1", (office,))
         active = c.fetchone()
         active_order = {"id": active[0], "details": active[1], "total_price": active[2], "status": active[3], "missing_note": active[4], "order_type": active[5]} if active else None
@@ -119,20 +120,17 @@ async def sync_user(office: str):
         c.execute("SELECT id FROM reminders WHERE office=%s AND is_active=1 LIMIT 1", (office,))
         can_pay_debt = True if c.fetchone() else False
 
-        # جلب الطلبات לסجل الموظف (كل شيء غير انتظار وصنف ناقص يعتبر في السجل)
-        c.execute("SELECT id, details, total_price, timestamp, is_paid, status FROM orders WHERE location=%s AND status NOT IN ('انتظار', 'صنف_ناقص') ORDER BY id DESC", (office,))
+        c.execute("SELECT id, details, total_price, timestamp, is_paid, status FROM orders WHERE location=%s AND status IN ('مقبول', 'مكتمل') ORDER BY id DESC", (office,))
         rows = c.fetchall()
         orders = [{"id": r[0], "details": r[1], "total_price": r[2], "timestamp": r[3], "is_paid": r[4], "status": r[5]} for r in rows]
         
-        # حساب الدين (الطلبات المقبولة/المكتملة والغير مدفوعة)
-        total_debt = sum(r["total_price"] for r in orders if r["is_paid"] == 0 and r["status"] in ["مقبول", "مكتمل"])
+        total_debt = sum(r["total_price"] for r in orders if r["is_paid"] == 0)
 
         review_needed = None
         for r in rows:
             if r[5] == 'مكتمل':
                 c.execute("SELECT is_reviewed FROM orders WHERE id=%s", (r[0],))
-                is_rev = c.fetchone()[0]
-                if is_rev == 0:
+                if c.fetchone()[0] == 0:
                     order_time = datetime.strptime(r[3], "%Y-%m-%d %H:%M:%S")
                     if datetime.utcnow() + timedelta(hours=3) > order_time + timedelta(minutes=10):
                         review_needed = r[0]
@@ -142,7 +140,7 @@ async def sync_user(office: str):
         conn.close()
         return {"status": "success", "active_order": active_order, "can_pay_debt": can_pay_debt, "total_debt": total_debt, "orders": orders, "review_needed": review_needed}
     except Exception as e:
-        return {"status": "error", "message": str(e)}
+        return {"status": "error"}
 
 @app.post("/api/user/action")
 async def user_action(request: Request):
@@ -155,6 +153,10 @@ async def user_action(request: Request):
         c = conn.cursor()
         if action == 'cancel':
             c.execute("UPDATE orders SET status='ملغي' WHERE id=%s AND status IN ('انتظار', 'صنف_ناقص')", (order_id,))
+        elif action == 'edit':
+            new_details = data.get('details')
+            new_price = data.get('total_price')
+            c.execute("UPDATE orders SET details=%s, total_price=%s, status='انتظار', missing_note=NULL WHERE id=%s", (new_details, new_price, order_id))
         elif action == 'pay_debt':
             office = data.get('office')
             receipt = data.get('receipt')
@@ -172,7 +174,7 @@ async def user_action(request: Request):
         conn.close()
         return {"status": "success"}
     except Exception as e:
-        return {"status": "error", "message": str(e)}
+        return {"status": "error"}
 
 @app.get("/api/admin/dashboard")
 async def admin_dashboard():
@@ -189,13 +191,13 @@ async def admin_dashboard():
         c.execute("SELECT SUM(total_price) FROM orders WHERE status IN ('مقبول', 'مكتمل') AND is_paid=0")
         total_debt = c.fetchone()[0] or 0
 
-        # جلب الطلبات الجارية + الطلبات المقبولة اليوم (لتظهر كـ "تمت الموافقة" وتختفي الساعة 11:59 مساءً)
+        # الطلبات الجارية ومقبولة اليوم
         pal_now = datetime.utcnow() + timedelta(hours=3)
         today_start = pal_now.strftime("%Y-%m-%d 00:00:00")
-        
         c.execute("SELECT id, details, total_price, location, timestamp, order_type, status FROM orders WHERE status IN ('انتظار', 'صنف_ناقص') OR (status='مقبول' AND timestamp >= %s) ORDER BY id ASC", (today_start,))
         active_orders = [{"id": r[0], "details": r[1], "total_price": r[2], "location": r[3], "timestamp": r[4], "order_type": r[5], "status": r[6]} for r in c.fetchall()]
 
+        # الديون
         c.execute("SELECT location, SUM(total_price) as debt FROM orders WHERE is_paid=0 AND status IN ('مقبول', 'مكتمل') AND location NOT LIKE 'زائر%%' GROUP BY location ORDER BY debt DESC")
         debts = [{"office": r[0], "amount": r[1], "status": "غير مدفوع"} for r in c.fetchall() if r[1] > 0]
         
@@ -209,7 +211,7 @@ async def admin_dashboard():
         conn.close()
         return {"status": "success", "stats": {"total_sales": total_sales, "total_count": total_count, "paid_invoices": paid_invoices, "total_debts": total_debt}, "active_orders": active_orders, "debts": debts, "reviews": reviews}
     except Exception as e:
-        return {"status": "error", "message": str(e)}
+        return {"status": "error"}
 
 @app.post("/api/admin/action")
 async def admin_action(request: Request):
@@ -227,7 +229,6 @@ async def admin_action(request: Request):
             c.execute("UPDATE orders SET status='صنف_ناقص', missing_note=%s WHERE id=%s", (note, order_id))
         elif action == 'remind':
             office = data.get('office')
-            # التأكد من عدم تكرار التذكير النشط
             c.execute("SELECT id FROM reminders WHERE office=%s AND is_active=1", (office,))
             if not c.fetchone():
                 c.execute("INSERT INTO reminders (office, is_active) VALUES (%s, 1)", (office,))
@@ -237,7 +238,7 @@ async def admin_action(request: Request):
         conn.close()
         return {"status": "success"}
     except Exception as e:
-        return {"status": "error", "message": str(e)}
+        return {"status": "error"}
 
 if __name__ == '__main__':
     uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get('PORT', 8000)))
