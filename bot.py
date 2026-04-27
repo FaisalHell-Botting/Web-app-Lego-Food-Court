@@ -27,7 +27,7 @@ GEMINI_KEYS = [k.strip() for k in GEMINI_KEYS_ENV.split(",") if k.strip()] if GE
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-1.5-flash")
 DEBT_PAYMENT_INFO = os.environ.get(
     "DEBT_PAYMENT_INFO",
-    "يرجى تحديث بيانات التحويل من متغير DEBT_PAYMENT_INFO على Render.",
+    "بنك فلسطين\nID: 1512081\nIBAN: PS11PALS045115120810993100000\nأو محفظة بال باي\n0597489605",
 )
 
 PRICES = {
