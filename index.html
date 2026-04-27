@@ -276,7 +276,7 @@
         <div class="bg-gray-50 rounded-2xl p-4 mb-4">
             <p class="font-bold text-navy mb-2">قيمة الدين: <span id="popupDebtAmount"></span></p>
             <p class="text-xs text-gray-400 font-bold mb-1">معلومات التحويل</p>
-            <p id="popupPaymentInfo" class="text-sm text-navy font-bold whitespace-pre-wrap leading-7"></p>
+            <div id="popupPaymentInfo" class="space-y-2 mt-2"></div>
         </div>
         <button onclick="closeModal('debtReminderModal')" class="w-full bg-navy text-white py-3 rounded-xl font-bold">
             فهمت
@@ -355,6 +355,12 @@ let selectedOrderType = 'داخل الكوفي كورنر';
 let pollingStarted = false;
 let reviewShown = false;
 let latestReminder = null;
+const debtTransferDefaults = {
+    bank: 'بنك فلسطين',
+    id: '1512081',
+    iban: 'PS11PALS045115120810993100000',
+    wallet: '0597489605'
+};
 
 const fullMenu = [
     {id:"h1",name:"شاي",price:1,cat:"hot",emoji:"🍵"},
@@ -760,6 +766,48 @@ function renderDebtSummary(data) {
         : '';
 }
 
+function parsePaymentInfo(info) {
+    const lines = (info || '').split('\n').map(line => line.trim()).filter(Boolean);
+    const parsed = {
+        bank: debtTransferDefaults.bank,
+        id: debtTransferDefaults.id,
+        iban: debtTransferDefaults.iban,
+        wallet: debtTransferDefaults.wallet,
+        raw: info || ''
+    };
+    lines.forEach(line => {
+        if (line.startsWith('ID:')) parsed.id = line.replace('ID:', '').trim();
+        else if (line.startsWith('IBAN:')) parsed.iban = line.replace('IBAN:', '').trim();
+        else if (/^\d{10,}$/.test(line.replace(/\s+/g, ''))) parsed.wallet = line.trim();
+        else if (line.includes('بنك')) parsed.bank = line;
+    });
+    return parsed;
+}
+
+function paymentInfoCard(label, value, copyValue) {
+    return `
+        <div class="bg-white border rounded-xl p-3 flex items-center justify-between gap-3">
+            <div class="min-w-0">
+                <p class="text-[11px] text-gray-400 font-bold mb-1">${label}</p>
+                <p class="text-sm text-navy font-bold break-all">${value}</p>
+            </div>
+            <button onclick="copyText('${String(copyValue).replace(/'/g, "\\'")}')" class="shrink-0 bg-gray-100 hover:bg-gray-200 text-navy text-xs font-bold px-3 py-2 rounded-lg transition-colors">
+                نسخ
+            </button>
+        </div>
+    `;
+}
+
+function renderPaymentInfo(info) {
+    const parsed = parsePaymentInfo(info);
+    document.getElementById('popupPaymentInfo').innerHTML = `
+        ${paymentInfoCard('البنك', parsed.bank, parsed.bank)}
+        ${paymentInfoCard('ID', parsed.id, parsed.id)}
+        ${paymentInfoCard('IBAN', parsed.iban, parsed.iban)}
+        ${paymentInfoCard('محفظة بال باي', parsed.wallet, parsed.wallet)}
+    `;
+}
+
 function renderLedger(orders) {
     const list = document.getElementById('ledgerList');
     if (!orders.length) {
@@ -798,7 +846,7 @@ async function handleReminder(reminder, latestPaymentRequest, totalDebt) {
     document.getElementById('reminderAmountText').innerText = `${reminder.amount} ₪`;
     document.getElementById('reminderPaymentInfo').innerText = reminder.payment_info || '';
     document.getElementById('popupDebtAmount').innerText = `${reminder.amount} ₪`;
-    document.getElementById('popupPaymentInfo').innerText = reminder.payment_info || '';
+    renderPaymentInfo(reminder.payment_info || '');
     document.getElementById('debtPaymentAmount').innerText = `${reminder.amount} ₪`;
 
     const statusText = latestPaymentRequest
@@ -925,6 +973,15 @@ function skipReview() {
 
 function closeModal(id) {
     document.getElementById(id).classList.add('hidden');
+}
+
+async function copyText(value) {
+    try {
+        await navigator.clipboard.writeText(value);
+        showToast('تم نسخ البيانات');
+    } catch (e) {
+        showToast('تعذر النسخ من المتصفح');
+    }
 }
 
 function showToast(msg) {
