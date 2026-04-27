@@ -67,11 +67,11 @@ init_db()
 async def ai_process(request: Request):
     data = await request.json()
     text = data.get('text')
-    if not GEMINI_KEYS: return {"status": "error", "message": "No API Keys"}
+    if not GEMINI_KEYS: return {"status": "error", "message": "لا يوجد مفاتيح API للذكاء الاصطناعي"}
     try:
         genai.configure(api_key=random.choice(GEMINI_KEYS))
         model = genai.GenerativeModel('gemini-2.5-flash')
-        prompt = f"أنت كاشير ذكي. استخرج الأصناف من النص: '{text}'. قائمة الأصناف المتاحة: {list(PRICES.keys())}. رد بصيغة JSON فقط: {{'items': ['شاي']}}"
+        prompt = f"أنت كاشير ذكي. استخرج الأصناف من النص: '{text}'. قائمة الأصناف المتاحة: {list(PRICES.keys())}. رد بصيغة JSON فقط: {{\"items\": [\"شاي\"]}}"
         response = await model.generate_content_async(prompt)
         res_text = response.text.replace('```json', '').replace('```', '').strip()
         result = json.loads(res_text)
@@ -119,9 +119,12 @@ async def sync_user(office: str):
         c.execute("SELECT id FROM reminders WHERE office=%s AND is_active=1 LIMIT 1", (office,))
         can_pay_debt = True if c.fetchone() else False
 
-        c.execute("SELECT id, details, total_price, timestamp, is_paid, status FROM orders WHERE location=%s ORDER BY id DESC", (office,))
+        # جلب الطلبات לסجل الموظف (كل شيء غير انتظار وصنف ناقص يعتبر في السجل)
+        c.execute("SELECT id, details, total_price, timestamp, is_paid, status FROM orders WHERE location=%s AND status NOT IN ('انتظار', 'صنف_ناقص') ORDER BY id DESC", (office,))
         rows = c.fetchall()
         orders = [{"id": r[0], "details": r[1], "total_price": r[2], "timestamp": r[3], "is_paid": r[4], "status": r[5]} for r in rows]
+        
+        # حساب الدين (الطلبات المقبولة/المكتملة والغير مدفوعة)
         total_debt = sum(r["total_price"] for r in orders if r["is_paid"] == 0 and r["status"] in ["مقبول", "مكتمل"])
 
         review_needed = None
@@ -151,11 +154,7 @@ async def user_action(request: Request):
         conn = psycopg2.connect(DATABASE_URL)
         c = conn.cursor()
         if action == 'cancel':
-            c.execute("UPDATE orders SET status='ملغي' WHERE id=%s AND status='انتظار'", (order_id,))
-        elif action == 'edit':
-            new_details = data.get('details')
-            new_price = data.get('total_price')
-            c.execute("UPDATE orders SET details=%s, total_price=%s, status='انتظار', missing_note=NULL WHERE id=%s", (new_details, new_price, order_id))
+            c.execute("UPDATE orders SET status='ملغي' WHERE id=%s AND status IN ('انتظار', 'صنف_ناقص')", (order_id,))
         elif action == 'pay_debt':
             office = data.get('office')
             receipt = data.get('receipt')
@@ -190,8 +189,12 @@ async def admin_dashboard():
         c.execute("SELECT SUM(total_price) FROM orders WHERE status IN ('مقبول', 'مكتمل') AND is_paid=0")
         total_debt = c.fetchone()[0] or 0
 
-        c.execute("SELECT id, details, total_price, location, timestamp, order_type FROM orders WHERE status='انتظار' ORDER BY id ASC")
-        active_orders = [{"id": r[0], "details": r[1], "total_price": r[2], "location": r[3], "timestamp": r[4], "order_type": r[5]} for r in c.fetchall()]
+        # جلب الطلبات الجارية + الطلبات المقبولة اليوم (لتظهر كـ "تمت الموافقة" وتختفي الساعة 11:59 مساءً)
+        pal_now = datetime.utcnow() + timedelta(hours=3)
+        today_start = pal_now.strftime("%Y-%m-%d 00:00:00")
+        
+        c.execute("SELECT id, details, total_price, location, timestamp, order_type, status FROM orders WHERE status IN ('انتظار', 'صنف_ناقص') OR (status='مقبول' AND timestamp >= %s) ORDER BY id ASC", (today_start,))
+        active_orders = [{"id": r[0], "details": r[1], "total_price": r[2], "location": r[3], "timestamp": r[4], "order_type": r[5], "status": r[6]} for r in c.fetchall()]
 
         c.execute("SELECT location, SUM(total_price) as debt FROM orders WHERE is_paid=0 AND status IN ('مقبول', 'مكتمل') AND location NOT LIKE 'زائر%%' GROUP BY location ORDER BY debt DESC")
         debts = [{"office": r[0], "amount": r[1], "status": "غير مدفوع"} for r in c.fetchall() if r[1] > 0]
@@ -224,7 +227,10 @@ async def admin_action(request: Request):
             c.execute("UPDATE orders SET status='صنف_ناقص', missing_note=%s WHERE id=%s", (note, order_id))
         elif action == 'remind':
             office = data.get('office')
-            c.execute("INSERT INTO reminders (office, is_active) VALUES (%s, 1)", (office,))
+            # التأكد من عدم تكرار التذكير النشط
+            c.execute("SELECT id FROM reminders WHERE office=%s AND is_active=1", (office,))
+            if not c.fetchone():
+                c.execute("INSERT INTO reminders (office, is_active) VALUES (%s, 1)", (office,))
             
         conn.commit()
         c.close()
