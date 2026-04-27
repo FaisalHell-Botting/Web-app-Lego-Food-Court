@@ -18,16 +18,16 @@
             </div>
             
             <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4 text-center">
-                <div class="bg-white/10 p-3 rounded-lg"><p class="text-xs text-gray-300">المبيعات</p><p id="s_sales" class="font-bold text-lg">0 ₪</p></div>
-                <div class="bg-white/10 p-3 rounded-lg"><p class="text-xs text-gray-300">الطلبات</p><p id="s_count" class="font-bold text-lg">0</p></div>
+                <div class="bg-white/10 p-3 rounded-lg"><p class="text-xs text-gray-300">المبيعات الإجمالية</p><p id="s_sales" class="font-bold text-lg">0 ₪</p></div>
+                <div class="bg-white/10 p-3 rounded-lg"><p class="text-xs text-gray-300">إجمالي الطلبات</p><p id="s_count" class="font-bold text-lg">0</p></div>
                 <div class="bg-white/10 p-3 rounded-lg"><p class="text-xs text-green-300">فواتير مدفوعة</p><p id="s_paid" class="font-bold text-lg text-green-400">0 ₪</p></div>
                 <div class="bg-white/10 p-3 rounded-lg"><p class="text-xs text-red-300">ديون عالقة</p><p id="s_debt" class="font-bold text-lg text-red-400">0 ₪</p></div>
             </div>
 
             <div class="flex gap-4 overflow-x-auto border-b border-white/20 pb-1">
-                <button onclick="switchTab('active')" id="tab_active" class="font-bold border-b-2 border-[#F7CC46] pb-2 text-white">الطلبات الجارية</button>
-                <button onclick="switchTab('ledger')" id="tab_ledger" class="font-bold text-gray-400 pb-2 border-b-2 border-transparent">سجل الديون</button>
-                <button onclick="switchTab('reviews')" id="tab_reviews" class="font-bold text-gray-400 pb-2 border-b-2 border-transparent">التقييمات</button>
+                <button onclick="switchTab('active')" id="tab_active" class="font-bold border-b-2 border-[#F7CC46] pb-2 text-white whitespace-nowrap">الطلبات الجارية</button>
+                <button onclick="switchTab('ledger')" id="tab_ledger" class="font-bold text-gray-400 pb-2 border-b-2 border-transparent whitespace-nowrap">سجل الديون</button>
+                <button onclick="switchTab('reviews')" id="tab_reviews" class="font-bold text-gray-400 pb-2 border-b-2 border-transparent whitespace-nowrap">التقييمات</button>
             </div>
         </div>
     </header>
@@ -55,24 +55,24 @@
         <div class="bg-white p-6 rounded-2xl w-full max-w-sm">
             <h3 class="font-bold mb-3 text-[#2E3468]">تحديد الصنف الناقص</h3>
             <input type="text" id="missingItemInput" placeholder="مثال: كوكاكولا" class="w-full border-2 p-2 rounded-xl mb-4 focus:outline-none focus:border-red-500">
-            <button onclick="submitMissing()" class="w-full bg-red-500 text-white py-3 rounded-xl font-bold mb-2">إرسال للموظف</button>
+            <button onclick="submitMissing()" class="w-full bg-red-500 text-white py-3 rounded-xl font-bold mb-2">إرسال التنبيه للموظف</button>
             <button onclick="document.getElementById('missingPromptModal').classList.add('hidden')" class="w-full bg-gray-100 text-gray-600 py-3 rounded-xl font-bold">إلغاء</button>
         </div>
     </div>
 
     <script>
         // ⚠️ تأكد من وضع الرابط الخاص بك هنا
-        const API_URL = "https://web-app-lego-food-court.onrender.com/api"; 
+        const API_URL = "https://le-coffee-api-service.onrender.com/api"; 
         
         let targetMissingOrder = null;
 
         function switchTab(tab) {
             ['active', 'ledger', 'reviews'].forEach(t => {
                 document.getElementById(`view_${t}`).classList.add('hidden');
-                document.getElementById(`tab_${t}`).className = 'font-bold text-gray-400 pb-2 border-b-2 border-transparent';
+                document.getElementById(`tab_${t}`).className = 'font-bold text-gray-400 pb-2 border-b-2 border-transparent whitespace-nowrap';
             });
             document.getElementById(`view_${tab}`).classList.remove('hidden');
-            document.getElementById(`tab_${tab}`).className = 'font-bold border-b-2 border-[#F7CC46] pb-2 text-white';
+            document.getElementById(`tab_${tab}`).className = 'font-bold border-b-2 border-[#F7CC46] pb-2 text-white whitespace-nowrap';
         }
 
         async function fetchData() {
@@ -89,17 +89,28 @@
                 if(data.active_orders.length === 0) {
                     list.innerHTML = `<p class="text-gray-400 text-center col-span-full py-10">لا توجد طلبات جارية ✅</p>`;
                 } else {
-                    list.innerHTML = data.active_orders.map(o => `
+                    list.innerHTML = data.active_orders.map(o => {
+                        let buttonsHTML = '';
+                        if (o.status === 'مقبول') {
+                            buttonsHTML = `<div class="col-span-2 bg-green-100 text-green-700 text-center py-2.5 rounded-lg text-sm font-bold border border-green-200">تمت الموافقة ✅</div>`;
+                        } else {
+                            buttonsHTML = `
+                                <button onclick="action('approve', ${o.id})" class="bg-[#2E3468] text-white py-2.5 rounded-lg text-sm font-bold shadow hover:bg-opacity-90">✅ موافقة</button>
+                                <button onclick="promptMissing(${o.id})" class="border-2 border-red-100 text-red-500 py-2.5 rounded-lg text-sm font-bold hover:bg-red-50">❌ صنف ناقص</button>
+                            `;
+                        }
+                        
+                        return `
                         <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col">
                             <div class="flex justify-between mb-3"><span class="font-bold text-[#2E3468]">#${o.id} - ${o.location}</span><span class="text-xs bg-blue-50 border border-blue-100 text-blue-800 px-2 py-1 rounded">${o.order_type}</span></div>
-                            <p class="text-[#2E3468] mb-4 text-sm bg-gray-50 p-2 rounded leading-relaxed">${o.details}</p>
+                            <p class="text-[#2E3468] mb-4 text-sm bg-gray-50 p-3 rounded-lg leading-relaxed font-bold border-r-4 border-[#F7CC46]">${o.details}</p>
                             <div class="flex justify-between items-center mb-4"><span class="text-xs text-gray-400">الإجمالي:</span><span class="font-bold text-lg">${o.total_price} ₪</span></div>
                             <div class="grid grid-cols-2 gap-2 mt-auto">
-                                <button onclick="action('approve', ${o.id})" class="bg-[#2E3468] text-white py-2 rounded-lg text-sm font-bold shadow hover:bg-opacity-90">✅ موافقة</button>
-                                <button onclick="promptMissing(${o.id})" class="border-2 border-red-100 text-red-500 py-2 rounded-lg text-sm font-bold hover:bg-red-50">❌ صنف ناقص</button>
+                                ${buttonsHTML}
                             </div>
                         </div>
-                    `).join('');
+                        `;
+                    }).join('');
                 }
 
                 document.getElementById('ledgerList').innerHTML = data.debts.map(d => `
