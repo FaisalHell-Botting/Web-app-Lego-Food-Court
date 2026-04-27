@@ -7,232 +7,166 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
     <script>
-        tailwind.config = {
-            theme: { extend: { colors: { navy: '#2E3468', gold: '#F7CC46', light: '#F8F9FA' }, fontFamily: { sans: ['Cairo', 'sans-serif'] } } }
-        }
+        tailwind.config = { theme: { extend: { colors: { navy: '#2E3468', gold: '#F7CC46' }, fontFamily: { sans: ['Cairo', 'sans-serif'] } } } }
     </script>
-    <style>
-        body { font-family: 'Cairo', sans-serif; background-color: #F8F9FA; }
-        .scrollbar-hide::-webkit-scrollbar { display: none; }
-        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
-        .hidden-screen { display: none !important; }
-    </style>
+    <style>body { font-family: 'Cairo', sans-serif; background-color: #F8F9FA; } .hidden-screen { display: none !important; }</style>
 </head>
 <body class="text-navy pb-28">
 
     <div id="authScreen" class="fixed inset-0 bg-navy z-[100] flex flex-col items-center justify-center p-6">
         <img src="logo.png" alt="Logo" class="h-24 mb-8 brightness-0 invert" onerror="this.style.display='none'">
         <div class="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-sm text-center">
-            <h2 class="text-2xl font-bold mb-6">أهلاً بك في الكوفي كورنر</h2>
-            
+            <h2 class="text-2xl font-bold mb-6">تسجيل الدخول</h2>
             <div class="mb-4 text-right">
-                <label class="block text-sm font-bold mb-2 text-gray-600">رقم المكتب (للموظفين)</label>
-                <input type="text" id="loginOffice" placeholder="مثال: 15" class="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-navy focus:outline-none bg-gray-50 text-center text-lg font-bold">
+                <input type="text" id="loginOffice" placeholder="رقم المكتب (مثال: 15)" class="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-navy focus:outline-none bg-gray-50 text-center font-bold">
             </div>
-            <button onclick="login('office')" class="w-full bg-navy text-white font-bold py-3 rounded-xl mb-4 hover:bg-opacity-90 transition">دخول للمكتب</button>
-            
-            <div class="flex items-center my-4">
-                <div class="flex-grow border-t border-gray-200"></div>
-                <span class="px-3 text-gray-400 text-sm">أو</span>
-                <div class="flex-grow border-t border-gray-200"></div>
-            </div>
-            
-            <button onclick="login('guest')" class="w-full bg-white border-2 border-gold text-gold font-bold py-3 rounded-xl hover:bg-yellow-50 transition">الدخول كزائر</button>
+            <button onclick="login('office')" class="w-full bg-navy text-white font-bold py-3 rounded-xl mb-4">دخول للمكتب</button>
+            <button onclick="login('guest')" class="w-full bg-white border-2 border-gold text-gold font-bold py-3 rounded-xl">دخول كزائر</button>
         </div>
     </div>
 
-    <header id="mainHeader" class="bg-white shadow-sm p-4 sticky top-0 z-50 hidden-screen">
+    <header id="mainHeader" class="bg-white shadow-sm p-4 sticky top-0 z-40 hidden-screen">
         <div class="flex items-center justify-between max-w-md mx-auto">
-            <div class="flex items-center gap-3">
-                <img src="logo.png" alt="LE Logo" class="h-8 object-contain">
-                <span id="userBadge" class="bg-gold text-navy text-xs font-bold px-2 py-1 rounded-md">مكتب 15</span>
-            </div>
-            <button onclick="toggleLedger()" id="btnLedger" class="text-sm font-bold text-navy underline decoration-gold decoration-2 underline-offset-4">سجل ديوني</button>
+            <span id="userBadge" class="bg-gold text-navy text-sm font-bold px-3 py-1 rounded-md"></span>
+            <button onclick="toggleLedger()" id="btnLedger" class="text-sm font-bold text-navy underline decoration-gold">سجل ديوني</button>
         </div>
     </header>
 
-    <main id="mainScreen" class="max-w-md mx-auto p-4 space-y-6 hidden-screen">
-        
-        <div class="bg-navy text-white p-5 rounded-2xl shadow-md relative overflow-hidden">
-            <div class="absolute top-0 right-0 w-2 h-full bg-gold"></div>
-            <h2 class="font-bold mb-3">🤖 اطلب بالذكاء الاصطناعي</h2>
-            <textarea id="aiInput" placeholder="مثال: بدي 2 قهوة وسط..." class="w-full bg-white/10 border border-white/20 rounded-xl p-3 text-white focus:border-gold resize-none" rows="2"></textarea>
-            <button onclick="sendAIOrder()" class="mt-3 w-full bg-gold text-navy font-bold py-3 rounded-xl shadow-lg hover:bg-yellow-400 transition">تحليل الطلب</button>
+    <div id="activeOrderBanner" class="max-w-md mx-auto p-4 hidden-screen">
+        <div class="bg-blue-50 border-2 border-blue-200 p-4 rounded-xl shadow-sm">
+            <h3 class="font-bold text-blue-800 mb-2">⏳ طلبك قيد الانتظار</h3>
+            <p id="activeOrderDetails" class="text-sm text-gray-700 mb-3"></p>
+            <button onclick="cancelActiveOrder()" class="bg-red-100 text-red-600 px-4 py-2 rounded-lg text-sm font-bold w-full">إلغاء الطلب</button>
         </div>
+    </div>
 
-        <div class="flex gap-2 overflow-x-auto pb-2 scrollbar-hide" id="categoryButtons">
-            <button onclick="filterMenu('all')" id="btn_all" class="cat-btn bg-navy text-white px-5 py-2 rounded-full text-sm font-bold shadow-md transition">الكل</button>
-            <button onclick="filterMenu('cat_hot')" id="btn_cat_hot" class="cat-btn bg-white border border-gray-200 text-gray-600 px-5 py-2 rounded-full text-sm hover:bg-gray-50 transition">☕ ساخن</button>
-            <button onclick="filterMenu('cat_cold')" id="btn_cat_cold" class="cat-btn bg-white border border-gray-200 text-gray-600 px-5 py-2 rounded-full text-sm hover:bg-gray-50 transition">🥤 بارد</button>
-            <button onclick="filterMenu('cat_sandwiches')" id="btn_cat_sandwiches" class="cat-btn bg-white border border-gray-200 text-gray-600 px-5 py-2 rounded-full text-sm hover:bg-gray-50 transition">🥪 سندويشات</button>
-            <button onclick="filterMenu('cat_choc')" id="btn_cat_choc" class="cat-btn bg-white border border-gray-200 text-gray-600 px-5 py-2 rounded-full text-sm hover:bg-gray-50 transition">🍫 شوكلاتة</button>
-            <button onclick="filterMenu('cat_chips')" id="btn_cat_chips" class="cat-btn bg-white border border-gray-200 text-gray-600 px-5 py-2 rounded-full text-sm hover:bg-gray-50 transition">🍟 شبسي</button>
-        </div>
-
+    <main id="mainScreen" class="max-w-md mx-auto p-4 space-y-4 hidden-screen">
         <div id="menuContainer" class="grid grid-cols-2 gap-4"></div>
     </main>
 
     <div id="cartBar" class="fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 p-4 shadow-lg transform translate-y-full transition-transform z-40 hidden-screen">
-        <div class="max-w-md mx-auto flex justify-between items-center">
-            <div class="flex flex-col">
-                <span class="text-xs text-gray-500 font-bold">المجموع</span>
-                <span id="totalPrice" class="font-bold text-2xl text-navy">0 ₪</span>
+        <div class="max-w-md mx-auto">
+            <div class="flex gap-2 mb-3 bg-gray-100 p-1 rounded-xl">
+                <button id="locCoffee" onclick="setLoc('الكوفي كورنر')" class="flex-1 py-2 text-sm font-bold bg-white shadow rounded-lg text-navy">في الكوفي</button>
+                <button id="locOffice" onclick="setLoc('توصيل للمكتب')" class="flex-1 py-2 text-sm font-bold text-gray-500">توصيل للمكتب</button>
             </div>
-            <button onclick="processCheckout()" class="bg-navy text-white px-8 py-3 rounded-xl font-bold shadow-lg flex items-center gap-3 hover:bg-opacity-90">
-                تنفيذ الطلب <span id="cartCount" class="bg-gold text-navy w-6 h-6 rounded-full flex items-center justify-center text-sm">0</span>
-            </button>
+            <div class="flex justify-between items-center">
+                <div class="flex flex-col">
+                    <span class="text-xs text-gray-500 font-bold">المجموع</span>
+                    <span id="totalPrice" class="font-bold text-xl text-navy">0 ₪</span>
+                </div>
+                <button onclick="processCheckout()" class="bg-navy text-white px-8 py-3 rounded-xl font-bold shadow-lg">تأكيد الطلب</button>
+            </div>
         </div>
     </div>
 
-    <div id="paymentModal" class="fixed inset-0 bg-black/80 z-[110] flex items-center justify-center p-4 hidden-screen">
-        <div class="bg-white rounded-3xl w-full max-w-sm p-6 text-center">
-            <h3 class="text-xl font-bold text-navy mb-2" id="payTitle">إتمام الدفع</h3>
-            <p class="text-gray-500 text-sm mb-4">يرجى التحويل وإرفاق صورة الإشعار</p>
-            
-            <div class="bg-gray-50 p-4 rounded-xl text-right mb-4 text-sm space-y-2 border border-gray-200">
-                <p>🔹 <b>بال باي (كمال عبيد):</b> 0597489605</p>
-                <p>🔹 <b>بنك فلسطين:</b> 1512081</p>
-            </div>
-
-            <input type="file" id="receiptImage" accept="image/*" class="w-full border p-2 rounded-xl mb-4 text-sm">
-            
-            <button onclick="submitOrderWithPayment()" class="w-full bg-green-500 text-white font-bold py-3 rounded-xl mb-2 hover:bg-green-600 transition">تأكيد ورفع الإشعار</button>
-            <button onclick="closePaymentModal()" class="w-full bg-gray-100 text-gray-600 font-bold py-3 rounded-xl hover:bg-gray-200 transition">إلغاء</button>
+    <div id="missingModal" class="fixed inset-0 bg-black/80 z-[110] flex items-center justify-center p-4 hidden-screen">
+        <div class="bg-white rounded-3xl w-full max-w-sm p-6 text-center border-t-8 border-orange-500">
+            <h3 class="text-xl font-bold text-orange-600 mb-2">⚠️ تنبيه من الكاشير</h3>
+            <p class="text-gray-600 mb-4 text-sm">يوجد نقص في طلبك: <span id="missingItemText" class="font-bold text-navy"></span></p>
+            <p class="text-xs text-gray-400 mb-4">تم إعادة الطلب لسلتك، قم بتعديله وأعد الإرسال.</p>
+            <button onclick="closeMissingModal()" class="w-full bg-navy text-white font-bold py-3 rounded-xl">حسناً، سأقوم بالتعديل</button>
         </div>
     </div>
 
     <div id="ledgerScreen" class="fixed inset-0 bg-gray-50 z-[90] p-4 overflow-y-auto hidden-screen pb-20 pt-20">
         <div class="max-w-md mx-auto">
-            <button onclick="toggleLedger()" class="mb-4 text-navy font-bold flex items-center gap-1 hover:text-gold transition">➡️ رجوع للطلب</button>
-            
+            <button onclick="toggleLedger()" class="mb-4 text-navy font-bold">➡️ رجوع</button>
             <div class="bg-white p-6 rounded-3xl shadow-sm text-center border-t-4 border-red-500 mb-6">
-                <p class="text-gray-500 font-bold">إجمالي الديون المتراكمة</p>
+                <p class="text-gray-500 font-bold">إجمالي الديون</p>
                 <p id="ledgerTotalDebt" class="text-4xl font-bold text-red-500 my-2">0 ₪</p>
-                <button onclick="openDebtPayment()" class="bg-navy text-white text-sm px-4 py-2 rounded-lg mt-2 hover:bg-opacity-90">تسديد الديون الآن</button>
+                <button id="btnPayDebt" onclick="openPayment('debt')" class="bg-gray-300 text-gray-500 text-sm px-4 py-2 rounded-lg mt-2 cursor-not-allowed" disabled>لا يمكنك السداد الآن</button>
+                <p id="debtMsg" class="text-xs text-red-500 mt-2 hidden-screen">يوجد طلب سداد من الكاشير! اضغط للسداد.</p>
             </div>
-
-            <h3 class="font-bold text-gray-800 mb-3">سجل الطلبات السابقة</h3>
-            <div id="ledgerList" class="space-y-3">
-                </div>
+            <div id="ledgerList" class="space-y-3"></div>
         </div>
     </div>
 
-    <div id="reminderPopup" class="fixed top-5 left-1/2 transform -translate-x-1/2 bg-red-500 text-white px-6 py-3 rounded-xl shadow-2xl z-[200] font-bold text-center w-11/12 max-w-sm hidden-screen">
-        <span id="reminderText"></span>
-        <button onclick="document.getElementById('reminderPopup').classList.add('hidden-screen')" class="mt-2 text-sm underline block w-full hover:text-gray-200">حسناً، فهمت</button>
+    <div id="paymentModal" class="fixed inset-0 bg-black/80 z-[110] flex items-center justify-center p-4 hidden-screen">
+        <div class="bg-white rounded-3xl w-full max-w-sm p-6 text-center">
+            <h3 class="text-xl font-bold text-navy mb-4" id="payTitle">إتمام الدفع</h3>
+            <div class="bg-gray-50 p-4 rounded-xl text-right mb-4 text-sm border">
+                <p>🔹 <b>بال باي (كمال عبيد):</b> 0597489605</p>
+            </div>
+            <input type="file" id="receiptImage" accept="image/*" class="w-full border p-2 rounded-xl mb-4 text-sm">
+            <button onclick="submitPayment()" class="w-full bg-green-500 text-white font-bold py-3 rounded-xl mb-2">تأكيد ورفع الإشعار</button>
+            <button onclick="document.getElementById('paymentModal').classList.add('hidden-screen')" class="w-full bg-gray-100 text-gray-600 font-bold py-3 rounded-xl">إلغاء</button>
+        </div>
+    </div>
+
+    <div id="reviewModal" class="fixed inset-0 bg-black/80 z-[120] flex items-center justify-center p-4 hidden-screen">
+        <div class="bg-white rounded-3xl w-full max-w-sm p-6 text-center">
+            <h3 class="text-xl font-bold text-navy mb-2">كيف كانت قهوتك؟ ☕</h3>
+            <p class="text-gray-500 text-sm mb-4">رأيك يهمنا لتحسين الخدمة</p>
+            <select id="reviewRating" class="w-full border p-3 rounded-xl mb-3 font-bold text-center">
+                <option value="5">⭐⭐⭐⭐⭐ ممتاز</option>
+                <option value="4">⭐⭐⭐⭐ جيد جداً</option>
+                <option value="3">⭐⭐⭐ جيد</option>
+                <option value="2">⭐⭐ مقبول</option>
+                <option value="1">⭐ سيء</option>
+            </select>
+            <textarea id="reviewText" placeholder="أضف تعليقك (اختياري)" class="w-full border p-3 rounded-xl mb-4 text-sm"></textarea>
+            <button onclick="submitReview()" class="w-full bg-gold text-navy font-bold py-3 rounded-xl">إرسال التقييم</button>
+        </div>
     </div>
 
     <script>
-        // ⚠️ مهم جداً: تأكد أن هذا هو الرابط الصحيح لسيرفر البايثون الخاص بك على Render
-        const API_URL = "https://web-app-lego-food-court.onrender.com/api";
+        // ⚠️ ضع رابط السيرفر الخاص بك هنا
+        const API_URL = "https://le-coffee-api-service.onrender.com/api"; 
         
         let currentUser = { type: '', id: '' };
         let cart = {};
+        let orderLocation = 'الكوفي كورنر';
         let isPayingDebt = false;
+        let activeOrderId = null;
+        let orderToReview = null;
 
-        // القائمة الكاملة المأخوذة من ملف البايثون
         const menuItems = [
-            { id: 'h1', name: 'شاي', price: 1, category: 'cat_hot' },
-            { id: 'h2', name: 'قهوة مزاج وسط', price: 2, category: 'cat_hot' },
-            { id: 'h3', name: 'قهوة مزاج كبير', price: 3, category: 'cat_hot' },
-            { id: 'h4', name: 'نسكافيه مكس', price: 2, category: 'cat_hot' },
-            { id: 'h5', name: 'كفي مكس', price: 2, category: 'cat_hot' },
-            { id: 'h6', name: 'كابتشينو جوداي', price: 3, category: 'cat_hot' },
-            { id: 'c1', name: 'كوكاكولا', price: 4, category: 'cat_cold' },
-            { id: 'c2', name: 'بلو أزرق', price: 4, category: 'cat_cold' },
-            { id: 'c3', name: 'مراعي حليب شوكلاتة', price: 2, category: 'cat_cold' },
-            { id: 'c4', name: 'عصير كوكتيل فواكه', price: 2, category: 'cat_cold' },
-            { id: 'c5', name: 'لتر عصير برتقال', price: 7, category: 'cat_cold' },
-            { id: 'c6', name: 'لتر عصير مانجا', price: 7, category: 'cat_cold' },
-            { id: 's1', name: 'سندويش فينو فيتا', price: 3, category: 'cat_sandwiches' },
-            { id: 's2', name: 'سندويش فينو مرتديلا', price: 3, category: 'cat_sandwiches' },
-            { id: 'ch1', name: 'سنيكرز', price: 3, category: 'cat_choc' },
-            { id: 'ch2', name: 'تويكس', price: 3, category: 'cat_choc' },
-            { id: 'ch3', name: 'مارس', price: 3, category: 'cat_choc' },
-            { id: 'ch4', name: 'مستر بايت', price: 4, category: 'cat_choc' },
-            { id: 'ch5', name: 'قسماط حجم وسط', price: 4, category: 'cat_choc' },
-            { id: 'ch6', name: 'بسكويت مالح', price: 2, category: 'cat_choc' },
-            { id: 'ch7', name: 'بسكويت ديمة فانيلا', price: 2, category: 'cat_choc' },
-            { id: 'ch8', name: 'مولتو ميني', price: 2, category: 'cat_choc' },
-            { id: 'ch9', name: 'شكلاتة تجارية ب 2شيكل', price: 2, category: 'cat_choc' },
-            { id: 'ch10', name: 'شكلاتة تجارية ب 1 شيكل', price: 1, category: 'cat_choc' },
-            { id: 'ch11', name: 'حلو نعنع سكوتش', price: 1, category: 'cat_choc' },
-            { id: 'cp1', name: 'برنجلز أحمر صغير', price: 6, category: 'cat_chips' },
-            { id: 'cp2', name: 'برنجلز أحمر كبير', price: 11, category: 'cat_chips' },
-            { id: 'cp3', name: 'برنجلز أحمر كبير شطة', price: 11, category: 'cat_chips' },
-            { id: 'cp4', name: 'كيك فراولة', price: 7, category: 'cat_chips' }
+            { id: 'h1', name: 'شاي', price: 1, type: 'drink' },
+            { id: 'h2', name: 'قهوة مزاج وسط', price: 2, type: 'drink' },
+            { id: 's1', name: 'سندويش فينو فيتا', price: 3, type: 'sandwich' },
+            { id: 'c1', name: 'كوكاكولا', price: 4, type: 'drink' }
+            // يمكن إضافة باقي المنيو هنا
         ];
 
-        // نظام الدخول
         function login(type) {
             if (type === 'office') {
                 const num = document.getElementById('loginOffice').value;
-                if (!num) return alert("الرجاء إدخال رقم المكتب");
+                if (!num) return alert("أدخل رقم المكتب");
                 currentUser = { type: 'office', id: 'مكتب ' + num };
                 document.getElementById('btnLedger').style.display = 'block';
-                checkLedgerAndReminders();
             } else {
                 currentUser = { type: 'guest', id: 'زائر - ' + Math.floor(Math.random()*1000) };
                 document.getElementById('btnLedger').style.display = 'none';
             }
-            
             document.getElementById('userBadge').innerText = currentUser.id;
             document.getElementById('authScreen').classList.add('hidden-screen');
             document.getElementById('mainHeader').classList.remove('hidden-screen');
             document.getElementById('mainScreen').classList.remove('hidden-screen');
             renderMenu();
+            startPolling();
         }
 
-        // المنيو والسلة
-        function filterMenu(category) {
-            const buttons = document.querySelectorAll('.cat-btn');
-            buttons.forEach(btn => {
-                btn.classList.remove('bg-navy', 'text-white', 'shadow-md');
-                btn.classList.add('bg-white', 'text-gray-600');
-            });
-            const activeBtn = document.getElementById('btn_' + category);
-            if(activeBtn) {
-                activeBtn.classList.remove('bg-white', 'text-gray-600');
-                activeBtn.classList.add('bg-navy', 'text-white', 'shadow-md');
-            }
-            renderMenu(category);
+        function setLoc(loc) {
+            orderLocation = loc;
+            document.getElementById('locCoffee').className = loc === 'الكوفي كورنر' ? 'flex-1 py-2 text-sm font-bold bg-white shadow rounded-lg text-navy' : 'flex-1 py-2 text-sm font-bold text-gray-500';
+            document.getElementById('locOffice').className = loc === 'توصيل للمكتب' ? 'flex-1 py-2 text-sm font-bold bg-white shadow rounded-lg text-navy' : 'flex-1 py-2 text-sm font-bold text-gray-500';
         }
 
-        function renderMenu(cat = 'all') {
+        function renderMenu() {
             const container = document.getElementById('menuContainer');
-            container.innerHTML = '';
-            const items = cat === 'all' ? menuItems : menuItems.filter(i => i.category === cat);
-            
-            items.forEach(item => {
+            container.innerHTML = menuItems.map(item => {
                 const qty = cart[item.id] || 0;
-                let btn = qty > 0 
-                    ? `<div class="mt-4 flex justify-between items-center bg-navy text-white px-2 py-1.5 rounded-xl font-bold">
-                        <button onclick="updateCart('${item.id}', -1)" class="w-8 h-8 flex items-center justify-center text-xl hover:text-gold">-</button>
-                        <span>${qty}</span>
-                        <button onclick="updateCart('${item.id}', 1)" class="w-8 h-8 flex items-center justify-center text-xl hover:text-gold">+</button>
-                       </div>`
-                    : `<button onclick="updateCart('${item.id}', 1)" class="mt-4 w-full border-2 border-navy text-navy font-bold py-1.5 rounded-xl text-sm hover:bg-navy hover:text-white transition">إضافة</button>`;
-                
-                container.innerHTML += `<div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between hover:shadow-md transition">
-                    <div>
-                        <h3 class="font-bold text-gray-800 leading-tight">${item.name}</h3>
-                        <p class="text-gold font-bold mt-1">${item.price} ₪</p>
-                    </div>
-                    ${btn}
-                </div>`;
-            });
+                let btn = qty > 0 ? `<div class="mt-3 flex justify-between bg-navy text-white px-2 py-1 rounded-lg font-bold"><button onclick="updateCart('${item.id}', -1)" class="px-2">-</button><span>${qty}</span><button onclick="updateCart('${item.id}', 1)" class="px-2">+</button></div>` : `<button onclick="updateCart('${item.id}', 1)" class="mt-3 w-full border border-navy text-navy font-bold py-1 rounded-lg">إضافة</button>`;
+                return `<div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                    <h3 class="font-bold text-sm">${item.name}</h3><p class="text-gold font-bold">${item.price} ₪</p>${btn}</div>`;
+            }).join('');
         }
 
         function updateCart(id, change) {
             cart[id] = (cart[id] || 0) + change;
             if (cart[id] <= 0) delete cart[id];
-            
-            // للحفاظ على القسم الحالي مفتوحاً عند تحديث السلة
-            const activeBtn = document.querySelector('.cat-btn.bg-navy');
-            const currentCat = activeBtn ? activeBtn.id.replace('btn_', '') : 'all';
-            renderMenu(currentCat);
-            
-            updateBar();
+            renderMenu(); updateBar();
         }
 
         function updateBar() {
@@ -240,178 +174,126 @@
             for (const [id, count] of Object.entries(cart)) {
                 qty += count; price += menuItems.find(i=>i.id===id).price * count;
             }
-            document.getElementById('cartCount').innerText = qty;
             document.getElementById('totalPrice').innerText = price + ' ₪';
-            
-            const bar = document.getElementById('cartBar');
-            qty > 0 ? bar.classList.remove('hidden-screen', 'translate-y-full') : bar.classList.add('hidden-screen', 'translate-y-full');
+            qty > 0 && !activeOrderId ? document.getElementById('cartBar').classList.remove('hidden-screen', 'translate-y-full') : document.getElementById('cartBar').classList.add('hidden-screen', 'translate-y-full');
         }
 
-        // معالجة الطلب (دفع أم دين)
         function processCheckout() {
+            // التحقق من السندويشات
+            let hasSandwich = Object.keys(cart).some(id => menuItems.find(i => i.id === id).type === 'sandwich');
+            if (hasSandwich && orderLocation === 'توصيل للمكتب') {
+                return alert("عذراً، الطلبات التي تحتوي على سندويشات تُقدم فقط داخل الكوفي كورنر.");
+            }
+
             if (currentUser.type === 'guest') {
                 isPayingDebt = false;
                 document.getElementById('payTitle').innerText = "دفع طلب الزائر";
                 document.getElementById('paymentModal').classList.remove('hidden-screen');
             } else {
-                sendOrderToServer(''); // الموظف يطلب مباشرة على الدين
-            }
-        }
-
-        function openDebtPayment() {
-            isPayingDebt = true;
-            document.getElementById('payTitle').innerText = "تسديد ديون المكتب";
-            document.getElementById('paymentModal').classList.remove('hidden-screen');
-        }
-
-        function closePaymentModal() { document.getElementById('paymentModal').classList.add('hidden-screen'); }
-
-        function getBase64(file) {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.readAsDataURL(file);
-                reader.onload = () => resolve(reader.result);
-                reader.onerror = error => reject(error);
-            });
-        }
-
-        async function submitOrderWithPayment() {
-            const file = document.getElementById('receiptImage').files[0];
-            if (!file) return alert("الرجاء إرفاق صورة الإشعار!");
-            const base64Img = await getBase64(file);
-            
-            if (isPayingDebt) {
-                try {
-                    const res = await fetch(`${API_URL}/pay_debt`, {
-                        method: 'POST', headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({ office: currentUser.id, receipt: base64Img })
-                    });
-                    if(res.ok){
-                        alert("✅ تم رفع إشعار السداد بنجاح! بانتظار تأكيد الكاشير.");
-                        closePaymentModal();
-                        toggleLedger(); 
-                    } else {
-                        throw new Error("Server returned error");
-                    }
-                } catch(e) {
-                    console.error(e);
-                    alert("⚠️ خطأ في الاتصال بالسيرفر. تأكد أن سيرفرك يعمل بشكل سليم.");
-                }
-            } else {
-                sendOrderToServer(base64Img);
-                closePaymentModal();
+                sendOrderToServer('');
             }
         }
 
         async function sendOrderToServer(receiptBase64) {
-            let orderItems = []; let total = 0;
+            let items = [], total = 0;
             for (const [id, qty] of Object.entries(cart)) {
                 const item = menuItems.find(i => i.id === id);
-                for(let k=0; k<qty; k++) orderItems.push(item.name);
+                for(let k=0; k<qty; k++) items.push(item.name);
                 total += item.price * qty;
             }
-
-            try {
-                const res = await fetch(`${API_URL}/order`, {
-                    method: 'POST', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ office: currentUser.id, items: orderItems, total_price: total, receipt: receiptBase64 })
-                });
-                
-                if(res.ok) {
-                    alert("✅ تم إرسال الطلب للكاشير بنجاح! صحة وهنا.");
-                    cart = {}; updateBar(); 
-                    const activeBtn = document.querySelector('.cat-btn.bg-navy');
-                    renderMenu(activeBtn ? activeBtn.id.replace('btn_', '') : 'all');
-                } else {
-                    throw new Error("Server returned error");
-                }
-            } catch(e) { 
-                console.error(e);
-                alert("⚠️ خطأ في الاتصال بالسيرفر. يرجى التأكد من أن الرابط يعمل بشكل صحيح."); 
-            }
-        }
-
-        // سجل الديون والتذكيرات
-        function toggleLedger() {
-            const screen = document.getElementById('ledgerScreen');
-            if (screen.classList.contains('hidden-screen')) {
-                screen.classList.remove('hidden-screen');
-                checkLedgerAndReminders();
-            } else {
-                screen.classList.add('hidden-screen');
-            }
-        }
-
-        async function checkLedgerAndReminders() {
-            if (currentUser.type !== 'office') return;
-            try {
-                const res = await fetch(`${API_URL}/ledger/${currentUser.id}`);
-                const data = await res.json();
-                
-                if (data.reminder) {
-                    document.getElementById('reminderText').innerText = data.reminder;
-                    document.getElementById('reminderPopup').classList.remove('hidden-screen');
-                }
-
-                document.getElementById('ledgerTotalDebt').innerText = data.total_debt + ' ₪';
-                const list = document.getElementById('ledgerList');
-                if(data.orders && data.orders.length > 0) {
-                    list.innerHTML = data.orders.map(o => `
-                        <div class="bg-white p-4 rounded-xl border border-gray-100 flex justify-between items-center shadow-sm">
-                            <div>
-                                <p class="font-bold text-sm text-navy leading-tight mb-1">${o.details}</p>
-                                <p class="text-xs text-gray-400">${o.timestamp} | حالة: ${o.status}</p>
-                            </div>
-                            <div class="text-left whitespace-nowrap mr-3">
-                                <p class="font-bold text-lg">${o.total_price} ₪</p>
-                                ${o.is_paid ? '<span class="text-xs text-green-600 font-bold bg-green-50 px-2 py-1 rounded inline-block mt-1">مسدد</span>' : '<span class="text-xs text-red-600 font-bold bg-red-50 px-2 py-1 rounded inline-block mt-1">دين</span>'}
-                            </div>
-                        </div>
-                    `).join('');
-                } else {
-                    list.innerHTML = `<p class="text-gray-400 text-center py-4 text-sm">لا يوجد طلبات سابقة</p>`;
-                }
-            } catch(e) {
-                console.error("Error fetching ledger:", e);
-            }
-        }
-        
-        async function sendAIOrder() {
-            const text = document.getElementById('aiInput').value;
-            if(!text) return;
             
-            const btn = document.querySelector('#aiInput + button');
-            const ogText = btn.innerText;
-            btn.innerText = 'جاري التحليل...';
-            btn.disabled = true;
+            // إذا كان تعديل لطلب ناقص
+            if (activeOrderId) {
+                await fetch(`${API_URL}/user/action`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ action: 'edit', order_id: activeOrderId, details: items.join(', '), total_price: total }) });
+            } else {
+                await fetch(`${API_URL}/order`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ office: currentUser.id, items: items, total_price: total, order_type: orderLocation, receipt: receiptBase64 }) });
+            }
+            cart = {}; updateBar(); renderMenu(); pollServer();
+        }
 
-            try {
-                const res = await fetch(`${API_URL}/ai_process`, {
-                    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({text})
-                });
-                const data = await res.json();
-                if(data.items) {
-                    cart = {};
-                    data.items.forEach(itemName => {
-                        const matchedItem = menuItems.find(i => i.name === itemName);
-                        if(matchedItem) cart[matchedItem.id] = (cart[matchedItem.id] || 0) + 1;
-                    });
-                    
-                    const activeBtn = document.querySelector('.cat-btn.bg-navy');
-                    renderMenu(activeBtn ? activeBtn.id.replace('btn_', '') : 'all');
-                    updateBar();
-                    alert("تم تجهيز سلتك بالذكاء الاصطناعي، يرجى التأكيد من الأسفل.");
-                } else {
-                    alert("لم نتمكن من فهم الأصناف، يرجى المحاولة يدوياً.");
-                }
-            } catch (e) {
-                console.error(e);
-                alert("⚠️ خطأ في الاتصال بالذكاء الاصطناعي.");
-            } finally {
-                btn.innerText = ogText;
-                btn.disabled = false;
+        async function cancelActiveOrder() {
+            if(confirm("هل أنت متأكد من إلغاء الطلب؟")) {
+                await fetch(`${API_URL}/user/action`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ action: 'cancel', order_id: activeOrderId }) });
+                pollServer();
             }
         }
+
+        // المزامنة الحية (Polling)
+        async function pollServer() {
+            if(currentUser.type !== 'office') return;
+            try {
+                const res = await fetch(`${API_URL}/user/sync/${currentUser.id}`);
+                const data = await res.json();
+                
+                // 1. الطلب الجاري
+                if (data.active_order) {
+                    activeOrderId = data.active_order.id;
+                    if (data.active_order.status === 'صنف_ناقص') {
+                        document.getElementById('missingItemText').innerText = data.active_order.missing_note;
+                        document.getElementById('missingModal').classList.remove('hidden-screen');
+                    } else {
+                        document.getElementById('activeOrderDetails').innerText = `${data.active_order.details} (${data.active_order.order_type})`;
+                        document.getElementById('activeOrderBanner').classList.remove('hidden-screen');
+                        document.getElementById('cartBar').classList.add('hidden-screen');
+                    }
+                } else {
+                    activeOrderId = null;
+                    document.getElementById('activeOrderBanner').classList.add('hidden-screen');
+                }
+
+                // 2. الديون
+                document.getElementById('ledgerTotalDebt').innerText = data.total_debt + ' ₪';
+                const btnPay = document.getElementById('btnPayDebt');
+                const msgDebt = document.getElementById('debtMsg');
+                if (data.can_pay_debt) {
+                    btnPay.disabled = false; btnPay.className = "bg-green-500 text-white font-bold px-6 py-2 rounded-lg mt-2"; btnPay.innerText = "تسديد الديون الآن";
+                    msgDebt.classList.remove('hidden-screen');
+                } else {
+                    btnPay.disabled = true; btnPay.className = "bg-gray-300 text-gray-500 text-sm px-4 py-2 rounded-lg mt-2 cursor-not-allowed"; btnPay.innerText = "لا يمكنك السداد الآن";
+                    msgDebt.classList.add('hidden-screen');
+                }
+
+                // 3. التقييم
+                if (data.review_needed) {
+                    orderToReview = data.review_needed;
+                    document.getElementById('reviewModal').classList.remove('hidden-screen');
+                }
+
+            } catch(e) {}
+        }
+
+        function closeMissingModal() {
+            document.getElementById('missingModal').classList.add('hidden-screen');
+            // فتح السلة ليعدل
+            document.getElementById('cartBar').classList.remove('hidden-screen', 'translate-y-full');
+        }
+
+        // التعامل مع الإيصالات
+        function openPayment(type) { isPayingDebt = type === 'debt'; document.getElementById('payTitle').innerText = isPayingDebt ? "تسديد الديون" : "دفع الزائر"; document.getElementById('paymentModal').classList.remove('hidden-screen'); }
+        async function submitPayment() {
+            const file = document.getElementById('receiptImage').files[0];
+            if (!file) return alert("أرفق الإشعار!");
+            const reader = new FileReader();
+            reader.onload = async () => {
+                if (isPayingDebt) {
+                    await fetch(`${API_URL}/user/action`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ action: 'pay_debt', office: currentUser.id, receipt: reader.result }) });
+                    alert("تم السداد بنجاح"); toggleLedger(); pollServer();
+                } else { sendOrderToServer(reader.result); }
+                document.getElementById('paymentModal').classList.add('hidden-screen');
+            };
+            reader.readAsDataURL(file);
+        }
+
+        async function submitReview() {
+            const r = document.getElementById('reviewRating').value;
+            const t = document.getElementById('reviewText').value;
+            await fetch(`${API_URL}/user/action`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ action: 'review', order_id: orderToReview, rating: r, review_text: t }) });
+            document.getElementById('reviewModal').classList.add('hidden-screen');
+            alert("شكراً لتقييمك!");
+        }
+
+        function toggleLedger() { document.getElementById('ledgerScreen').classList.toggle('hidden-screen'); pollServer(); }
+        function startPolling() { pollServer(); setInterval(pollServer, 10000); }
     </script>
 </body>
 </html>
