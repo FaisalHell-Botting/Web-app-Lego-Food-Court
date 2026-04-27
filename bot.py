@@ -43,7 +43,6 @@ def init_db():
                  (id SERIAL PRIMARY KEY, user_id BIGINT, details TEXT, total_price INTEGER, 
                  location TEXT, timestamp TEXT, status TEXT, is_paid INTEGER DEFAULT 0, receipt TEXT)''')
     
-    # تحديث آمن للجداول
     cols = [
         ("order_type", "TEXT DEFAULT 'الكوفي كورنر'"),
         ("missing_note", "TEXT"),
@@ -64,9 +63,23 @@ def init_db():
 
 init_db()
 
-# ==========================================
-# API الموظفين والزوار
-# ==========================================
+@app.post("/api/ai_process")
+async def ai_process(request: Request):
+    data = await request.json()
+    text = data.get('text')
+    if not GEMINI_KEYS: return {"status": "error", "message": "No API Keys"}
+    try:
+        genai.configure(api_key=random.choice(GEMINI_KEYS))
+        model = genai.GenerativeModel('gemini-2.5-flash')
+        prompt = f"أنت كاشير ذكي. استخرج الأصناف من النص: '{text}'. قائمة الأصناف المتاحة: {list(PRICES.keys())}. رد بصيغة JSON فقط: {{'items': ['شاي']}}"
+        response = await model.generate_content_async(prompt)
+        res_text = response.text.replace('```json', '').replace('```', '').strip()
+        result = json.loads(res_text)
+        total = sum(PRICES.get(item, 0) for item in result.get('items', []))
+        result['total_price'] = total
+        return result
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 @app.post("/api/order")
 async def create_order(request: Request):
@@ -99,24 +112,18 @@ async def sync_user(office: str):
     try:
         conn = psycopg2.connect(DATABASE_URL)
         c = conn.cursor()
-        
-        # جلب الطلب الجاري (انتظار أو صنف_ناقص)
         c.execute("SELECT id, details, total_price, status, missing_note, order_type FROM orders WHERE location=%s AND status IN ('انتظار', 'صنف_ناقص') ORDER BY id DESC LIMIT 1", (office,))
         active = c.fetchone()
         active_order = {"id": active[0], "details": active[1], "total_price": active[2], "status": active[3], "missing_note": active[4], "order_type": active[5]} if active else None
 
-        # جلب التذكيرات النشطة
         c.execute("SELECT id FROM reminders WHERE office=%s AND is_active=1 LIMIT 1", (office,))
-        reminder = c.fetchone()
-        can_pay_debt = True if reminder else False
+        can_pay_debt = True if c.fetchone() else False
 
-        # جلب الديون والسجل
         c.execute("SELECT id, details, total_price, timestamp, is_paid, status FROM orders WHERE location=%s ORDER BY id DESC", (office,))
         rows = c.fetchall()
         orders = [{"id": r[0], "details": r[1], "total_price": r[2], "timestamp": r[3], "is_paid": r[4], "status": r[5]} for r in rows]
         total_debt = sum(r["total_price"] for r in orders if r["is_paid"] == 0 and r["status"] in ["مقبول", "مكتمل"])
 
-        # طلبات تحتاج تقييم (مكتملة ومر عليها 10 دقائق ولم تقيم)
         review_needed = None
         for r in rows:
             if r[5] == 'مكتمل':
@@ -130,7 +137,6 @@ async def sync_user(office: str):
 
         c.close()
         conn.close()
-        
         return {"status": "success", "active_order": active_order, "can_pay_debt": can_pay_debt, "total_debt": total_debt, "orders": orders, "review_needed": review_needed}
     except Exception as e:
         return {"status": "error", "message": str(e)}
@@ -169,17 +175,12 @@ async def user_action(request: Request):
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
-# ==========================================
-# API الكاشير (لوحة التحكم)
-# ==========================================
-
 @app.get("/api/admin/dashboard")
 async def admin_dashboard():
     try:
         conn = psycopg2.connect(DATABASE_URL)
         c = conn.cursor()
         
-        # الإحصائيات
         c.execute("SELECT SUM(total_price) FROM orders WHERE status IN ('مقبول', 'مكتمل') AND is_paid=1")
         paid_invoices = c.fetchone()[0] or 0
         c.execute("SELECT SUM(total_price) FROM orders WHERE status IN ('مقبول', 'مكتمل')")
@@ -189,36 +190,21 @@ async def admin_dashboard():
         c.execute("SELECT SUM(total_price) FROM orders WHERE status IN ('مقبول', 'مكتمل') AND is_paid=0")
         total_debt = c.fetchone()[0] or 0
 
-        # الطلبات الجارية
         c.execute("SELECT id, details, total_price, location, timestamp, order_type FROM orders WHERE status='انتظار' ORDER BY id ASC")
-        rows = c.fetchall()
-        active_orders = [{"id": r[0], "details": r[1], "total_price": r[2], "location": r[3], "timestamp": r[4], "order_type": r[5]} for r in rows]
+        active_orders = [{"id": r[0], "details": r[1], "total_price": r[2], "location": r[3], "timestamp": r[4], "order_type": r[5]} for r in c.fetchall()]
 
-        # سجل الديون مجمع حسب المكتب
         c.execute("SELECT location, SUM(total_price) as debt FROM orders WHERE is_paid=0 AND status IN ('مقبول', 'مكتمل') AND location NOT LIKE 'زائر%%' GROUP BY location ORDER BY debt DESC")
-        debt_rows = c.fetchall()
-        debts = [{"office": r[0], "amount": r[1], "status": "غير مدفوع"} for r in debt_rows if r[1] > 0]
+        debts = [{"office": r[0], "amount": r[1], "status": "غير مدفوع"} for r in c.fetchall() if r[1] > 0]
         
-        # الدفع الفوري (الزوار) وتم التسديد
         c.execute("SELECT location, total_price, timestamp FROM orders WHERE is_paid=1 AND location LIKE 'زائر%%' ORDER BY id DESC LIMIT 10")
-        guest_rows = c.fetchall()
-        for r in guest_rows: debts.append({"office": r[0], "amount": r[1], "status": "دفع فوري"})
+        for r in c.fetchall(): debts.append({"office": r[0], "amount": r[1], "status": "دفع فوري"})
 
-        # التقييمات
         c.execute("SELECT location, details, rating, review_text, timestamp FROM orders WHERE is_reviewed=1 ORDER BY id DESC LIMIT 20")
-        rev_rows = c.fetchall()
-        reviews = [{"office": r[0], "details": r[1], "rating": r[2], "text": r[3], "date": r[4]} for r in rev_rows]
+        reviews = [{"office": r[0], "details": r[1], "rating": r[2], "text": r[3], "date": r[4]} for r in c.fetchall()]
 
         c.close()
         conn.close()
-        
-        return {
-            "status": "success",
-            "stats": {"total_sales": total_sales, "total_count": total_count, "paid_invoices": paid_invoices, "total_debts": total_debt},
-            "active_orders": active_orders,
-            "debts": debts,
-            "reviews": reviews
-        }
+        return {"status": "success", "stats": {"total_sales": total_sales, "total_count": total_count, "paid_invoices": paid_invoices, "total_debts": total_debt}, "active_orders": active_orders, "debts": debts, "reviews": reviews}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
