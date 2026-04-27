@@ -131,7 +131,15 @@ async def sync_user(office: str):
             if r[5] == 'مكتمل':
                 c.execute("SELECT is_reviewed FROM orders WHERE id=%s", (r[0],))
                 if c.fetchone()[0] == 0:
-                    order_time = datetime.strptime(r[3], "%Y-%m-%d %H:%M:%S")
+                    # صمام الأمان للوقت لحل مشكلة الـ Crash
+                    try:
+                        order_time = datetime.strptime(r[3], "%Y-%m-%d %H:%M:%S")
+                    except ValueError:
+                        try:
+                            order_time = datetime.strptime(r[3], "%Y-%m-%d %H:%M")
+                        except:
+                            continue # تخطي لو الوقت مضروب تماماً
+                            
                     if datetime.utcnow() + timedelta(hours=3) > order_time + timedelta(minutes=10):
                         review_needed = r[0]
                         break
@@ -140,7 +148,8 @@ async def sync_user(office: str):
         conn.close()
         return {"status": "success", "active_order": active_order, "can_pay_debt": can_pay_debt, "total_debt": total_debt, "orders": orders, "review_needed": review_needed}
     except Exception as e:
-        return {"status": "error"}
+        print("Sync Error:", str(e))
+        return {"status": "error", "message": str(e)}
 
 @app.post("/api/user/action")
 async def user_action(request: Request):
@@ -191,13 +200,11 @@ async def admin_dashboard():
         c.execute("SELECT SUM(total_price) FROM orders WHERE status IN ('مقبول', 'مكتمل') AND is_paid=0")
         total_debt = c.fetchone()[0] or 0
 
-        # الطلبات الجارية ومقبولة اليوم
         pal_now = datetime.utcnow() + timedelta(hours=3)
         today_start = pal_now.strftime("%Y-%m-%d 00:00:00")
         c.execute("SELECT id, details, total_price, location, timestamp, order_type, status FROM orders WHERE status IN ('انتظار', 'صنف_ناقص') OR (status='مقبول' AND timestamp >= %s) ORDER BY id ASC", (today_start,))
         active_orders = [{"id": r[0], "details": r[1], "total_price": r[2], "location": r[3], "timestamp": r[4], "order_type": r[5], "status": r[6]} for r in c.fetchall()]
 
-        # الديون
         c.execute("SELECT location, SUM(total_price) as debt FROM orders WHERE is_paid=0 AND status IN ('مقبول', 'مكتمل') AND location NOT LIKE 'زائر%%' GROUP BY location ORDER BY debt DESC")
         debts = [{"office": r[0], "amount": r[1], "status": "غير مدفوع"} for r in c.fetchall() if r[1] > 0]
         
