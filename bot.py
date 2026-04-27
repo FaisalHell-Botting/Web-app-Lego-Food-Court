@@ -59,29 +59,12 @@ def init_db():
 
 init_db()
 
-@app.post("/api/ai_process")
-async def ai_process(request: Request):
-    data = await request.json()
-    text = data.get('text', '')
-    if not GEMINI_KEYS: return {"status": "error"}
-    try:
-        genai.configure(api_key=random.choice(GEMINI_KEYS))
-        model = genai.GenerativeModel('gemini-2.5-flash')
-        prompt = f"استخرج الأصناف كـ JSON: '{text}'. القائمة: {list(PRICES.keys())}. الصيغة: {{\"items\": []}}"
-        response = await model.generate_content_async(prompt)
-        res_text = response.text.replace('```json', '').replace('```', '').strip()
-        result = json.loads(res_text)
-        result['total_price'] = sum(PRICES.get(i, 0) for i in result.get('items', []))
-        return result
-    except: return {"status": "error"}
-
 @app.post("/api/order")
 async def create_order(request: Request):
     data = await request.json()
     office = data.get('office', '').strip()
     items = data.get('items', [])
     total_price = data.get('total_price', 0)
-    receipt = data.get('receipt', '')
     order_type = data.get('order_type', 'الكوفي كورنر')
     
     status = "مقبول" if "زائر" in office else "انتظار"
@@ -90,8 +73,8 @@ async def create_order(request: Request):
     try:
         conn = psycopg2.connect(DATABASE_URL)
         c = conn.cursor()
-        c.execute("INSERT INTO orders (user_id, details, total_price, location, timestamp, status, is_paid, receipt, order_type) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                  (0, ", ".join(items), total_price, office, get_pal_time(), status, is_paid, receipt, order_type))
+        c.execute("INSERT INTO orders (user_id, details, total_price, location, timestamp, status, is_paid, order_type) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                  (0, ", ".join(items), total_price, office, get_pal_time(), status, is_paid, order_type))
         conn.commit()
         c.close()
         conn.close()
@@ -105,67 +88,20 @@ async def sync_user(office: str):
         conn = psycopg2.connect(DATABASE_URL)
         c = conn.cursor()
         
-        # الطلب الجاري
         c.execute("SELECT id, details, total_price, status, missing_note, order_type FROM orders WHERE location=%s AND status IN ('انتظار', 'صنف_ناقص') ORDER BY id DESC LIMIT 1", (office,))
         active = c.fetchone()
         active_order = {"id": active[0], "details": active[1], "total_price": active[2], "status": active[3], "missing_note": active[4], "order_type": active[5]} if active else None
 
-        # السجل والديون (كل ما ليس انتظار أو ناقص)
         c.execute("SELECT id, details, total_price, timestamp, is_paid, status FROM orders WHERE location=%s AND status NOT IN ('انتظار', 'صنف_ناقص', 'ملغي') ORDER BY id DESC", (office,))
-        rows = c.fetchall()
-        orders = [{"id": r[0], "details": r[1], "total_price": r[2], "timestamp": r[3], "is_paid": r[4], "status": r[5]} for r in rows]
-        total_debt = sum(r["total_price"] for r in orders if r["is_paid"] == 0 and r["status"] in ["مقبول", "مكتمل"])
+        orders = [{"id": r[0], "details": r[1], "total_price": r[2], "timestamp": r[3], "is_paid": r[4], "status": r[5]} for r in c.fetchall()]
+        total_debt = sum(r["total_price"] for r in orders if r["is_paid"] == 0)
 
-        # التذكير
         c.execute("SELECT id FROM reminders WHERE office=%s AND is_active=1 LIMIT 1", (office,))
         can_pay = True if c.fetchone() else False
 
         c.close()
         conn.close()
         return {"status": "success", "active_order": active_order, "orders": orders, "total_debt": total_debt, "can_pay_debt": can_pay}
-    except: return {"status": "error"}
-
-@app.post("/api/user/action")
-async def user_action(request: Request):
-    data = await request.json()
-    action, order_id = data.get('action'), data.get('order_id')
-    try:
-        conn = psycopg2.connect(DATABASE_URL)
-        c = conn.cursor()
-        if action == 'cancel':
-            c.execute("UPDATE orders SET status='ملغي' WHERE id=%s", (order_id,))
-        elif action == 'pay_debt':
-            office = data.get('office').strip()
-            c.execute("INSERT INTO orders (details, total_price, location, timestamp, status, is_paid, receipt) VALUES (%s, %s, %s, %s, %s, %s, %s)",
-                      ("تسديد ديون", 0, office, get_pal_time(), "تأكيد دفع", 1, data.get('receipt')))
-            c.execute("UPDATE orders SET is_paid=1 WHERE location=%s AND status IN ('مقبول', 'مكتمل')", (office,))
-            c.execute("UPDATE reminders SET is_active=0 WHERE office=%s", (office,))
-        conn.commit()
-        c.close()
-        conn.close()
-        return {"status": "success"}
-    except: return {"status": "error"}
-
-@app.get("/api/admin/dashboard")
-async def admin_dashboard():
-    try:
-        conn = psycopg2.connect(DATABASE_URL)
-        c = conn.cursor()
-        c.execute("SELECT SUM(total_price) FROM orders WHERE status IN ('مقبول', 'مكتمل')")
-        ts = c.fetchone()[0] or 0
-        c.execute("SELECT SUM(total_price) FROM orders WHERE status IN ('مقبول', 'مكتمل') AND is_paid=0")
-        td = c.fetchone()[0] or 0
-        
-        today = (datetime.utcnow() + timedelta(hours=3)).strftime("%Y-%m-%d 00:00:00")
-        c.execute("SELECT id, details, total_price, location, timestamp, order_type, status FROM orders WHERE status IN ('انتظار', 'صنف_ناقص') OR (status='مقبول' AND timestamp >= %s) ORDER BY status DESC, id ASC", (today,))
-        active = [{"id": r[0], "details": r[1], "total_price": r[2], "location": r[3], "timestamp": r[4], "order_type": r[5], "status": r[6]} for r in c.fetchall()]
-
-        c.execute("SELECT location, SUM(total_price) FROM orders WHERE is_paid=0 AND status IN ('مقبول', 'مكتمل') GROUP BY location HAVING SUM(total_price) > 0")
-        debts = [{"office": r[0], "amount": r[1], "status": "غير مدفوع"} for r in c.fetchall()]
-
-        c.close()
-        conn.close()
-        return {"status": "success", "stats": {"total_sales": ts, "total_debts": td}, "active_orders": active, "debts": debts}
     except: return {"status": "error"}
 
 @app.post("/api/admin/action")
@@ -177,9 +113,6 @@ async def admin_action(request: Request):
         c = conn.cursor()
         if action == 'approve': c.execute("UPDATE orders SET status='مقبول' WHERE id=%s", (oid,))
         elif action == 'missing': c.execute("UPDATE orders SET status='صنف_ناقص', missing_note=%s WHERE id=%s", (data.get('note'), oid))
-        elif action == 'remind': 
-            off = data.get('office').strip()
-            c.execute("INSERT INTO reminders (office, is_active) VALUES (%s, 1)", (off,))
         conn.commit()
         c.close()
         conn.close()
