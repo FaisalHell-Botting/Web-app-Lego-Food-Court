@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لوحة الكاشير | LE Coffee</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Cairo', sans-serif; background-color: #F8F9FA; }
+        .hidden { display: none !important; }
+        .slide-up { animation: slideUp 0.25s ease-out; }
+        @keyframes slideUp { from { transform: translateY(12px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    </style>
+</head>
+<body class="text-[#2E3468] pb-10">
+
+<header class="bg-[#2E3468] text-white p-4 shadow-lg sticky top-0 z-50">
+    <div class="max-w-6xl mx-auto">
+        <div class="flex justify-between items-center mb-4 gap-3">
+            <div class="flex items-center gap-3 min-w-0">
+                <img src="/logo.png" alt="LE Coffee" class="w-12 h-12 rounded-xl object-contain bg-white p-1" onerror="this.classList.add('hidden')">
+                <div class="min-w-0">
+                    <h1 class="text-xl font-black truncate">لوحة الكاشير</h1>
+                    <p class="text-xs text-gray-300 font-bold">الطلبات الجارية، الديون، وإثباتات السداد</p>
+                </div>
+            </div>
+            <button onclick="fetchData()" class="bg-[#F7CC46] text-[#2E3468] px-4 py-1.5 rounded-lg font-bold text-sm hover:bg-yellow-300 transition-colors">
+                تحديث
+            </button>
+        </div>
+
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4 text-center">
+            <div class="bg-white/10 p-3 rounded-xl"><p class="text-xs text-gray-300 mb-1">المبيعات الإجمالية</p><p id="s_sales" class="font-black text-lg">0 ₪</p></div>
+            <div class="bg-white/10 p-3 rounded-xl"><p class="text-xs text-gray-300 mb-1">إجمالي الطلبات</p><p id="s_count" class="font-black text-lg">0</p></div>
+            <div class="bg-white/10 p-3 rounded-xl"><p class="text-xs text-green-300 mb-1">مدفوع</p><p id="s_paid" class="font-black text-lg text-green-400">0 ₪</p></div>
+            <div class="bg-white/10 p-3 rounded-xl"><p class="text-xs text-red-300 mb-1">ديون عالقة</p><p id="s_debt" class="font-black text-lg text-red-400">0 ₪</p></div>
+        </div>
+
+        <div class="flex gap-1 overflow-x-auto">
+            <button onclick="switchTab('active')" id="tab_active" class="font-bold px-4 py-2 rounded-lg bg-[#F7CC46] text-[#2E3468] text-sm whitespace-nowrap">
+                الطلبات الجارية <span id="activeCount" class="ml-1 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full hidden">0</span>
+            </button>
+            <button onclick="switchTab('ledger')" id="tab_ledger" class="font-bold px-4 py-2 rounded-lg text-gray-300 hover:bg-white/10 text-sm whitespace-nowrap transition-colors">
+                سجل الديون
+            </button>
+            <button onclick="switchTab('guests')" id="tab_guests" class="font-bold px-4 py-2 rounded-lg text-gray-300 hover:bg-white/10 text-sm whitespace-nowrap transition-colors">
+                طلبات الزوار
+            </button>
+            <button onclick="switchTab('reviews')" id="tab_reviews" class="font-bold px-4 py-2 rounded-lg text-gray-300 hover:bg-white/10 text-sm whitespace-nowrap transition-colors">
+                التقييمات
+            </button>
+        </div>
+    </div>
+</header>
+
+<main class="max-w-6xl mx-auto p-4 mt-2">
+    <div id="view_active">
+        <div id="activeOrdersList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+    </div>
+
+    <div id="view_ledger" class="hidden">
+        <div class="bg-white rounded-2xl shadow-sm border overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full text-right text-sm">
+                    <thead class="bg-gray-50 border-b">
+                        <tr class="text-gray-500 text-xs">
+                            <th class="p-4 font-bold">المكتب</th>
+                            <th class="p-4 font-bold">الإجمالي</th>
+                            <th class="p-4 font-bold">التذكير</th>
+                            <th class="p-4 font-bold">إجراء</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ledgerList" class="divide-y divide-gray-100"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div id="view_guests" class="hidden">
+        <div id="guestOrdersList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+    </div>
+
+    <div id="view_reviews" class="hidden">
+        <div id="reviewsList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+    </div>
+</main>
+
+<div id="missingPromptModal" class="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white p-6 rounded-3xl w-full max-w-sm slide-up">
+        <h3 class="font-black text-lg text-[#2E3468] mb-1">تحديد الصنف الناقص</h3>
+        <p class="text-xs text-gray-400 mb-4 pb-3 border-b">اختر الأصناف غير المتوفرة</p>
+        <div id="missingItemsContainer" class="space-y-2 mb-4 max-h-56 overflow-y-auto"></div>
+        <button onclick="submitMissing()" class="w-full bg-red-500 text-white py-3 rounded-xl font-bold mb-2 hover:bg-red-600 transition-colors shadow">
+            إرسال تنبيه للموظف
+        </button>
+        <button onclick="closeModal('missingPromptModal')" class="w-full bg-gray-100 text-gray-600 py-3 rounded-xl font-bold hover:bg-gray-200 transition-colors">
+            إلغاء
+        </button>
+    </div>
+</div>
+
+<div id="receiptViewModal" class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 hidden" onclick="closeModal('receiptViewModal')">
+    <div class="max-w-sm w-full" onclick="event.stopPropagation()">
+        <div class="bg-white rounded-2xl p-4">
+            <div class="flex justify-between items-center mb-3">
+                <h3 class="font-bold text-[#2E3468]">صورة المرفق</h3>
+                <button onclick="closeModal('receiptViewModal')" class="text-gray-400 font-bold text-xl">×</button>
+            </div>
+            <img id="receiptFullImg" src="" class="w-full rounded-xl max-h-96 object-contain">
+        </div>
+    </div>
+</div>
+
+<script>
+const API_URL = "https://web-app-lego-food-court.onrender.com/api";
+
+let targetMissingOrder = null;
+let currentOrderDetailsArray = [];
+let selectedMissingItems = [];
+let previousActiveCount = 0;
+
+function switchTab(tab) {
+    ['active','ledger','guests','reviews'].forEach(t => {
+        document.getElementById(`view_${t}`).classList.add('hidden');
+        document.getElementById(`tab_${t}`).className = 'font-bold px-4 py-2 rounded-lg text-gray-300 hover:bg-white/10 text-sm whitespace-nowrap transition-colors';
+    });
+    document.getElementById(`view_${tab}`).classList.remove('hidden');
+    document.getElementById(`tab_${tab}`).className = 'font-bold px-4 py-2 rounded-lg bg-[#F7CC46] text-[#2E3468] text-sm whitespace-nowrap';
+}
+
+async function fetchData() {
+    try {
+        const res = await fetch(`${API_URL}/admin/dashboard`);
+        const data = await res.json();
+
+        document.getElementById('s_sales').innerText = `${data.stats.total_sales || 0} ₪`;
+        document.getElementById('s_count').innerText = data.stats.total_count || 0;
+        document.getElementById('s_paid').innerText = `${data.stats.paid_invoices || 0} ₪`;
+        document.getElementById('s_debt').innerText = `${data.stats.total_debts || 0} ₪`;
+
+        const activeCount = (data.active_orders || []).length;
+        const badge = document.getElementById('activeCount');
+        if (activeCount > 0) {
+            badge.innerText = activeCount;
+            badge.classList.remove('hidden');
+        } else {
+            badge.classList.add('hidden');
+        }
+        previousActiveCount = activeCount;
+
+        renderActiveOrders(data.active_orders || []);
+        renderLedger(data.debts || []);
+        renderGuests(data.guest_orders || []);
+        renderReviews(data.reviews || []);
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+function renderActiveOrders(orders) {
+    const list = document.getElementById('activeOrdersList');
+    if (!orders.length) {
+        list.innerHTML = `<div class="col-span-full text-center py-16 text-gray-400">
+            <div class="text-5xl mb-3">✅</div>
+            <p class="font-bold">لا توجد طلبات جارية</p>
+            <p class="text-sm">كل شيء تحت السيطرة</p>
+        </div>`;
+        return;
+    }
+
+    list.innerHTML = orders.map(order => {
+        if (order.kind === 'debt_payment') {
+            return `
+            <div class="bg-white p-4 rounded-2xl border-2 border-indigo-200 bg-indigo-50 shadow-sm flex flex-col slide-up">
+                <div class="flex justify-between items-start mb-3">
+                    <div>
+                        <span class="font-black text-[#2E3468] text-base">#${order.id}</span>
+                        <span class="font-bold text-gray-600 text-sm mr-1">· ${order.location}</span>
+                    </div>
+                    <span class="text-xs bg-indigo-100 text-indigo-700 font-bold px-2 py-1 rounded-full">طلب تسديد دين</span>
+                </div>
+                <p class="text-xs text-gray-500 mb-2 font-bold">قيمة الدين المرفقة</p>
+                <p class="font-black text-2xl text-[#2E3468] mb-3">${order.total_price} ₪</p>
+                <button onclick="showFullReceipt('${order.receipt}')" class="bg-white border border-indigo-200 text-indigo-700 py-2.5 rounded-xl text-sm font-bold mb-3 hover:bg-indigo-50 transition-colors">
+                    عرض الصورة المرفقة
+                </button>
+                <button onclick="action('confirm_debt_payment', ${order.id})" class="bg-[#2E3468] text-white py-2.5 rounded-xl text-sm font-bold shadow hover:bg-opacity-90 transition-all mt-auto">
+                    تأكيد السداد وتحويله لمدفوع
+                </button>
+            </div>`;
+        }
+
+        const isPending = order.status === 'انتظار';
+        const isMissing = order.status === 'صنف_ناقص';
+        const detailsEscaped = order.details.replace(/'/g, "\\'");
+        return `
+        <div class="bg-white p-4 rounded-2xl border-2 ${isPending ? 'border-yellow-300 bg-yellow-50' : 'border-red-300 bg-red-50'} shadow-sm flex flex-col slide-up">
+            <div class="flex justify-between items-start mb-3">
+                <div>
+                    <span class="font-black text-[#2E3468] text-base">#${order.id}</span>
+                    <span class="font-bold text-gray-600 text-sm mr-1">· ${order.location}</span>
+                </div>
+                <span class="text-xs font-bold px-2 py-1 rounded-full ${isPending ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}">
+                    ${isPending ? 'انتظار' : 'صنف ناقص'}
+                </span>
+            </div>
+            <p class="text-xs text-gray-400 mb-2 font-bold">${order.order_type || 'داخل الكوفي كورنر'}</p>
+            <p class="text-[#2E3468] mb-3 text-sm bg-white p-3 rounded-xl leading-relaxed font-bold border">${order.details}</p>
+            ${order.missing_note ? `<div class="bg-red-50 border border-red-200 p-2 rounded-lg mb-3"><p class="text-xs text-red-600 font-bold">ناقص: ${order.missing_note}</p></div>` : ''}
+            <div class="flex justify-between items-center mb-3">
+                <span class="text-xs text-gray-400 font-bold">الإجمالي:</span>
+                <span class="font-black text-xl text-[#2E3468]">${order.total_price} ₪</span>
+            </div>
+            <div class="grid grid-cols-2 gap-2 mt-auto">
+                <button onclick="action('approve', ${order.id})" class="bg-[#2E3468] text-white py-2.5 rounded-xl text-sm font-bold shadow hover:bg-opacity-90 transition-all">
+                    موافقة
+                </button>
+                <button onclick="promptMissing(${order.id}, '${detailsEscaped}')" class="border-2 border-red-200 text-red-500 py-2.5 rounded-xl text-sm font-bold hover:bg-red-50 transition-colors">
+                    صنف ناقص
+                </button>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function renderLedger(debts) {
+    const body = document.getElementById('ledgerList');
+    if (!debts.length) {
+        body.innerHTML = '<tr><td colspan="4" class="p-8 text-center text-gray-400">لا توجد ديون مسجلة</td></tr>';
+        return;
+    }
+    body.innerHTML = debts.map(d => `
+        <tr class="hover:bg-gray-50 transition-colors">
+            <td class="p-4 font-bold text-[#2E3468]">${d.office}</td>
+            <td class="p-4"><span class="font-black text-lg text-red-500">${d.amount} ₪</span></td>
+            <td class="p-4">
+                ${d.has_active_reminder
+                    ? `<span class="px-3 py-1 rounded-full text-xs font-bold bg-yellow-50 text-yellow-700">مرسل ${d.reminder_created_at || ''}</span>`
+                    : `<span class="px-3 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-500">لم يرسل</span>`}
+            </td>
+            <td class="p-4">
+                <div class="flex gap-2">
+                    <button onclick="action('remind', null, '${d.office}')" class="bg-[#F7CC46] text-[#2E3468] px-3 py-1.5 text-xs rounded-lg font-bold shadow hover:bg-yellow-300 transition-colors">
+                        إرسال تذكير
+                    </button>
+                    <button onclick="action('mark_paid', null, '${d.office}')" class="bg-green-100 text-green-700 px-3 py-1.5 text-xs rounded-lg font-bold hover:bg-green-200 transition-colors">
+                        سداد يدوي
+                    </button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function renderGuests(orders) {
+    const guestList = document.getElementById('guestOrdersList');
+    if (!orders.length) {
+        guestList.innerHTML = `<div class="col-span-full text-center py-16 text-gray-400">
+            <div class="text-5xl mb-3">🚶</div>
+            <p class="font-bold">لا توجد طلبات زوار</p>
+        </div>`;
+        return;
+    }
+    guestList.innerHTML = orders.map(o => `
+        <div class="bg-white p-4 rounded-2xl border shadow-sm slide-up">
+            <div class="flex justify-between items-start mb-2">
+                <span class="font-bold text-[#2E3468] text-sm">#${o.id} · ${o.location}</span>
+                <span class="text-xs bg-green-100 text-green-700 font-bold px-2 py-1 rounded-full">مدفوع</span>
+            </div>
+            <p class="text-sm text-navy font-bold bg-gray-50 p-3 rounded-xl mb-3 leading-relaxed">${o.details}</p>
+            <div class="flex justify-between items-center mb-3">
+                <span class="text-xs text-gray-400">${o.timestamp}</span>
+                <span class="font-black text-[#2E3468]">${o.total_price} ₪</span>
+            </div>
+            ${o.receipt ? `<button onclick="showFullReceipt('${o.receipt}')" class="w-full border rounded-xl py-2.5 text-sm font-bold hover:bg-gray-50">عرض الفاتورة</button>` : '<p class="text-xs text-red-400 font-bold">لا توجد فاتورة</p>'}
+        </div>
+    `).join('');
+}
+
+function renderReviews(reviews) {
+    const ratingEmojis = { 5: '😍', 4: '😊', 3: '😐', 2: '😕', 1: '😡' };
+    const list = document.getElementById('reviewsList');
+    if (!reviews.length) {
+        list.innerHTML = `<div class="col-span-full text-center py-16 text-gray-400">
+            <div class="text-5xl mb-3">⭐</div>
+            <p class="font-bold">لا توجد تقييمات بعد</p>
+        </div>`;
+        return;
+    }
+    list.innerHTML = reviews.map(r => `
+        <div class="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm slide-up">
+            <div class="flex justify-between items-center mb-2">
+                <span class="font-bold text-sm text-[#2E3468]">${r.office}</span>
+                <div class="flex items-center gap-1">
+                    <span class="text-2xl">${ratingEmojis[r.rating] || '⭐'}</span>
+                    <span class="text-xs font-bold text-gray-500">${r.rating}/5</span>
+                </div>
+            </div>
+            <p class="text-xs text-gray-400 mb-2 leading-relaxed">${r.details}</p>
+            ${r.text ? `<p class="text-sm bg-yellow-50 p-3 rounded-xl text-[#2E3468] font-bold border-r-4 border-[#F7CC46] leading-relaxed">"${r.text}"</p>` : ''}
+            <p class="text-xs text-gray-400 mt-2">${r.date}</p>
+        </div>
+    `).join('');
+}
+
+async function action(act, id, office=null, note=null) {
+    try {
+        const res = await fetch(`${API_URL}/admin/action`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: act, order_id: id, office, note })
+        });
+        const data = await res.json();
+        if (data.status !== 'success') {
+            alert(data.message || 'حدث خطأ، حاول مجدداً');
+            return;
+        }
+        if (act === 'remind') alert(`تم إرسال تذكير الدفع لـ ${office}`);
+        if (act === 'mark_paid') alert(`تم تسجيل سداد ${office}`);
+        if (act === 'confirm_debt_payment') alert('تم تأكيد طلب تسديد الدين وتحويله إلى مدفوع');
+        fetchData();
+    } catch (e) {
+        alert('حدث خطأ، حاول مجدداً');
+    }
+}
+
+function promptMissing(id, details) {
+    targetMissingOrder = id;
+    currentOrderDetailsArray = details.split(', ').filter(i => i.trim());
+    selectedMissingItems = [];
+    renderMissingModal();
+    document.getElementById('missingPromptModal').classList.remove('hidden');
+}
+
+function renderMissingModal() {
+    document.getElementById('missingItemsContainer').innerHTML = currentOrderDetailsArray.map(item => {
+        const isMissing = selectedMissingItems.includes(item);
+        return `
+        <div class="flex justify-between items-center bg-gray-50 p-3 rounded-xl border ${isMissing ? 'border-red-400 bg-red-50' : 'border-gray-200'}">
+            <span class="text-sm font-bold ${isMissing ? 'line-through text-red-500' : 'text-[#2E3468]'}">${item}</span>
+            <button onclick="toggleMissingItem('${item.replace(/'/g, "\\'")}')" class="text-xs font-bold px-3 py-1.5 rounded-lg transition-colors ${isMissing ? 'text-gray-500 bg-gray-200 hover:bg-gray-300' : 'text-red-500 bg-red-100 hover:bg-red-200'}">
+                ${isMissing ? 'تراجع' : 'ناقص'}
+            </button>
+        </div>`;
+    }).join('');
+}
+
+function toggleMissingItem(item) {
+    if (selectedMissingItems.includes(item)) {
+        selectedMissingItems = selectedMissingItems.filter(i => i !== item);
+    } else {
+        selectedMissingItems.push(item);
+    }
+    renderMissingModal();
+}
+
+function submitMissing() {
+    if (!selectedMissingItems.length) {
+        alert('الرجاء تحديد صنف واحد على الأقل');
+        return;
+    }
+    action('missing', targetMissingOrder, null, selectedMissingItems.join('، '));
+    closeModal('missingPromptModal');
+}
+
+function showFullReceipt(src) {
+    document.getElementById('receiptFullImg').src = src;
+    document.getElementById('receiptViewModal').classList.remove('hidden');
+}
+
+function closeModal(id) {
+    document.getElementById(id).classList.add('hidden');
+}
+
+setInterval(fetchData, 8000);
+fetchData();
+</script>
+</body>
+</html>
