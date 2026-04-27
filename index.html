@@ -14,7 +14,8 @@
 <body class="text-navy pb-32">
 
     <div id="authScreen" class="fixed inset-0 bg-navy z-[100] flex flex-col items-center justify-center p-6">
-        <img src="logo.png" alt="Logo" class="h-24 mb-6"> <div class="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-sm text-center">
+        <img src="logo.png" alt="Logo" class="h-24 mb-6">
+        <div class="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-sm text-center">
             <h2 class="text-2xl font-bold mb-6">تسجيل الدخول</h2>
             <div class="mb-4 text-right">
                 <input type="text" id="loginOffice" placeholder="رقم المكتب (مثال: 15)" class="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-navy focus:outline-none bg-gray-50 text-center font-bold text-lg">
@@ -34,9 +35,7 @@
     <div id="activeOrderBanner" class="max-w-md mx-auto p-4 hidden-screen">
         <div class="bg-blue-50 border-2 border-blue-300 p-5 rounded-2xl shadow-md relative overflow-hidden">
             <div class="absolute top-0 right-0 w-2 h-full bg-blue-500 animate-pulse"></div>
-            <h3 class="font-bold text-blue-800 mb-2 flex items-center gap-2">
-                ⏳ طلبك قيد الانتظار...
-            </h3>
+            <h3 class="font-bold text-blue-800 mb-2 flex items-center gap-2">⏳ طلبك قيد الانتظار...</h3>
             <p id="activeOrderDetailsText" class="text-sm text-navy mb-4 font-bold leading-relaxed bg-white p-3 rounded-lg border border-blue-100"></p>
             <div class="flex gap-2">
                 <button onclick="editActiveOrder()" class="flex-1 bg-navy text-white px-3 py-2.5 rounded-xl text-sm font-bold shadow-md">✏️ تعديل الطلب</button>
@@ -60,7 +59,6 @@
             <button onclick="filterMenu('cat_sandwiches')" id="btn_cat_sandwiches" class="cat-btn bg-white border border-gray-200 text-gray-600 px-4 py-1.5 rounded-full text-xs">🥪 سندويشات</button>
             <button onclick="filterMenu('cat_snack')" id="btn_cat_snack" class="cat-btn bg-white border border-gray-200 text-gray-600 px-4 py-1.5 rounded-full text-xs">🍫 تسالي</button>
         </div>
-
         <div id="menuContainer" class="grid grid-cols-2 gap-4"></div>
     </main>
 
@@ -81,7 +79,7 @@
     </div>
 
     <div id="successNotification" class="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center p-4 hidden-screen">
-        <div class="bg-white rounded-3xl p-6 text-center w-full max-w-sm border-t-8 border-green-500 shadow-2xl transform scale-100 transition-transform">
+        <div class="bg-white rounded-3xl p-6 text-center w-full max-w-sm border-t-8 border-green-500 shadow-2xl">
             <div class="text-5xl mb-4">✅</div>
             <h3 class="text-xl font-bold text-navy mb-2">تمت الموافقة!</h3>
             <p class="text-gray-600 text-sm mb-6">الكاشير بيجهز طلبك هلقيت، وتم إضافته لسجل ديونك.</p>
@@ -146,7 +144,7 @@
         let orderLocation = 'الكوفي كورنر';
         let isPayingDebt = false;
         let activeOrderId = null;
-        let prevActiveOrderId = null; // لمعرفة متى تمت الموافقة
+        let prevActiveOrderId = null; 
         let orderToReview = null;
         let currentCategory = 'all';
         let rawActiveDetails = '';
@@ -330,12 +328,16 @@
             editActiveOrder();
         }
 
+        // دالة المزامنة المحدثة (مأمنة من أخطاء الروابط)
         async function pollServer() {
             if(currentUser.type !== 'office') return;
             try {
-                const res = await fetch(`${API_URL}/user/sync/${currentUser.id}`);
+                // استخدمنا encodeURIComponent لحل مشكلة الأسماء العربية في الرابط
+                const res = await fetch(`${API_URL}/user/sync/${encodeURIComponent(currentUser.id)}`);
                 const data = await res.json();
                 
+                if(data.status === 'error') return; // إيقاف التنفيذ لو السيرفر فيه خطأ داخلي
+
                 // 1. فحص الإشعار بالموافقة
                 if (prevActiveOrderId && !data.active_order) {
                     const finished = data.orders.find(o => o.id === prevActiveOrderId);
@@ -380,6 +382,7 @@
                     document.getElementById('ledgerList').innerHTML = '<p class="text-gray-400 text-center py-4 text-sm">لا توجد طلبات سابقة</p>';
                 }
                 
+                // 4. التذكير بالدفع
                 const btnPay = document.getElementById('btnPayDebt');
                 const msgDebt = document.getElementById('debtMsg');
                 if (data.can_pay_debt) {
