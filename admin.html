@@ -3,155 +3,132 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>لوحة التحكم | LE Coffee</title>
+    <title>لوحة الكاشير</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
-    <script>
-        tailwind.config = {
-            theme: { 
-                extend: { 
-                    colors: { navy: '#2E3468', gold: '#F7CC46', light: '#F8F9FA' }, 
-                    fontFamily: { sans: ['Cairo', 'sans-serif'] } 
-                } 
-            }
-        }
-    </script>
-    <style>
-        body { font-family: 'Cairo', sans-serif; background-color: #F8F9FA; }
-    </style>
+    <style>body { font-family: 'Cairo', sans-serif; background-color: #F8F9FA; } .hidden { display: none !important; }</style>
 </head>
 <body class="text-navy pb-10">
 
-    <header class="bg-navy text-white p-4 shadow-lg sticky top-0 z-50">
-        <div class="max-w-6xl mx-auto flex justify-between items-center">
-            <div class="flex items-center gap-4">
-                <img src="logo.png" alt="Logo" class="h-10 brightness-0 invert" onerror="this.style.display='none'">
-                <h1 class="text-xl font-bold">لوحة تحكم الكاشير</h1>
+    <header class="bg-[#2E3468] text-white p-4 shadow-lg sticky top-0 z-50">
+        <div class="max-w-6xl mx-auto">
+            <div class="flex justify-between items-center mb-4">
+                <h1 class="text-xl font-bold">لوحة الإدارة الشاملة</h1>
+                <button onclick="fetchData()" class="bg-[#F7CC46] text-[#2E3468] px-4 py-1.5 rounded-lg font-bold text-sm">تحديث</button>
             </div>
-            <button onclick="fetchOrders()" class="bg-gold text-navy px-5 py-2 rounded-xl font-bold hover:bg-yellow-400 transition flex items-center gap-2">
-                🔄 تحديث البيانات
-            </button>
+            
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4 text-center">
+                <div class="bg-white/10 p-3 rounded-lg"><p class="text-xs text-gray-300">المبيعات</p><p id="s_sales" class="font-bold text-lg">0 ₪</p></div>
+                <div class="bg-white/10 p-3 rounded-lg"><p class="text-xs text-gray-300">عدد الطلبات</p><p id="s_count" class="font-bold text-lg">0</p></div>
+                <div class="bg-white/10 p-3 rounded-lg"><p class="text-xs text-green-300">فواتير مدفوعة</p><p id="s_paid" class="font-bold text-lg text-green-400">0 ₪</p></div>
+                <div class="bg-white/10 p-3 rounded-lg"><p class="text-xs text-red-300">ديون عالقة</p><p id="s_debt" class="font-bold text-lg text-red-400">0 ₪</p></div>
+            </div>
+
+            <div class="flex gap-4 overflow-x-auto border-b border-white/20 pb-1">
+                <button onclick="switchTab('active')" id="tab_active" class="font-bold border-b-2 border-[#F7CC46] pb-2">الطلبات الجارية</button>
+                <button onclick="switchTab('ledger')" id="tab_ledger" class="font-bold text-gray-400 pb-2 border-b-2 border-transparent">سجل الديون</button>
+                <button onclick="switchTab('reviews')" id="tab_reviews" class="font-bold text-gray-400 pb-2 border-b-2 border-transparent">التقييمات</button>
+            </div>
         </div>
     </header>
 
-    <main class="max-w-6xl mx-auto p-4 sm:p-6">
-        
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8 text-center">
-            <div class="bg-white p-5 rounded-2xl shadow-sm border-b-4 border-green-500">
-                <p class="text-gray-500 text-sm font-bold">أرباح آخر 7 أيام</p>
-                <p id="sales7Days" class="text-3xl font-bold mt-2 text-green-600">0 ₪</p>
-            </div>
-            
-            <div class="bg-white p-5 rounded-2xl shadow-sm border-b-4 border-navy text-navy">
-                <p class="text-gray-500 text-sm font-bold">إجمالي فواتير الكوفي</p>
-                <p id="totalInvoices" class="text-3xl font-bold mt-2">0 ₪</p>
-            </div>
-            
-            <div class="bg-white p-5 rounded-2xl shadow-sm border-b-4 border-red-500">
-                <p class="text-gray-500 text-sm font-bold">إجمالي الديون المعلقة</p>
-                <p id="totalDebts" class="text-3xl font-bold mt-2 text-red-500">0 ₪</p>
+    <main class="max-w-6xl mx-auto p-4 mt-2">
+        <div id="view_active">
+            <div id="activeOrdersList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+        </div>
+
+        <div id="view_ledger" class="hidden">
+            <div class="bg-white rounded-xl shadow-sm border overflow-hidden">
+                <table class="w-full text-right text-sm">
+                    <thead class="bg-gray-100"><tr class="text-gray-600"><th class="p-3">المكتب</th><th class="p-3">الإجمالي</th><th class="p-3">الحالة</th><th class="p-3">إجراء</th></tr></thead>
+                    <tbody id="ledgerList" class="divide-y divide-gray-100"></tbody>
+                </table>
             </div>
         </div>
 
-        <h2 class="text-lg font-bold mb-4 flex items-center gap-2">
-            <span class="w-3 h-3 bg-red-500 rounded-full animate-pulse"></span>
-            الطلبات الجارية الآن
-        </h2>
-        
-        <div id="ordersList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <p class="text-gray-400 col-span-full text-center py-10">جاري تحميل الطلبات...</p>
+        <div id="view_reviews" class="hidden">
+            <div id="reviewsList" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
         </div>
     </main>
 
-    <script>
-        // الرابط الخاص بـ Web Service الجديدة (الباك إند)
-        const API_URL = "https://web-app-lego-food-court.onrender.com/api"; 
+    <div id="missingPromptModal" class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white p-6 rounded-2xl w-full max-w-sm">
+            <h3 class="font-bold mb-3">ما هو الصنف الناقص؟</h3>
+            <input type="text" id="missingItemInput" placeholder="مثال: كوكاكولا" class="w-full border p-2 rounded mb-4">
+            <button onclick="submitMissing()" class="w-full bg-red-500 text-white py-2 rounded font-bold mb-2">إرسال التنبيه للموظف</button>
+            <button onclick="document.getElementById('missingPromptModal').classList.add('hidden')" class="w-full bg-gray-200 py-2 rounded">إلغاء</button>
+        </div>
+    </div>
 
-        async function fetchOrders() {
+    <script>
+        const API_URL = "https://le-coffee-api-service.onrender.com/api"; // عدل الرابط هنا
+        let targetMissingOrder = null;
+
+        function switchTab(tab) {
+            ['active', 'ledger', 'reviews'].forEach(t => {
+                document.getElementById(`view_${t}`).classList.add('hidden');
+                document.getElementById(`tab_${t}`).className = 'font-bold text-gray-400 pb-2 border-b-2 border-transparent';
+            });
+            document.getElementById(`view_${tab}`).classList.remove('hidden');
+            document.getElementById(`tab_${tab}`).className = 'font-bold border-b-2 border-[#F7CC46] pb-2 text-white';
+        }
+
+        async function fetchData() {
             try {
-                const res = await fetch(`${API_URL}/admin/active_orders`);
+                const res = await fetch(`${API_URL}/admin/dashboard`);
                 const data = await res.json();
                 
-                if (data.status === "error") {
-                    console.error("Error from server:", data.message);
-                    return;
-                }
+                // الإحصائيات
+                document.getElementById('s_sales').innerText = data.stats.total_sales + ' ₪';
+                document.getElementById('s_count').innerText = data.stats.total_count;
+                document.getElementById('s_paid').innerText = data.stats.paid_invoices + ' ₪';
+                document.getElementById('s_debt').innerText = data.stats.total_debts + ' ₪';
 
-                renderOrders(data.orders);
-                updateStats(data.stats);
-            } catch (e) {
-                console.error("Connection Error:", e);
-                document.getElementById('ordersList').innerHTML = '<p class="text-red-500 col-span-full text-center py-10">خطأ في الاتصال بالسيرفر</p>';
-            }
-        }
-
-        function updateStats(stats) {
-            if (!stats) return;
-            document.getElementById('sales7Days').innerText = (stats.sales_7_days || 0) + ' ₪';
-            document.getElementById('totalInvoices').innerText = (stats.total_invoices || 0) + ' ₪';
-            document.getElementById('totalDebts').innerText = (stats.total_debts || 0) + ' ₪';
-        }
-
-        function renderOrders(orders) {
-            const list = document.getElementById('ordersList');
-            if (!orders || orders.length === 0) {
-                list.innerHTML = '<p class="text-gray-400 col-span-full text-center py-10">لا توجد طلبات جارية حالياً ✅</p>';
-                return;
-            }
-
-            list.innerHTML = orders.map(order => `
-                <div class="bg-white rounded-2xl shadow-md overflow-hidden border border-gray-100 flex flex-col h-full hover:shadow-lg transition">
-                    <div class="p-4 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
-                        <span class="font-bold text-navy">طلب #${order.id}</span>
-                        <span class="text-xs text-gray-500">${order.timestamp}</span>
-                    </div>
-                    <div class="p-5 flex-grow">
-                        <div class="mb-4">
-                            <p class="text-xs text-gray-400 font-bold uppercase tracking-wider">📍 الموقع / المكتب</p>
-                            <p class="text-lg font-bold text-navy">${order.location}</p>
-                        </div>
-                        <div>
-                            <p class="text-xs text-gray-400 font-bold uppercase tracking-wider">📦 الأصناف المطلوبة</p>
-                            <p class="text-md text-navy leading-relaxed">${order.details}</p>
+                // الطلبات الجارية
+                document.getElementById('activeOrdersList').innerHTML = data.active_orders.map(o => `
+                    <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+                        <div class="flex justify-between mb-2"><span class="font-bold">#${o.id} - ${o.location}</span><span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">${o.order_type}</span></div>
+                        <p class="text-gray-600 mb-3 text-sm">${o.details}</p>
+                        <div class="flex gap-2">
+                            <button onclick="action('approve', ${o.id})" class="flex-1 bg-[#2E3468] text-white py-2 rounded-lg text-sm font-bold">✅ موافقة</button>
+                            <button onclick="promptMissing(${o.id})" class="flex-1 border border-red-200 text-red-500 py-2 rounded-lg text-sm font-bold">❌ صنف ناقص</button>
                         </div>
                     </div>
-                    <div class="p-4 bg-gray-50 border-t border-gray-100 mt-auto">
-                        <div class="flex justify-between items-center mb-4">
-                            <span class="font-bold text-gray-600">الحساب الإجمالي:</span>
-                            <span class="text-2xl font-bold text-gold">${order.total_price} ₪</span>
-                        </div>
-                        <div class="grid grid-cols-2 gap-3">
-                            <button onclick="updateStatus(${order.id}, 'مقبول')" class="bg-navy text-white font-bold py-3 rounded-xl hover:bg-opacity-90 transition shadow-md shadow-navy/10">✅ تأكيد</button>
-                            <button onclick="updateStatus(${order.id}, 'صنف ناقص')" class="bg-white border-2 border-red-100 text-red-500 font-bold py-3 rounded-xl hover:bg-red-50 transition">❌ ناقص</button>
-                        </div>
+                `).join('');
+
+                // الديون
+                document.getElementById('ledgerList').innerHTML = data.debts.map(d => `
+                    <tr>
+                        <td class="p-3 font-bold">${d.office}</td>
+                        <td class="p-3 text-lg ${d.status==='غير مدفوع'?'text-red-500':'text-green-500'}">${d.amount} ₪</td>
+                        <td class="p-3 text-xs"><span class="px-2 py-1 rounded ${d.status==='غير مدفوع'?'bg-red-100 text-red-700':'bg-green-100 text-green-700'}">${d.status}</span></td>
+                        <td class="p-3">${d.status === 'غير مدفوع' ? `<button onclick="action('remind', null, '${d.office}')" class="bg-[#F7CC46] text-[#2E3468] px-3 py-1 text-xs rounded font-bold">تذكير 🔔</button>` : '-'}</td>
+                    </tr>
+                `).join('');
+
+                // التقييمات
+                document.getElementById('reviewsList').innerHTML = data.reviews.map(r => `
+                    <div class="bg-white p-4 rounded-xl border">
+                        <div class="flex justify-between"><span class="font-bold text-sm">${r.office}</span><span class="text-yellow-500">${'⭐'.repeat(r.rating)}</span></div>
+                        <p class="text-xs text-gray-400 mt-1">${r.details}</p>
+                        ${r.text ? `<p class="text-sm mt-2 bg-gray-50 p-2 rounded">"${r.text}"</p>` : ''}
                     </div>
-                </div>
-            `).join('');
+                `).join('');
+
+            } catch (e) { console.error(e); }
         }
 
-        async function updateStatus(orderId, newStatus) {
-            try {
-                const response = await fetch(`${API_URL}/admin/update_status`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ id: orderId, status: newStatus })
-                });
-                
-                if (response.ok) {
-                    fetchOrders(); // تحديث القائمة فوراً
-                } else {
-                    alert("فشل في تحديث حالة الطلب");
-                }
-            } catch (e) {
-                alert("خطأ في الشبكة");
-            }
+        async function action(act, id, office=null, note=null) {
+            await fetch(`${API_URL}/admin/action`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ action: act, order_id: id, office: office, note: note }) });
+            if(act === 'remind') alert("تم إرسال تنبيه للمكتب بفتح السداد.");
+            fetchData();
         }
 
-        // تحديث البيانات تلقائياً كل 15 ثانية
-        setInterval(fetchOrders, 15000);
-        
-        // التحميل الأول عند فتح الصفحة
-        fetchOrders();
+        function promptMissing(id) { targetMissingOrder = id; document.getElementById('missingItemInput').value = ''; document.getElementById('missingPromptModal').classList.remove('hidden'); }
+        function submitMissing() { const note = document.getElementById('missingItemInput').value; if(note) { action('missing', targetMissingOrder, null, note); document.getElementById('missingPromptModal').classList.add('hidden'); } }
+
+        setInterval(fetchData, 10000);
+        fetchData();
     </script>
 </body>
 </html>
