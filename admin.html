@@ -16,6 +16,21 @@
 </head>
 <body class="text-[#2E3468] pb-10">
 
+<div id="adminAuthScreen" class="fixed inset-0 bg-[#2E3468] z-[100] flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 text-center">
+        <img src="/logo.png" alt="LE Coffee" class="w-20 h-20 object-contain mx-auto mb-4" onerror="this.classList.add('hidden')">
+        <h2 class="text-2xl font-black text-[#2E3468] mb-2">دخول الأدمن</h2>
+        <p class="text-sm text-gray-400 font-bold mb-5">أدخل كلمة المرور لفتح لوحة الكاشير</p>
+        <input id="adminPasswordInput" type="password" placeholder="كلمة المرور"
+               class="w-full border-2 border-gray-200 p-3.5 rounded-xl mb-4 text-center font-bold text-lg focus:outline-none focus:border-[#2E3468]"
+               onkeyup="if(event.key==='Enter') loginAdmin()">
+        <button onclick="loginAdmin()" class="w-full bg-[#2E3468] text-white font-bold py-3.5 rounded-xl shadow hover:bg-opacity-90 transition-all">
+            دخول
+        </button>
+        <p id="adminAuthError" class="text-red-500 text-sm font-bold mt-4 hidden">كلمة المرور غير صحيحة</p>
+    </div>
+</div>
+
 <header class="bg-[#2E3468] text-white p-4 shadow-lg sticky top-0 z-50">
     <div class="max-w-6xl mx-auto">
         <div class="flex justify-between items-center mb-4 gap-3">
@@ -127,6 +142,29 @@ let selectedMissingItems = [];
 let previousActiveCount = 0;
 let audioAlertsEnabled = false;
 let announcedOrders = new Set();
+const ADMIN_PASSWORD = '444555666';
+
+function loginAdmin() {
+    const input = document.getElementById('adminPasswordInput');
+    const error = document.getElementById('adminAuthError');
+    if (input.value === ADMIN_PASSWORD) {
+        sessionStorage.setItem('admin_auth_ok', '1');
+        document.getElementById('adminAuthScreen').classList.add('hidden');
+        error.classList.add('hidden');
+        fetchData();
+        return;
+    }
+    error.classList.remove('hidden');
+}
+
+function ensureAdminAuth() {
+    if (sessionStorage.getItem('admin_auth_ok') === '1') {
+        document.getElementById('adminAuthScreen').classList.add('hidden');
+        return true;
+    }
+    document.getElementById('adminAuthScreen').classList.remove('hidden');
+    return false;
+}
 
 function switchTab(tab) {
     ['active','ledger','guests','reviews'].forEach(t => {
@@ -138,6 +176,7 @@ function switchTab(tab) {
 }
 
 async function fetchData() {
+    if (!ensureAdminAuth()) return;
     try {
         const res = await fetch(`${API_URL}/admin/dashboard`);
         const data = await res.json();
@@ -461,7 +500,8 @@ function closeModal(id) {
 }
 
 setInterval(fetchData, 8000);
-fetchData();
+ensureAdminAuth();
+if (sessionStorage.getItem('admin_auth_ok') === '1') fetchData();
 </script>
 </body>
 </html>
