@@ -53,18 +53,21 @@
 
     <div id="missingPromptModal" class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 hidden">
         <div class="bg-white p-6 rounded-2xl w-full max-w-sm">
-            <h3 class="font-bold mb-3 text-[#2E3468]">تحديد الصنف الناقص</h3>
-            <input type="text" id="missingItemInput" placeholder="مثال: كوكاكولا" class="w-full border-2 p-2 rounded-xl mb-4 focus:outline-none focus:border-red-500">
-            <button onclick="submitMissing()" class="w-full bg-red-500 text-white py-3 rounded-xl font-bold mb-2">إرسال التنبيه للموظف</button>
+            <h3 class="font-bold mb-3 text-[#2E3468] text-center border-b pb-2">حدد الصنف الناقص</h3>
+            <div id="missingItemsContainer" class="space-y-2 mb-4 max-h-48 overflow-y-auto">
+                </div>
+            <button onclick="submitMissing()" class="w-full bg-red-500 text-white py-3 rounded-xl font-bold mb-2 shadow">إرسال التنبيه للموظف</button>
             <button onclick="document.getElementById('missingPromptModal').classList.add('hidden')" class="w-full bg-gray-100 text-gray-600 py-3 rounded-xl font-bold">إلغاء</button>
         </div>
     </div>
 
     <script>
         // ⚠️ تأكد من وضع الرابط الخاص بك هنا
-        const API_URL = "https://web-app-lego-food-court.onrender.com/api"; 
+        const API_URL = "https://web-app-lego-food-court-i6zc.onrender.com/api"; 
         
         let targetMissingOrder = null;
+        let currentOrderDetailsArray = [];
+        let selectedMissingItems = [];
 
         function switchTab(tab) {
             ['active', 'ledger', 'reviews'].forEach(t => {
@@ -85,6 +88,13 @@
                 document.getElementById('s_paid').innerText = data.stats.paid_invoices + ' ₪';
                 document.getElementById('s_debt').innerText = data.stats.total_debts + ' ₪';
 
+                // ترتيب الطلبات الجارية: المقبول ينزل لتحت
+                data.active_orders.sort((a, b) => {
+                    if (a.status === 'مقبول' && b.status !== 'مقبول') return 1;
+                    if (a.status !== 'مقبول' && b.status === 'مقبول') return -1;
+                    return 0;
+                });
+
                 const list = document.getElementById('activeOrdersList');
                 if(data.active_orders.length === 0) {
                     list.innerHTML = `<p class="text-gray-400 text-center col-span-full py-10">لا توجد طلبات جارية ✅</p>`;
@@ -92,18 +102,19 @@
                     list.innerHTML = data.active_orders.map(o => {
                         let buttonsHTML = '';
                         if (o.status === 'مقبول') {
-                            buttonsHTML = `<div class="col-span-2 bg-green-100 text-green-700 text-center py-2.5 rounded-lg text-sm font-bold border border-green-200">تمت الموافقة ✅</div>`;
+                            buttonsHTML = `<div class="col-span-2 bg-green-100 text-green-700 text-center py-2.5 rounded-lg text-sm font-bold border border-green-200">تمت الموافقة وتم التسجيل ✅</div>`;
                         } else {
+                            // نمرر تفاصيل الطلب لدالة promptMissing
                             buttonsHTML = `
                                 <button onclick="action('approve', ${o.id})" class="bg-[#2E3468] text-white py-2.5 rounded-lg text-sm font-bold shadow hover:bg-opacity-90">✅ موافقة</button>
-                                <button onclick="promptMissing(${o.id})" class="border-2 border-red-100 text-red-500 py-2.5 rounded-lg text-sm font-bold hover:bg-red-50">❌ صنف ناقص</button>
+                                <button onclick="promptMissing(${o.id}, '${o.details}')" class="border-2 border-red-100 text-red-500 py-2.5 rounded-lg text-sm font-bold hover:bg-red-50">❌ صنف ناقص</button>
                             `;
                         }
                         
                         return `
-                        <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col">
-                            <div class="flex justify-between mb-3"><span class="font-bold text-[#2E3468]">#${o.id} - ${o.location}</span><span class="text-xs bg-blue-50 border border-blue-100 text-blue-800 px-2 py-1 rounded">${o.order_type}</span></div>
-                            <p class="text-[#2E3468] mb-4 text-sm bg-gray-50 p-3 rounded-lg leading-relaxed font-bold border-r-4 border-[#F7CC46]">${o.details}</p>
+                        <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col ${o.status === 'مقبول' ? 'opacity-70 grayscale-[30%]' : ''}">
+                            <div class="flex justify-between mb-3"><span class="font-bold text-[#2E3468]">#${o.id} - ${o.location}</span><span class="text-xs bg-blue-50 border border-blue-100 text-blue-800 px-2 py-1 rounded font-bold">${o.order_type}</span></div>
+                            <p class="text-[#2E3468] mb-4 text-sm bg-gray-50 p-3 rounded-lg leading-relaxed font-bold border-r-4 ${o.status === 'مقبول' ? 'border-green-400' : 'border-[#F7CC46]'}">${o.details}</p>
                             <div class="flex justify-between items-center mb-4"><span class="text-xs text-gray-400">الإجمالي:</span><span class="font-bold text-lg">${o.total_price} ₪</span></div>
                             <div class="grid grid-cols-2 gap-2 mt-auto">
                                 ${buttonsHTML}
@@ -140,8 +151,42 @@
             fetchData();
         }
 
-        function promptMissing(id) { targetMissingOrder = id; document.getElementById('missingItemInput').value = ''; document.getElementById('missingPromptModal').classList.remove('hidden'); }
-        function submitMissing() { const note = document.getElementById('missingItemInput').value; if(note) { action('missing', targetMissingOrder, null, note); document.getElementById('missingPromptModal').classList.add('hidden'); } }
+        // دوال الصنف الناقص المحدثة
+        function promptMissing(id, details) { 
+            targetMissingOrder = id;
+            currentOrderDetailsArray = details.split(', ');
+            selectedMissingItems = [];
+            renderMissingModal();
+            document.getElementById('missingPromptModal').classList.remove('hidden'); 
+        }
+
+        function renderMissingModal() {
+            const container = document.getElementById('missingItemsContainer');
+            container.innerHTML = currentOrderDetailsArray.map((item) => {
+                const isMissing = selectedMissingItems.includes(item);
+                return `
+                <div class="flex justify-between items-center bg-gray-50 p-3 rounded-xl border ${isMissing ? 'border-red-500 bg-red-50' : 'border-gray-200'}">
+                    <span class="text-sm font-bold ${isMissing ? 'line-through text-red-500' : 'text-navy'}">${item}</span>
+                    <button onclick="toggleMissingItem('${item}')" class="text-xs font-bold px-3 py-1.5 rounded-lg ${isMissing ? 'text-gray-500 bg-gray-200' : 'text-red-500 bg-red-100'}">${isMissing ? 'تراجع' : '❌ ناقص'}</button>
+                </div>`;
+            }).join('');
+        }
+
+        function toggleMissingItem(item) {
+            if(selectedMissingItems.includes(item)) {
+                selectedMissingItems = selectedMissingItems.filter(i => i !== item);
+            } else {
+                selectedMissingItems.push(item);
+            }
+            renderMissingModal();
+        }
+
+        function submitMissing() { 
+            if(selectedMissingItems.length === 0) return alert("الرجاء تحديد صنف واحد على الأقل");
+            const note = selectedMissingItems.join('، ');
+            action('missing', targetMissingOrder, null, note); 
+            document.getElementById('missingPromptModal').classList.add('hidden'); 
+        }
 
         setInterval(fetchData, 10000);
         fetchData();
