@@ -14,7 +14,7 @@
 <body class="text-navy pb-32">
 
     <div id="authScreen" class="fixed inset-0 bg-navy z-[100] flex flex-col items-center justify-center p-6">
-        <img src="logo.png" alt="Logo" class="h-24 mb-8 brightness-0 invert" onerror="this.style.display='none'">
+        <img src="logo.png" alt="Logo" class="h-24 mb-6">
         <div class="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-sm text-center">
             <h2 class="text-2xl font-bold mb-6">تسجيل الدخول</h2>
             <div class="mb-4 text-right">
@@ -34,19 +34,23 @@
 
     <div id="activeOrderBanner" class="max-w-md mx-auto p-4 hidden-screen">
         <div class="bg-blue-50 border-2 border-blue-200 p-4 rounded-xl shadow-sm">
-            <h3 class="font-bold text-blue-800 mb-2">⏳ طلبك قيد الانتظار</h3>
-            <p id="activeOrderDetails" class="text-sm text-gray-700 mb-3"></p>
-            <button onclick="cancelActiveOrder()" class="bg-red-100 text-red-600 px-4 py-2 rounded-lg text-sm font-bold w-full">إلغاء الطلب</button>
+            <h3 class="font-bold text-blue-800 mb-2 flex justify-between">
+                <span>⏳ طلبك قيد الانتظار</span>
+            </h3>
+            <p id="activeOrderDetailsText" class="text-sm text-gray-700 mb-4 font-bold leading-relaxed"></p>
+            <div class="flex gap-2">
+                <button onclick="editActiveOrder()" class="flex-1 bg-navy text-white px-3 py-2 rounded-lg text-sm font-bold">تعديل الطلب</button>
+                <button onclick="cancelActiveOrder(true)" class="flex-1 bg-red-100 text-red-600 px-3 py-2 rounded-lg text-sm font-bold">إلغاء نهائي</button>
+            </div>
         </div>
     </div>
 
     <main id="mainScreen" class="max-w-md mx-auto p-4 space-y-4 hidden-screen">
-        
         <div class="bg-navy text-white p-5 rounded-2xl shadow-md relative overflow-hidden">
             <div class="absolute top-0 right-0 w-2 h-full bg-gold"></div>
             <h2 class="font-bold mb-3 text-sm">🤖 اطلب بالذكاء الاصطناعي</h2>
             <textarea id="aiInput" placeholder="اكتب طلبك: بدي 2 قهوة وسط..." class="w-full bg-white/10 border border-white/20 rounded-xl p-3 text-white text-sm focus:outline-none resize-none" rows="2"></textarea>
-            <button onclick="sendAIOrder()" class="mt-3 w-full bg-gold text-navy font-bold py-2 rounded-xl text-sm">تحليل الطلب</button>
+            <button onclick="sendAIOrder()" id="aiBtn" class="mt-3 w-full bg-gold text-navy font-bold py-2 rounded-xl text-sm">تحليل الطلب</button>
         </div>
 
         <div class="flex gap-2 overflow-x-auto pb-2 scrollbar-hide" id="categoryButtons">
@@ -80,8 +84,8 @@
         <div class="bg-white rounded-3xl w-full max-w-sm p-6 text-center border-t-8 border-orange-500">
             <h3 class="text-xl font-bold text-orange-600 mb-2">⚠️ تنبيه من الكاشير</h3>
             <p class="text-gray-600 mb-4 text-sm">يوجد نقص في طلبك: <span id="missingItemText" class="font-bold text-navy"></span></p>
-            <p class="text-xs text-gray-400 mb-4">تم إرجاع الطلب לסلة، عدله وأرسله مجدداً.</p>
-            <button onclick="closeMissingModal()" class="w-full bg-navy text-white font-bold py-3 rounded-xl">تعديل الطلب</button>
+            <p class="text-xs text-gray-400 mb-4">تم إلغاء الطلب مؤقتاً، يمكنك تعديل سلتك الآن وإعادة إرسالها.</p>
+            <button onclick="handleMissingEdit()" class="w-full bg-navy text-white font-bold py-3 rounded-xl">حسناً، أريد التعديل</button>
         </div>
     </div>
 
@@ -99,13 +103,14 @@
 
     <div id="ledgerScreen" class="fixed inset-0 bg-gray-50 z-[90] p-4 overflow-y-auto hidden-screen pb-20 pt-20">
         <div class="max-w-md mx-auto">
-            <button onclick="toggleLedger()" class="mb-4 text-navy font-bold">➡️ رجوع</button>
+            <button onclick="toggleLedger()" class="mb-4 text-navy font-bold">➡️ رجوع للرئيسية</button>
             <div class="bg-white p-6 rounded-3xl shadow-sm text-center border-t-4 border-red-500 mb-6">
                 <p class="text-gray-500 font-bold">إجمالي الديون</p>
                 <p id="ledgerTotalDebt" class="text-4xl font-bold text-red-500 my-2">0 ₪</p>
                 <button id="btnPayDebt" onclick="openPayment('debt')" class="bg-gray-300 text-gray-500 text-sm px-4 py-2 rounded-lg mt-2 cursor-not-allowed" disabled>لا يمكنك السداد الآن</button>
-                <p id="debtMsg" class="text-xs text-red-500 mt-2 hidden-screen">يوجد طلب سداد من الكاشير! اضغط للسداد.</p>
+                <p id="debtMsg" class="text-xs text-red-500 mt-2 hidden-screen font-bold">⚠️ يوجد طلب سداد من الكاشير! اضغط للسداد.</p>
             </div>
+            <h3 class="font-bold mb-3 text-navy">سجل الطلبات السابقة</h3>
             <div id="ledgerList" class="space-y-3"></div>
         </div>
     </div>
@@ -127,7 +132,7 @@
 
     <script>
         // ⚠️ تأكد من وضع الرابط الخاص بك هنا
-        const API_URL = "https://web-app-lego-food-court.onrender.com/api"; 
+        const API_URL = "https://le-coffee-api-service.onrender.com/api"; 
         
         let currentUser = { type: '', id: '' };
         let cart = {};
@@ -136,8 +141,8 @@
         let activeOrderId = null;
         let orderToReview = null;
         let currentCategory = 'all';
+        let rawActiveDetails = ''; // لحفظ الطلب لإعادة سحبه للتعديل
 
-        // المنيو الكامل 29 صنف
         const menuItems = [
             { id: 'h1', name: 'شاي', price: 1, type: 'drink', category: 'cat_hot' },
             { id: 'h2', name: 'قهوة مزاج وسط', price: 2, type: 'drink', category: 'cat_hot' },
@@ -241,36 +246,39 @@
             }
         }
 
-        // الذكاء الاصطناعي
         async function sendAIOrder() {
             const text = document.getElementById('aiInput').value;
             if(!text) return;
-            const btn = document.querySelector('#aiInput + button');
+            const btn = document.getElementById('aiBtn');
             btn.innerText = 'جاري التحليل...'; btn.disabled = true;
             try {
                 const res = await fetch(`${API_URL}/ai_process`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({text}) });
                 const data = await res.json();
-                if(data.items) {
+                if(data.status === 'error') throw new Error(data.message);
+                if(data.items && data.items.length > 0) {
                     cart = {};
                     data.items.forEach(itemName => {
                         const matched = menuItems.find(i => i.name === itemName);
                         if(matched) cart[matched.id] = (cart[matched.id] || 0) + 1;
                     });
                     renderMenu(currentCategory); updateBar();
-                    alert("سلتك جاهزة، أكد الطلب من الأسفل.");
+                    alert("✅ سلتك جاهزة، أكد الطلب من الأسفل.");
+                } else {
+                    alert("لم نتمكن من فهم الأصناف، جرب الاختيار اليدوي.");
                 }
-            } catch(e) { alert("حدث خطأ في الاتصال"); }
-            btn.innerText = 'تحليل الطلب'; btn.disabled = false;
+            } catch(e) { 
+                alert("⚠️ تعذر الاتصال بالذكاء الاصطناعي، راجع إعدادات السيرفر."); 
+            } finally {
+                btn.innerText = 'تحليل الطلب'; btn.disabled = false;
+            }
         }
 
         async function processCheckout() {
             if (Object.keys(cart).length === 0) return alert("السلة فارغة");
-            
             let hasSandwich = Object.keys(cart).some(id => menuItems.find(i => i.id === id).type === 'sandwich');
             if (hasSandwich && orderLocation === 'توصيل للمكتب') {
-                return alert("الطلبات التي تحتوي على سندويشات تقدم فقط في الكوفي كورنر.");
+                return alert("عذراً! السندويشات تقدم فقط داخل الكوفي كورنر.");
             }
-
             if (currentUser.type === 'guest') {
                 isPayingDebt = false;
                 document.getElementById('payTitle').innerText = "دفع طلب الزائر";
@@ -288,23 +296,41 @@
                 total += item.price * qty;
             }
             
-            const payload = activeOrderId 
-                ? { action: 'edit', order_id: activeOrderId, details: items.join(', '), total_price: total }
-                : { office: currentUser.id, items: items, total_price: total, order_type: orderLocation, receipt: receiptBase64 };
-            const endpoint = activeOrderId ? '/user/action' : '/order';
-
             try {
-                await fetch(`${API_URL}${endpoint}`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
+                await fetch(`${API_URL}/order`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ office: currentUser.id, items: items, total_price: total, order_type: orderLocation, receipt: receiptBase64 }) });
                 cart = {}; updateBar(); renderMenu(currentCategory); pollServer();
                 alert("تم الإرسال للكاشير بنجاح!");
             } catch(e) { alert("فشل الاتصال بالسيرفر"); }
         }
 
-        async function cancelActiveOrder() {
-            if(confirm("متأكد من إلغاء الطلب؟")) {
+        // سحب الطلب للتعديل
+        async function editActiveOrder() {
+            if(confirm("سيتم إرجاع الطلب לסلة لتعديله، هل أنت متأكد؟")) {
+                await fetch(`${API_URL}/user/action`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ action: 'cancel', order_id: activeOrderId }) });
+                cart = {};
+                if(rawActiveDetails) {
+                    rawActiveDetails.split(', ').forEach(name => {
+                        const item = menuItems.find(i => i.name === name);
+                        if(item) cart[item.id] = (cart[item.id] || 0) + 1;
+                    });
+                }
+                activeOrderId = null;
+                document.getElementById('activeOrderBanner').classList.add('hidden-screen');
+                renderMenu(currentCategory); updateBar();
+                window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+            }
+        }
+
+        async function cancelActiveOrder(confirmPrompt) {
+            if(!confirmPrompt || confirm("متأكد من الإلغاء النهائي للطلب؟")) {
                 await fetch(`${API_URL}/user/action`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ action: 'cancel', order_id: activeOrderId }) });
                 pollServer();
             }
+        }
+
+        function handleMissingEdit() {
+            document.getElementById('missingModal').classList.add('hidden-screen');
+            editActiveOrder(); // يقوم بالإلغاء ووضع الأصناف في السلة
         }
 
         // المزامنة الحية (Polling)
@@ -314,46 +340,60 @@
                 const res = await fetch(`${API_URL}/user/sync/${currentUser.id}`);
                 const data = await res.json();
                 
+                // الطلب الجاري (انتظار أو ناقص)
                 if (data.active_order) {
                     activeOrderId = data.active_order.id;
+                    rawActiveDetails = data.active_order.details;
+                    
                     if (data.active_order.status === 'صنف_ناقص') {
                         document.getElementById('missingItemText').innerText = data.active_order.missing_note;
                         document.getElementById('missingModal').classList.remove('hidden-screen');
                         document.getElementById('activeOrderBanner').classList.add('hidden-screen');
                     } else {
-                        document.getElementById('activeOrderDetails').innerText = `${data.active_order.details} (${data.active_order.order_type})`;
+                        document.getElementById('activeOrderDetailsText').innerText = `${data.active_order.details} (${data.active_order.order_type})`;
                         document.getElementById('activeOrderBanner').classList.remove('hidden-screen');
-                        document.getElementById('cartBar').classList.add('hidden-screen');
+                        document.getElementById('cartBar').classList.add('hidden-screen'); // إخفاء السلة لو عنده طلب
                     }
                 } else {
                     activeOrderId = null;
+                    rawActiveDetails = '';
                     document.getElementById('activeOrderBanner').classList.add('hidden-screen');
-                    updateBar(); // لإظهار السلة إذا كانت معبأة مسبقاً
+                    updateBar(); // لإظهار السلة لو عبينا أصناف
                 }
 
+                // دفتر الديون
                 document.getElementById('ledgerTotalDebt').innerText = data.total_debt + ' ₪';
-                document.getElementById('ledgerList').innerHTML = data.orders.map(o => `<div class="bg-white p-3 rounded-xl border flex justify-between items-center"><div class="text-sm"><p class="font-bold">${o.details}</p><p class="text-xs text-gray-400">${o.timestamp.split(' ')[0]}</p></div><div class="text-left"><p class="font-bold">${o.total_price} ₪</p><p class="text-xs ${o.is_paid?'text-green-500':'text-red-500'}">${o.is_paid?'مسدد':'دين'}</p></div></div>`).join('');
                 
+                if(data.orders && data.orders.length > 0) {
+                    document.getElementById('ledgerList').innerHTML = data.orders.map(o => `
+                        <div class="bg-white p-3 rounded-xl border border-gray-100 shadow-sm flex flex-col gap-2">
+                            <div class="flex justify-between items-center"><span class="font-bold text-sm text-navy">${o.details}</span><span class="font-bold text-lg">${o.total_price} ₪</span></div>
+                            <div class="flex justify-between items-center text-xs">
+                                <span class="text-gray-400">${o.timestamp.split(' ')[0]}</span>
+                                <span class="px-2 py-1 rounded font-bold ${o.is_paid ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}">${o.is_paid ? 'مسدد' : 'دين'}</span>
+                            </div>
+                        </div>`).join('');
+                } else {
+                    document.getElementById('ledgerList').innerHTML = '<p class="text-gray-400 text-center py-4 text-sm">لا توجد طلبات سابقة</p>';
+                }
+                
+                // التذكير بالدفع
                 const btnPay = document.getElementById('btnPayDebt');
                 const msgDebt = document.getElementById('debtMsg');
                 if (data.can_pay_debt) {
-                    btnPay.disabled = false; btnPay.className = "bg-green-500 text-white font-bold px-6 py-2 rounded-lg mt-2"; btnPay.innerText = "تسديد الديون الآن";
+                    btnPay.disabled = false; btnPay.className = "bg-green-500 text-white font-bold px-6 py-2 rounded-lg mt-2 w-full shadow-lg animate-pulse"; btnPay.innerText = "تسديد الديون الآن";
                     msgDebt.classList.remove('hidden-screen');
                 } else {
-                    btnPay.disabled = true; btnPay.className = "bg-gray-300 text-gray-500 text-sm px-4 py-2 rounded-lg mt-2 cursor-not-allowed"; btnPay.innerText = "لا يمكنك السداد الآن";
+                    btnPay.disabled = true; btnPay.className = "bg-gray-200 text-gray-500 text-sm px-4 py-2 rounded-lg mt-2 cursor-not-allowed w-full"; btnPay.innerText = "لا يمكنك السداد إلا بطلب من الكاشير";
                     msgDebt.classList.add('hidden-screen');
                 }
 
-                if (data.review_needed && !document.getElementById('reviewModal').classList.contains('hidden-screen') === false) {
+                // التقييمات
+                if (data.review_needed && document.getElementById('reviewModal').classList.contains('hidden-screen')) {
                     orderToReview = data.review_needed;
                     document.getElementById('reviewModal').classList.remove('hidden-screen');
                 }
             } catch(e) {}
-        }
-
-        function closeMissingModal() {
-            document.getElementById('missingModal').classList.add('hidden-screen');
-            updateBar(); // يظهر شريط السلة
         }
 
         function openPayment(type) { isPayingDebt = type === 'debt'; document.getElementById('payTitle').innerText = isPayingDebt ? "تسديد الديون" : "دفع الزائر"; document.getElementById('paymentModal').classList.remove('hidden-screen'); }
