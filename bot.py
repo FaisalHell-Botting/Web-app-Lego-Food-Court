@@ -326,6 +326,7 @@ def init_db():
     )
 
     for col, definition in [
+        ("is_active", "INTEGER DEFAULT 1"),
         ("amount", "INTEGER DEFAULT 0"),
         ("payment_info", "TEXT"),
         ("is_seen", "INTEGER DEFAULT 0"),
