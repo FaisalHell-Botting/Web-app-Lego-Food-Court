@@ -351,6 +351,17 @@ def init_db():
         """
     )
 
+    c.execute(
+        """
+        CREATE TABLE IF NOT EXISTS expenses (
+            id SERIAL PRIMARY KEY,
+            amount INTEGER,
+            receipt TEXT,
+            created_at TEXT
+        )
+        """
+    )
+
     c.close()
     conn.close()
 
@@ -809,6 +820,10 @@ async def admin_dashboard():
         )
         total_debts = c.fetchone()[0] or 0
 
+        c.execute("SELECT COALESCE(SUM(amount), 0) FROM expenses")
+        total_expenses = c.fetchone()[0] or 0
+        total_profit = total_sales - total_expenses
+
         c.execute(
             """
             SELECT location, rating, details, review_text, timestamp
@@ -844,6 +859,12 @@ async def admin_dashboard():
             for row in c.fetchall()
         ]
 
+        c.execute("SELECT id, amount, receipt, created_at FROM expenses ORDER BY id DESC")
+        expenses = [
+            {"id": row[0], "amount": row[1], "receipt": row[2], "created_at": row[3]}
+            for row in c.fetchall()
+        ]
+
         c.close()
         conn.close()
         return {
@@ -852,11 +873,14 @@ async def admin_dashboard():
                 "total_count": total_count,
                 "paid_invoices": paid_invoices,
                 "total_debts": total_debts,
+                "total_expenses": total_expenses,
+                "total_profit": total_profit,
             },
             "active_orders": active_orders,
             "debts": debts,
             "reviews": reviews,
             "guest_orders": guest_orders,
+            "expenses": expenses,
         }
     except Exception as exc:
         return {"error": str(exc)}
@@ -908,6 +932,19 @@ async def admin_action(request: Request):
             c.execute("UPDATE debt_payment_requests SET status='paid' WHERE id=%s", (order_id,))
             c.execute("UPDATE orders SET is_paid=1 WHERE location=%s AND status='مقبول' AND is_paid=0", (pay_office,))
             c.execute("UPDATE reminders SET is_active=0 WHERE office=%s", (pay_office,))
+        elif action == "add_expense":
+            amount = int(data.get("amount", 0) or 0)
+            receipt = data.get("receipt")
+            if amount <= 0:
+                c.close()
+                conn.close()
+                return {"status": "error", "message": "invalid expense amount"}
+            c.execute(
+                "INSERT INTO expenses (amount, receipt, created_at) VALUES (%s,%s,%s)",
+                (amount, receipt, get_pal_time()),
+            )
+        elif action == "delete_expense":
+            c.execute("DELETE FROM expenses WHERE id=%s", (order_id,))
 
         conn.commit()
         c.close()
