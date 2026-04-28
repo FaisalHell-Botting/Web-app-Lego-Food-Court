@@ -38,6 +38,20 @@
             animation: aiShine 2.8s ease-in-out infinite;
         }
         .ai-bolt { animation: boltPulse 1.1s ease-in-out infinite; display: inline-block; }
+        .ai-spark-wrap { position: relative; display: inline-flex; align-items: center; justify-content: center; min-width: 24px; }
+        .ai-spark-icon { position: relative; z-index: 2; }
+        .ai-spark-wrap::before,
+        .ai-spark-wrap::after {
+            content: '✦';
+            position: absolute;
+            color: rgba(255,255,255,0.88);
+            text-shadow: 0 0 8px rgba(255,255,255,0.45);
+            animation: sparkFlash 1.6s ease-in-out infinite;
+            z-index: 1;
+            font-size: 10px;
+        }
+        .ai-spark-wrap::before { top: -4px; left: -3px; animation-delay: 0.15s; }
+        .ai-spark-wrap::after { bottom: -4px; right: -2px; animation-delay: 0.75s; }
         @keyframes aiShine {
             0%, 15% { right: -140%; }
             55%, 100% { right: 140%; }
@@ -45,6 +59,10 @@
         @keyframes boltPulse {
             0%, 100% { transform: scale(1); filter: drop-shadow(0 0 0 rgba(59,130,246,0)); }
             50% { transform: scale(1.14); filter: drop-shadow(0 0 7px rgba(59,130,246,0.55)); }
+        }
+        @keyframes sparkFlash {
+            0%, 100% { opacity: 0.15; transform: scale(0.7) rotate(0deg); }
+            50% { opacity: 1; transform: scale(1.15) rotate(18deg); }
         }
     </style>
 </head>
@@ -152,10 +170,11 @@
         <button id="tabMenu" onclick="switchOrderMode('menu')" class="tab-active flex-1 py-2.5 rounded-xl text-sm font-bold transition-all border">
             المنيو
         </button>
-        <button id="tabAI" onclick="switchOrderMode('ai')" class="ai-tab-glow flex-1 py-2.5 rounded-xl text-sm font-bold text-blue-700 bg-blue-50 transition-all border border-blue-200 hover:border-blue-500">
+        <button id="tabAI" onclick="switchOrderMode('ai')" class="ai-tab-glow flex-1 py-2.5 rounded-xl text-sm font-bold text-gray-600 bg-white transition-all border border-gray-200 hover:border-gray-300">
             <span class="inline-flex items-center gap-1.5">
-                <span class="ai-bolt">⚡</span>
-                <span>🤖</span>
+                <span class="ai-spark-wrap">
+                    <span class="ai-bolt ai-spark-icon">✦</span>
+                </span>
                 <span>اطلب بالكتابة</span>
             </span>
         </button>
@@ -506,7 +525,7 @@ function switchOrderMode(mode) {
     document.getElementById('menuMode').classList.toggle('hidden', !isMenu);
     document.getElementById('aiMode').classList.toggle('hidden', isMenu);
     document.getElementById('tabMenu').className = `${isMenu ? 'tab-active' : 'text-gray-500 border'} flex-1 py-2.5 rounded-xl text-sm font-bold transition-all border`;
-    document.getElementById('tabAI').className = `${!isMenu ? 'tab-active border-blue-600 bg-blue-600 text-white' : 'ai-tab-glow text-blue-700 bg-blue-50 border-blue-200'} flex-1 py-2.5 rounded-xl text-sm font-bold transition-all border`;
+    document.getElementById('tabAI').className = `${!isMenu ? 'bg-white text-navy border-navy shadow-sm' : 'ai-tab-glow text-gray-600 bg-white border-gray-200'} flex-1 py-2.5 rounded-xl text-sm font-bold transition-all border`;
     updateCartBar();
     persistState();
 }
