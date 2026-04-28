@@ -198,7 +198,7 @@
             <div id="chatMessages" class="p-4 space-y-3 min-h-[200px] max-h-[350px] overflow-y-auto">
                 <div class="flex gap-2">
                     <div class="bg-gray-100 rounded-2xl rounded-tr-sm p-3 text-sm text-navy max-w-[85%]">
-                        اكتب طلبك كلام عادي، مثل: بدي قهوة مزاج وسط وسنيكرز.
+                        اكتب طلبك بكلامك، مثل: بدي قهوة مزاج وسط وسنيكرز.
                     </div>
                 </div>
             </div>
@@ -333,7 +333,7 @@
                 سدد الآن
             </button>
             <button onclick="closeModal('debtReminderModal')" class="w-full bg-navy text-white py-3 rounded-xl font-bold">
-                تمام بعدين
+                فهمت
             </button>
         </div>
     </div>
@@ -419,39 +419,22 @@ const debtTransferDefaults = {
 };
 const STORAGE_KEY = 'lecoffee_user_state_v1';
 
-const fullMenu = [
-    {id:"h1",name:"شاي",price:1,cat:"hot",emoji:"🍵"},
-    {id:"h2",name:"قهوة مزاج وسط",price:2,cat:"hot",emoji:"☕"},
-    {id:"h3",name:"قهوة مزاج كبير",price:3,cat:"hot",emoji:"☕"},
-    {id:"h4",name:"نسكافيه مكس",price:2,cat:"hot",emoji:"☕"},
-    {id:"h5",name:"كفي مكس",price:2,cat:"hot",emoji:"☕"},
-    {id:"h6",name:"كابتشينو جوداي",price:3,cat:"hot",emoji:"☕"},
-    {id:"c1",name:"كوكاكولا",price:4,cat:"cold",emoji:"🥤"},
-    {id:"c2",name:"بلو أزرق",price:4,cat:"cold",emoji:"🥤"},
-    {id:"c3",name:"مراعي حليب شوكولاتة",price:2,cat:"cold",emoji:"🥛"},
-    {id:"c4",name:"عصير كوكتيل فواكه",price:2,cat:"cold",emoji:"🍹"},
-    {id:"c5",name:"لتر عصير برتقال",price:7,cat:"cold",emoji:"🍊"},
-    {id:"c6",name:"لتر عصير مانجا",price:7,cat:"cold",emoji:"🥭"},
-    {id:"s1",name:"سندويش فينو فيتا",price:3,cat:"snack",emoji:"🥪"},
-    {id:"s2",name:"سندويش فينو مرتديلا",price:3,cat:"snack",emoji:"🥪"},
-    {id:"t1",name:"سنيكرز",price:3,cat:"candy",emoji:"🍫"},
-    {id:"t2",name:"تويكس",price:3,cat:"candy",emoji:"🍫"},
-    {id:"t3",name:"مارس",price:3,cat:"candy",emoji:"🍫"},
-    {id:"t4",name:"مستر بايت",price:4,cat:"candy",emoji:"🍬"},
-    {id:"t5",name:"قسماط حجم وسط",price:4,cat:"candy",emoji:"🍪"},
-    {id:"t6",name:"بسكويت مالح",price:2,cat:"candy",emoji:"🍪"},
-    {id:"t7",name:"بسكويت ديمة فانيلا",price:2,cat:"candy",emoji:"🍪"},
-    {id:"t8",name:"مولتو ميني",price:2,cat:"candy",emoji:"🧁"},
-    {id:"t9",name:"شكلاتة تجارية ب 2شيكل",price:2,cat:"candy",emoji:"🍫"},
-    {id:"t10",name:"شكلاتة تجارية ب 1 شيكل",price:1,cat:"candy",emoji:"🍫"},
-    {id:"t11",name:"حلو نعنع سكوتش",price:1,cat:"candy",emoji:"🍬"},
-    {id:"t12",name:"برنجلز أحمر صغير",price:6,cat:"candy",emoji:"🥔"},
-    {id:"t13",name:"برنجلز أحمر كبير",price:11,cat:"candy",emoji:"🥔"},
-    {id:"t14",name:"برنجلز أحمر كبير شطة",price:11,cat:"candy",emoji:"🌶️"},
-    {id:"t15",name:"كيك فراولة",price:7,cat:"candy",emoji:"🍰"}
-];
+let fullMenu = [];
 
-function login(type) {
+async function loadMenu() {
+    try {
+        const res = await fetch(`${API_URL}/menu`);
+        const data = await res.json();
+        if (Array.isArray(data.items) && data.items.length) {
+            fullMenu = data.items;
+            return true;
+        }
+    } catch (e) {}
+    fullMenu = [];
+    return false;
+}
+
+async function login(type) {
     const val = document.getElementById('loginOffice').value.trim();
     if (type === 'office' && !val) {
         showToast('أدخل رقم مكتبك');
@@ -465,6 +448,7 @@ function login(type) {
     document.getElementById('mainScreen').classList.remove('hidden');
     document.getElementById('orderTypeCard').classList.toggle('hidden', user.isGuest);
     document.getElementById('debtSummaryCard').classList.toggle('hidden', user.isGuest);
+    await loadMenu();
     setOrderType('داخل الكوفي كورنر');
     renderMenu('all');
     updateDraftOrderCard();
@@ -490,7 +474,7 @@ function persistState() {
     } catch (e) {}
 }
 
-function restoreState() {
+async function restoreState() {
     try {
         const raw = localStorage.getItem(STORAGE_KEY);
         if (!raw) return;
@@ -508,6 +492,7 @@ function restoreState() {
         document.getElementById('mainScreen').classList.remove('hidden');
         document.getElementById('orderTypeCard').classList.toggle('hidden', user.isGuest);
         document.getElementById('debtSummaryCard').classList.toggle('hidden', user.isGuest);
+        await loadMenu();
         renderMenu(currentCat);
         enforceOrderTypeRules();
         setOrderType(selectedOrderType);
@@ -535,6 +520,16 @@ function renderMenu(cat) {
             ? 'bg-navy text-white px-4 py-1.5 rounded-full text-xs whitespace-nowrap font-bold'
             : 'bg-white border text-gray-600 px-4 py-1.5 rounded-full text-xs whitespace-nowrap font-bold';
     });
+
+    if (!fullMenu.length) {
+        document.getElementById('menuContainer').innerHTML = `
+            <div class="col-span-2 bg-white border border-gray-100 rounded-2xl p-5 text-center text-gray-400 font-bold">
+                تعذر تحميل المنيو حالياً
+            </div>
+        `;
+        persistState();
+        return;
+    }
 
     const items = cat === 'all' ? fullMenu : fullMenu.filter(i => i.cat === cat);
     document.getElementById('menuContainer').innerHTML = items.map(item => {
