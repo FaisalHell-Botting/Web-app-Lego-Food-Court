@@ -905,9 +905,7 @@ function renderDebtSummary(data) {
     if (user.isGuest) return;
     const totalDebt = Number(data.total_debt || 0);
     document.getElementById('ledgerTotalDebt').innerText = `${totalDebt} ₪`;
-    document.getElementById('headerDebtValue').innerText = `${totalDebt} ₪`;
     document.getElementById('miniDebtValue').innerText = `${totalDebt} ₪`;
-    document.getElementById('debtHeaderLabel').classList.toggle('hidden', totalDebt <= 0);
     document.getElementById('debtMiniCard').classList.toggle('hidden', totalDebt <= 0);
     document.getElementById('ledgerDebtSubtext').innerText = totalDebt > 0
         ? (data.can_pay_debt ? 'تم إرسال تذكير دفع لك ويمكنك رفع إثبات السداد' : 'لن تتمكن من رفع السداد حتى يصلك تذكير من الإدارة')
