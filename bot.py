@@ -500,6 +500,42 @@ async def cancel_order(order_id: int):
         return {"status": "error", "message": str(exc)}
 
 
+@app.put("/api/order/{order_id}")
+async def update_order(order_id: int, request: Request):
+    data = await request.json()
+    office = clean_office_name(data.get("office"))
+    items = data.get("items", [])
+    total_price = int(data.get("total_price", 0) or 0)
+    order_type = clean_office_name(data.get("order_type") or "داخل الكوفي كورنر")
+
+    if not office or not items:
+        return {"status": "error", "message": "missing order data"}
+
+    if any(item in SNACK_ITEM_NAMES for item in items):
+        order_type = "داخل الكوفي كورنر"
+
+    try:
+        conn = get_db()
+        c = conn.cursor()
+        c.execute(
+            """
+            UPDATE orders
+            SET details=%s, total_price=%s, order_type=%s, missing_note=NULL, status='انتظار'
+            WHERE id=%s AND location=%s AND status IN ('انتظار','صنف_ناقص')
+            """,
+            (", ".join(items), total_price, order_type, order_id, office),
+        )
+        updated = c.rowcount
+        conn.commit()
+        c.close()
+        conn.close()
+        if not updated:
+            return {"status": "error", "message": "order not found or not editable"}
+        return {"status": "success"}
+    except Exception as exc:
+        return {"status": "error", "message": str(exc)}
+
+
 @app.post("/api/debt-payment")
 async def submit_debt_payment(request: Request):
     data = await request.json()
