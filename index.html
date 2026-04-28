@@ -106,12 +106,11 @@
                 </div>
             </div>
             <div class="flex items-center gap-2 shrink-0">
-                <span id="userBadge" class="bg-navy text-white text-xs font-bold px-3 py-1.5 rounded-full"></span>
                 <button onclick="toggleLedger()" class="text-xs font-bold text-navy bg-gray-100 px-3 py-1.5 rounded-full hover:bg-gray-200 transition-colors">
                     📋 ديوني
                 </button>
                 <button onclick="logout()" class="text-xs font-bold text-red-500 bg-red-50 px-3 py-1.5 rounded-full hover:bg-red-100 transition-colors">
-                    خروج
+                    🚪 خروج
                 </button>
             </div>
         </div>
@@ -460,7 +459,6 @@ function login(type) {
     }
     user.isGuest = type === 'guest';
     user.id = type === 'office' ? `مكتب ${val}` : `زائر-${Math.floor(Math.random() * 9000 + 1000)}`;
-    document.getElementById('userBadge').innerText = user.id;
     document.getElementById('headerIdentityLabel').innerText = user.id;
     document.getElementById('authScreen').classList.add('hidden');
     document.getElementById('mainHeader').classList.remove('hidden');
@@ -504,7 +502,6 @@ function restoreState() {
         currentCat = state.currentCat || 'all';
         chatHistory = state.chatHistory || [];
         editingOrderId = state.editingOrderId || null;
-        document.getElementById('userBadge').innerText = user.id;
         document.getElementById('headerIdentityLabel').innerText = user.id;
         document.getElementById('authScreen').classList.add('hidden');
         document.getElementById('mainHeader').classList.remove('hidden');
@@ -636,8 +633,16 @@ function updateCartBar() {
     document.getElementById('cartItemCount').innerText = `${stats.qty} أصناف`;
     document.getElementById('cartTypeLabel').innerText = user.isGuest ? 'زائر' : selectedOrderType;
     const bar = document.getElementById('cartBar');
+    const mainScreen = document.getElementById('mainScreen');
     const showBar = stats.qty > 0 && (!activeOrderId || editingOrderId === activeOrderId);
     bar.classList.toggle('hidden', !showBar);
+    if (showBar) {
+        requestAnimationFrame(() => {
+            mainScreen.style.paddingBottom = `${bar.offsetHeight + 24}px`;
+        });
+    } else {
+        mainScreen.style.paddingBottom = '';
+    }
 }
 
 function setOrderType(type) {
