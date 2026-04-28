@@ -60,6 +60,7 @@ PRICES = {
     "مولتو ميني": 2,
     "لفيفا": 2,
     "حلو نعنع سكوتش": 1,
+    "مكسرات مشكل وزن 100جم": 11,
     "برنجلز أحمر صغير": 6,
     "برنجلز أحمر كبير": 11,
     "برنجلز أحمر كبير شطة": 11,
@@ -98,8 +99,9 @@ MENU_ITEMS = [
     {"id": "t11", "name": "حلو نعنع سكوتش", "price": 1, "cat": "candy", "emoji": "🍬"},
     {"id": "t12", "name": "برنجلز أحمر صغير", "price": 6, "cat": "candy", "emoji": "🥔"},
     {"id": "t13", "name": "برنجلز أحمر كبير", "price": 11, "cat": "candy", "emoji": "🥔"},
-    {"id": "t14", "name": "برنجلز أحمر كبير شطة", "price": 11, "cat": "candy", "emoji": "🌶️"},
-    {"id": "t15", "name": "كيك فراولة", "price": 7, "cat": "candy", "emoji": "🍰"},
+    {"id": "t14", "name": "مكسرات مشكل 100جم", "price": 11, "cat": "candy", "emoji": "🥔"},
+    {"id": "t15", "name": "برنجلز أحمر كبير شطة", "price": 11, "cat": "candy", "emoji": "🌶️"},
+    {"id": "t16", "name": "كيك فراولة", "price": 7, "cat": "candy", "emoji": "🍰"},
 ]
 
 MENU_BY_NAME = {item["name"]: item for item in MENU_ITEMS}
