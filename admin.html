@@ -271,6 +271,10 @@ function speakOrders(orders) {
     setTimeout(() => window.speechSynthesis.speak(utterance), 380);
 }
 
+function speakSingleOrder(location, details) {
+    speakOrders([{ location, details }]);
+}
+
 function extractOfficeLabel(location) {
     const match = String(location || '').match(/مكتب\s*(.+)/);
     return match ? `مكتب ${match[1]}` : String(location || '');
@@ -320,17 +324,23 @@ function renderActiveOrders(orders) {
         const isPending = order.status === 'انتظار';
         const isMissing = order.status === 'صنف_ناقص';
         const detailsEscaped = order.details.replace(/'/g, "\\'");
+        const locationEscaped = order.location.replace(/'/g, "\\'");
         return `
         <div class="bg-white p-4 rounded-2xl border-2 ${isPending ? 'border-yellow-300 bg-yellow-50' : 'border-red-300 bg-red-50'} shadow-sm flex flex-col slide-up">
-            <div class="flex justify-between items-start mb-3">
-                <div>
-                    <span class="font-black text-[#2E3468] text-base">#${order.id}</span>
-                    <span class="font-bold text-gray-600 text-sm mr-1">· ${order.location}</span>
+                <div class="flex justify-between items-start mb-3">
+                    <div>
+                        <span class="font-black text-[#2E3468] text-base">#${order.id}</span>
+                        <span class="font-bold text-gray-600 text-sm mr-1">· ${order.location}</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="speakSingleOrder('${locationEscaped}', '${detailsEscaped}')" class="w-9 h-9 rounded-full bg-white border border-gray-200 text-[#2E3468] font-bold hover:bg-gray-50 transition-colors" title="إعادة سماع الطلب">
+                            🔊
+                        </button>
+                        <span class="text-xs font-bold px-2 py-1 rounded-full ${isPending ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}">
+                            ${isPending ? 'انتظار' : 'صنف ناقص'}
+                        </span>
+                    </div>
                 </div>
-                <span class="text-xs font-bold px-2 py-1 rounded-full ${isPending ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}">
-                    ${isPending ? 'انتظار' : 'صنف ناقص'}
-                </span>
-            </div>
             <p class="text-xs text-gray-400 mb-2 font-bold">${order.order_type || 'داخل الكوفي كورنر'}</p>
             <p class="text-[#2E3468] mb-3 text-sm bg-white p-3 rounded-xl leading-relaxed font-bold border">${order.details}</p>
             ${order.missing_note ? `<div class="bg-red-50 border border-red-200 p-2 rounded-lg mb-3"><p class="text-xs text-red-600 font-bold">ناقص: ${order.missing_note}</p></div>` : ''}
