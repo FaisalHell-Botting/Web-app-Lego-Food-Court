@@ -51,11 +51,12 @@
             </div>
         </div>
 
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4 text-center">
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4 text-center">
             <div class="bg-white/10 p-3 rounded-xl"><p class="text-xs text-gray-300 mb-1">المبيعات الإجمالية</p><p id="s_sales" class="font-black text-lg">0 ₪</p></div>
             <div class="bg-white/10 p-3 rounded-xl"><p class="text-xs text-gray-300 mb-1">إجمالي الطلبات</p><p id="s_count" class="font-black text-lg">0</p></div>
             <div class="bg-white/10 p-3 rounded-xl"><p class="text-xs text-green-300 mb-1">مدفوع</p><p id="s_paid" class="font-black text-lg text-green-400">0 ₪</p></div>
             <div class="bg-white/10 p-3 rounded-xl"><p class="text-xs text-red-300 mb-1">ديون عالقة</p><p id="s_debt" class="font-black text-lg text-red-400">0 ₪</p></div>
+            <div class="bg-white/10 p-3 rounded-xl"><p class="text-xs text-cyan-200 mb-1">إجمالي الأرباح</p><p id="s_profit" class="font-black text-lg text-cyan-300">0 ₪</p></div>
         </div>
 
         <div class="flex gap-1 overflow-x-auto">
@@ -70,6 +71,9 @@
             </button>
             <button onclick="switchTab('reviews')" id="tab_reviews" class="font-bold px-4 py-2 rounded-lg text-gray-300 hover:bg-white/10 text-sm whitespace-nowrap transition-colors">
                 التقييمات
+            </button>
+            <button onclick="switchTab('expenses')" id="tab_expenses" class="font-bold px-4 py-2 rounded-lg text-gray-300 hover:bg-white/10 text-sm whitespace-nowrap transition-colors">
+                المصاريف
             </button>
         </div>
     </div>
@@ -105,6 +109,15 @@
     <div id="view_reviews" class="hidden">
         <div id="reviewsList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
     </div>
+
+    <div id="view_expenses" class="hidden">
+        <div class="flex justify-end mb-4">
+            <button onclick="openExpenseModal()" class="bg-[#2E3468] text-white px-4 py-2 rounded-xl text-sm font-bold shadow hover:bg-opacity-90 transition-all">
+                إضافة
+            </button>
+        </div>
+        <div id="expensesList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+    </div>
 </main>
 
 <div id="missingPromptModal" class="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 hidden">
@@ -133,6 +146,29 @@
     </div>
 </div>
 
+<div id="expenseModal" class="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white p-6 rounded-3xl w-full max-w-sm slide-up">
+        <h3 class="font-black text-lg text-[#2E3468] mb-1">إضافة مصروف</h3>
+        <p class="text-xs text-gray-400 mb-4">أدخل قيمة الفاتورة وأرفق الصورة</p>
+        <input id="expenseAmountInput" type="number" min="1" placeholder="قيمة الفاتورة"
+               class="w-full border-2 border-gray-200 p-3 rounded-xl mb-4 text-right font-bold focus:outline-none focus:border-[#2E3468]">
+        <div class="border-2 border-dashed border-gray-300 rounded-2xl p-6 text-center mb-4 cursor-pointer hover:border-[#2E3468] transition-colors" onclick="document.getElementById('expenseReceiptInput').click()">
+            <div id="expenseReceiptPreview" class="hidden"><img id="expenseReceiptImg" class="max-h-40 mx-auto rounded-xl object-contain"></div>
+            <div id="expenseReceiptPlaceholder">
+                <div class="text-4xl mb-2">📷</div>
+                <p class="text-sm text-gray-500 font-bold">اضغط لرفع الفاتورة</p>
+            </div>
+        </div>
+        <input type="file" id="expenseReceiptInput" accept="image/*" class="hidden" onchange="handleExpenseReceiptUpload(this)">
+        <button onclick="submitExpense()" class="w-full bg-[#2E3468] text-white py-3 rounded-xl font-bold mb-2 hover:bg-opacity-90 transition-all">
+            حفظ المصروف
+        </button>
+        <button onclick="closeExpenseModal()" class="w-full bg-gray-100 text-gray-600 py-3 rounded-xl font-bold hover:bg-gray-200 transition-colors">
+            إلغاء
+        </button>
+    </div>
+</div>
+
 <script>
 const API_URL = "https://web-app-lego-food-court.onrender.com/api";
 
@@ -142,6 +178,7 @@ let selectedMissingItems = [];
 let previousActiveCount = 0;
 let audioAlertsEnabled = false;
 let announcedOrders = new Set();
+let expenseReceiptBase64 = null;
 const ADMIN_PASSWORD = '444555666';
 
 function loginAdmin() {
@@ -167,7 +204,7 @@ function ensureAdminAuth() {
 }
 
 function switchTab(tab) {
-    ['active','ledger','guests','reviews'].forEach(t => {
+    ['active','ledger','guests','reviews','expenses'].forEach(t => {
         document.getElementById(`view_${t}`).classList.add('hidden');
         document.getElementById(`tab_${t}`).className = 'font-bold px-4 py-2 rounded-lg text-gray-300 hover:bg-white/10 text-sm whitespace-nowrap transition-colors';
     });
@@ -185,6 +222,7 @@ async function fetchData() {
         document.getElementById('s_count').innerText = data.stats.total_count || 0;
         document.getElementById('s_paid').innerText = `${data.stats.paid_invoices || 0} ₪`;
         document.getElementById('s_debt').innerText = `${data.stats.total_debts || 0} ₪`;
+        document.getElementById('s_profit').innerText = `${data.stats.total_profit || 0} ₪`;
 
         const activeCount = (data.active_orders || []).length;
         const badge = document.getElementById('activeCount');
@@ -201,6 +239,7 @@ async function fetchData() {
         renderLedger(data.debts || []);
         renderGuests(data.guest_orders || []);
         renderReviews(data.reviews || []);
+        renderExpenses(data.expenses || []);
     } catch (e) {
         console.error(e);
     }
@@ -440,6 +479,32 @@ function renderReviews(reviews) {
     `).join('');
 }
 
+function renderExpenses(expenses) {
+    const list = document.getElementById('expensesList');
+    if (!expenses.length) {
+        list.innerHTML = `<div class="col-span-full text-center py-16 text-gray-400">
+            <div class="text-5xl mb-3">🧾</div>
+            <p class="font-bold">لا توجد مصاريف مسجلة</p>
+        </div>`;
+        return;
+    }
+    list.innerHTML = expenses.map(expense => `
+        <div class="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm slide-up">
+            <div class="flex justify-between items-start mb-3 gap-3">
+                <div>
+                    <p class="text-xs text-gray-400 font-bold">تاريخ الإضافة</p>
+                    <p class="text-sm font-bold text-[#2E3468] mt-1">${expense.created_at}</p>
+                </div>
+                <button onclick="deleteExpense(${expense.id})" class="text-xs font-bold text-red-500 bg-red-50 px-3 py-1.5 rounded-lg hover:bg-red-100 transition-colors">
+                    حذف
+                </button>
+            </div>
+            <p class="font-black text-2xl text-[#2E3468] mb-3">${expense.amount} ₪</p>
+            ${expense.receipt ? `<button onclick="showFullReceipt('${expense.receipt}')" class="w-full border rounded-xl py-2.5 text-sm font-bold hover:bg-gray-50">عرض الفاتورة</button>` : '<p class="text-xs text-gray-400">لا توجد صورة مرفقة</p>'}
+        </div>
+    `).join('');
+}
+
 async function action(act, id, office=null, note=null) {
     try {
         const res = await fetch(`${API_URL}/admin/action`, {
@@ -458,6 +523,74 @@ async function action(act, id, office=null, note=null) {
         fetchData();
     } catch (e) {
         alert('حدث خطأ، حاول مجدداً');
+    }
+}
+
+function openExpenseModal() {
+    expenseReceiptBase64 = null;
+    document.getElementById('expenseAmountInput').value = '';
+    document.getElementById('expenseReceiptPreview').classList.add('hidden');
+    document.getElementById('expenseReceiptPlaceholder').classList.remove('hidden');
+    document.getElementById('expenseModal').classList.remove('hidden');
+}
+
+function closeExpenseModal() {
+    document.getElementById('expenseModal').classList.add('hidden');
+}
+
+function handleExpenseReceiptUpload(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+        expenseReceiptBase64 = e.target.result;
+        document.getElementById('expenseReceiptImg').src = expenseReceiptBase64;
+        document.getElementById('expenseReceiptPreview').classList.remove('hidden');
+        document.getElementById('expenseReceiptPlaceholder').classList.add('hidden');
+    };
+    reader.readAsDataURL(file);
+}
+
+async function submitExpense() {
+    const amount = Number(document.getElementById('expenseAmountInput').value || 0);
+    if (amount <= 0) {
+        alert('الرجاء إدخال قيمة صحيحة');
+        return;
+    }
+    try {
+        const res = await fetch(`${API_URL}/admin/action`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'add_expense', amount, receipt: expenseReceiptBase64 })
+        });
+        const data = await res.json();
+        if (data.status !== 'success') {
+            alert(data.message || 'حدث خطأ أثناء حفظ المصروف');
+            return;
+        }
+        closeExpenseModal();
+        fetchData();
+    } catch (e) {
+        alert('حدث خطأ أثناء حفظ المصروف');
+    }
+}
+
+async function deleteExpense(id) {
+    if (!confirm('هل تريد حذف هذا المصروف؟')) return;
+    try {
+        const res = await fetch(`${API_URL}/admin/action`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'delete_expense', order_id: id })
+        });
+        const data = await res.json();
+        if (data.status !== 'success') {
+            alert(data.message || 'حدث خطأ أثناء حذف المصروف');
+            return;
+        }
+        fetchData();
+    } catch (e) {
+        alert('حدث خطأ أثناء حذف المصروف');
     }
 }
 
