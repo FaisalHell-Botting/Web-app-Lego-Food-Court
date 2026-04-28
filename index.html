@@ -26,6 +26,26 @@
         @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
         .tab-active { background: #2E3468; color: white !important; }
         .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .ai-tab-glow { position: relative; overflow: hidden; }
+        .ai-tab-glow::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: -140%;
+            width: 120%;
+            height: 100%;
+            background: linear-gradient(100deg, transparent 15%, rgba(255,255,255,0.35) 50%, transparent 85%);
+            animation: aiShine 2.8s ease-in-out infinite;
+        }
+        .ai-bolt { animation: boltPulse 1.1s ease-in-out infinite; display: inline-block; }
+        @keyframes aiShine {
+            0%, 15% { right: -140%; }
+            55%, 100% { right: 140%; }
+        }
+        @keyframes boltPulse {
+            0%, 100% { transform: scale(1); filter: drop-shadow(0 0 0 rgba(59,130,246,0)); }
+            50% { transform: scale(1.14); filter: drop-shadow(0 0 7px rgba(59,130,246,0.55)); }
+        }
     </style>
 </head>
 <body class="pb-32 bg-[#F8F9FA]">
@@ -64,13 +84,13 @@
                 <img src="/logo.png" alt="LE Coffee" class="w-10 h-10 rounded-xl object-contain bg-white border p-1" onerror="this.classList.add('hidden')">
                 <div class="min-w-0">
                     <p class="font-black text-navy text-sm truncate">LE Coffee</p>
-                    <p id="debtHeaderLabel" class="text-[11px] text-red-500 font-bold hidden">إجمالي الدين: <span id="headerDebtValue">0 ₪</span></p>
+                    <p id="headerIdentityLabel" class="text-[11px] text-gray-500 font-bold"></p>
                 </div>
             </div>
             <div class="flex items-center gap-2 shrink-0">
                 <span id="userBadge" class="bg-navy text-white text-xs font-bold px-3 py-1.5 rounded-full"></span>
                 <button onclick="toggleLedger()" class="text-xs font-bold text-navy bg-gray-100 px-3 py-1.5 rounded-full hover:bg-gray-200 transition-colors">
-                    ديوني
+                    📋 ديوني
                 </button>
                 <button onclick="logout()" class="text-xs font-bold text-red-500 bg-red-50 px-3 py-1.5 rounded-full hover:bg-red-100 transition-colors">
                     خروج
@@ -132,8 +152,12 @@
         <button id="tabMenu" onclick="switchOrderMode('menu')" class="tab-active flex-1 py-2.5 rounded-xl text-sm font-bold transition-all border">
             المنيو
         </button>
-        <button id="tabAI" onclick="switchOrderMode('ai')" class="flex-1 py-2.5 rounded-xl text-sm font-bold text-gray-500 transition-all border hover:border-navy">
-            اطلب بالكتابة
+        <button id="tabAI" onclick="switchOrderMode('ai')" class="ai-tab-glow flex-1 py-2.5 rounded-xl text-sm font-bold text-blue-700 bg-blue-50 transition-all border border-blue-200 hover:border-blue-500">
+            <span class="inline-flex items-center gap-1.5">
+                <span class="ai-bolt">⚡</span>
+                <span>🤖</span>
+                <span>اطلب بالكتابة</span>
+            </span>
         </button>
     </div>
 
@@ -183,7 +207,7 @@
     </div>
 </main>
 
-<div id="cartBar" class="fixed bottom-0 left-0 w-full bg-white border-t shadow-2xl p-4 hidden z-40">
+<div id="cartBar" class="fixed bottom-0 left-0 w-full bg-white border-t shadow-2xl p-4 hidden z-40 max-h-[52vh] overflow-y-auto">
     <div class="max-w-md mx-auto">
         <div id="orderTypeCard" class="bg-blue-50 rounded-2xl border border-blue-200 shadow-sm p-4 mb-3 hidden">
             <div class="flex justify-between items-center gap-3 mb-3">
@@ -286,9 +310,14 @@
             <p class="text-xs text-gray-400 font-bold mb-1">معلومات التحويل</p>
             <div id="popupPaymentInfo" class="space-y-2 mt-2"></div>
         </div>
-        <button onclick="closeModal('debtReminderModal')" class="w-full bg-navy text-white py-3 rounded-xl font-bold">
-            فهمت
-        </button>
+        <div class="grid grid-cols-2 gap-2">
+            <button onclick="openDebtPaymentFromReminder()" class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold">
+                سدد الآن
+            </button>
+            <button onclick="closeModal('debtReminderModal')" class="w-full bg-navy text-white py-3 rounded-xl font-bold">
+                فهمت
+            </button>
+        </div>
     </div>
 </div>
 
@@ -297,7 +326,7 @@
         <h3 class="font-black text-lg text-navy mb-2">إرسال إثبات السداد</h3>
         <p class="text-sm text-gray-500 mb-4">ارفع صورة التحويل حتى تصل للإدارة كطلب تسديد دين</p>
         <div class="bg-gray-50 p-3 rounded-xl mb-4">
-            <p class="text-sm font-bold text-navy">المبلغ المطلوب: <span id="debtPaymentAmount"></span></p>
+            <p class="text-base font-black text-blue-600">المبلغ المطلوب: <span id="debtPaymentAmount" class="text-xl"></span></p>
         </div>
         <div class="border-2 border-dashed border-gray-300 rounded-2xl p-6 text-center mb-4 cursor-pointer hover:border-navy transition-colors" onclick="document.getElementById('debtReceiptInput').click()">
             <div id="debtReceiptPreview" class="hidden"><img id="debtReceiptImg" class="max-h-40 mx-auto rounded-xl object-contain"></div>
@@ -413,6 +442,7 @@ function login(type) {
     user.isGuest = type === 'guest';
     user.id = type === 'office' ? `مكتب ${val}` : `زائر-${Math.floor(Math.random() * 9000 + 1000)}`;
     document.getElementById('userBadge').innerText = user.id;
+    document.getElementById('headerIdentityLabel').innerText = user.id;
     document.getElementById('authScreen').classList.add('hidden');
     document.getElementById('mainHeader').classList.remove('hidden');
     document.getElementById('mainScreen').classList.remove('hidden');
@@ -456,6 +486,7 @@ function restoreState() {
         chatHistory = state.chatHistory || [];
         editingOrderId = state.editingOrderId || null;
         document.getElementById('userBadge').innerText = user.id;
+        document.getElementById('headerIdentityLabel').innerText = user.id;
         document.getElementById('authScreen').classList.add('hidden');
         document.getElementById('mainHeader').classList.remove('hidden');
         document.getElementById('mainScreen').classList.remove('hidden');
@@ -475,7 +506,7 @@ function switchOrderMode(mode) {
     document.getElementById('menuMode').classList.toggle('hidden', !isMenu);
     document.getElementById('aiMode').classList.toggle('hidden', isMenu);
     document.getElementById('tabMenu').className = `${isMenu ? 'tab-active' : 'text-gray-500 border'} flex-1 py-2.5 rounded-xl text-sm font-bold transition-all border`;
-    document.getElementById('tabAI').className = `${!isMenu ? 'tab-active' : 'text-gray-500 border'} flex-1 py-2.5 rounded-xl text-sm font-bold transition-all border`;
+    document.getElementById('tabAI').className = `${!isMenu ? 'tab-active border-blue-600 bg-blue-600 text-white' : 'ai-tab-glow text-blue-700 bg-blue-50 border-blue-200'} flex-1 py-2.5 rounded-xl text-sm font-bold transition-all border`;
     updateCartBar();
     persistState();
 }
@@ -956,6 +987,11 @@ async function handleReminder(reminder, latestPaymentRequest, totalDebt) {
         document.getElementById('debtReminderModal').classList.remove('hidden');
         await fetch(`${API_URL}/reminder/${reminder.id}/seen`, { method: 'POST' });
     }
+}
+
+function openDebtPaymentFromReminder() {
+    closeModal('debtReminderModal');
+    openDebtPaymentModal();
 }
 
 function openDebtPaymentModal() {
