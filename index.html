@@ -72,6 +72,9 @@
                 <button onclick="toggleLedger()" class="text-xs font-bold text-navy bg-gray-100 px-3 py-1.5 rounded-full hover:bg-gray-200 transition-colors">
                     ديوني
                 </button>
+                <button onclick="logout()" class="text-xs font-bold text-red-500 bg-red-50 px-3 py-1.5 rounded-full hover:bg-red-100 transition-colors">
+                    خروج
+                </button>
             </div>
         </div>
     </div>
@@ -92,9 +95,14 @@
             <p class="text-xs font-bold text-red-600">صنف ناقص:</p>
             <p id="missingNoteText" class="text-sm text-red-800 font-bold mt-1"></p>
         </div>
-        <button onclick="cancelActiveOrder()" class="w-full bg-red-100 text-red-600 py-2.5 rounded-xl text-sm font-bold hover:bg-red-200 transition-colors">
-            إلغاء الطلب
-        </button>
+        <div class="grid grid-cols-1 gap-2">
+            <button id="editMissingOrderBtn" onclick="startEditingMissingOrder()" class="hidden w-full bg-blue-100 text-blue-700 py-2.5 rounded-xl text-sm font-bold hover:bg-blue-200 transition-colors">
+                تعديل الطلب
+            </button>
+            <button onclick="cancelActiveOrder()" class="w-full bg-red-100 text-red-600 py-2.5 rounded-xl text-sm font-bold hover:bg-red-200 transition-colors">
+                إلغاء الطلب
+            </button>
+        </div>
     </div>
 </div>
 
@@ -106,24 +114,6 @@
                 <p id="miniDebtValue" class="text-2xl font-black text-red-500">0 ₪</p>
             </div>
             <div id="miniDebtHint" class="text-[11px] text-gray-500 font-bold text-left leading-5"></div>
-        </div>
-    </div>
-
-    <div id="orderTypeCard" class="bg-white rounded-2xl border shadow-sm p-4 mt-4 hidden">
-        <div class="flex justify-between items-center gap-3 mb-3">
-            <div>
-                <h3 class="font-bold text-navy text-sm">نوع الطلب</h3>
-                <p id="orderTypeHint" class="text-xs text-gray-400 mt-1">اختر إذا بدك الطلب داخل الكوفي كورنر أو توصيل للمكتب</p>
-            </div>
-            <span id="orderTypeBadge" class="text-[11px] font-bold text-gray-500 bg-gray-100 px-2 py-1 rounded-full">مرن</span>
-        </div>
-        <div class="grid grid-cols-2 gap-2">
-            <button id="typeInside" onclick="setOrderType('داخل الكوفي كورنر')" class="tab-active py-2.5 rounded-xl text-sm font-bold border transition-all">
-                داخل الكوفي كورنر
-            </button>
-            <button id="typeOffice" onclick="setOrderType('توصيل للمكتب')" class="py-2.5 rounded-xl text-sm font-bold text-gray-500 border hover:border-navy transition-all">
-                توصيل للمكتب
-            </button>
         </div>
     </div>
 
@@ -195,6 +185,23 @@
 
 <div id="cartBar" class="fixed bottom-0 left-0 w-full bg-white border-t shadow-2xl p-4 hidden z-40">
     <div class="max-w-md mx-auto">
+        <div id="orderTypeCard" class="bg-blue-50 rounded-2xl border border-blue-200 shadow-sm p-4 mb-3 hidden">
+            <div class="flex justify-between items-center gap-3 mb-3">
+                <div>
+                    <h3 class="font-bold text-blue-700 text-sm">وين بدك الطلب؟</h3>
+                    <p id="orderTypeHint" class="text-xs text-blue-500 mt-1">اختر إذا بدك الطلب داخل الكوفي كورنر أو توصيل للمكتب</p>
+                </div>
+                <span id="orderTypeBadge" class="text-[11px] font-bold text-blue-700 bg-white px-2 py-1 rounded-full">مرن</span>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+                <button id="typeInside" onclick="setOrderType('داخل الكوفي كورنر')" class="bg-blue-600 text-white py-2.5 rounded-xl text-sm font-bold border border-blue-600 transition-all">
+                    داخل الكوفي كورنر
+                </button>
+                <button id="typeOffice" onclick="setOrderType('توصيل للمكتب')" class="py-2.5 rounded-xl text-sm font-bold text-blue-700 border border-blue-300 hover:border-blue-600 transition-all">
+                    توصيل للمكتب
+                </button>
+            </div>
+        </div>
         <div class="flex justify-between items-center mb-2">
             <div>
                 <p class="text-xs text-gray-400 font-bold">المجموع</p>
@@ -356,12 +363,14 @@ let selectedOrderType = 'داخل الكوفي كورنر';
 let pollingStarted = false;
 let reviewShown = false;
 let latestReminder = null;
+let editingOrderId = null;
 const debtTransferDefaults = {
     bank: 'بنك فلسطين',
     id: '1512081',
     iban: 'PS11PALS045115120810993100000',
     wallet: '0597489605'
 };
+const STORAGE_KEY = 'lecoffee_user_state_v1';
 
 const fullMenu = [
     {id:"h1",name:"شاي",price:1,cat:"hot",emoji:"🍵"},
@@ -412,7 +421,53 @@ function login(type) {
     setOrderType('داخل الكوفي كورنر');
     renderMenu('all');
     updateDraftOrderCard();
+    persistState();
     if (!pollingStarted) startPolling();
+}
+
+function logout() {
+    localStorage.removeItem(STORAGE_KEY);
+    window.location.reload();
+}
+
+function persistState() {
+    try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+            user,
+            cart,
+            selectedOrderType,
+            currentCat,
+            chatHistory,
+            editingOrderId
+        }));
+    } catch (e) {}
+}
+
+function restoreState() {
+    try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+        const state = JSON.parse(raw);
+        if (!state.user || !state.user.id) return;
+        user = state.user;
+        cart = state.cart || {};
+        selectedOrderType = state.selectedOrderType || 'داخل الكوفي كورنر';
+        currentCat = state.currentCat || 'all';
+        chatHistory = state.chatHistory || [];
+        editingOrderId = state.editingOrderId || null;
+        document.getElementById('userBadge').innerText = user.id;
+        document.getElementById('authScreen').classList.add('hidden');
+        document.getElementById('mainHeader').classList.remove('hidden');
+        document.getElementById('mainScreen').classList.remove('hidden');
+        document.getElementById('orderTypeCard').classList.toggle('hidden', user.isGuest);
+        document.getElementById('debtSummaryCard').classList.toggle('hidden', user.isGuest);
+        renderMenu(currentCat);
+        enforceOrderTypeRules();
+        setOrderType(selectedOrderType);
+        updateDraftOrderCard();
+        updateCartBar();
+        if (!pollingStarted) startPolling();
+    } catch (e) {}
 }
 
 function switchOrderMode(mode) {
@@ -422,6 +477,7 @@ function switchOrderMode(mode) {
     document.getElementById('tabMenu').className = `${isMenu ? 'tab-active' : 'text-gray-500 border'} flex-1 py-2.5 rounded-xl text-sm font-bold transition-all border`;
     document.getElementById('tabAI').className = `${!isMenu ? 'tab-active' : 'text-gray-500 border'} flex-1 py-2.5 rounded-xl text-sm font-bold transition-all border`;
     updateCartBar();
+    persistState();
 }
 
 function renderMenu(cat) {
@@ -456,10 +512,11 @@ function renderMenu(cat) {
             </div>
         </div>`;
     }).join('');
+    persistState();
 }
 
 function addToCart(id, change) {
-    if (activeOrderId) {
+    if (activeOrderId && editingOrderId !== activeOrderId) {
         showToast('لديك طلب قيد الانتظار');
         return;
     }
@@ -469,15 +526,18 @@ function addToCart(id, change) {
     renderMenu(currentCat);
     updateDraftOrderCard();
     updateCartBar();
+    persistState();
 }
 
 function clearCart() {
     cart = {};
     aiOrderData = null;
+    editingOrderId = null;
     enforceOrderTypeRules();
     renderMenu(currentCat);
     updateDraftOrderCard();
     updateCartBar();
+    persistState();
 }
 
 function getCartStats() {
@@ -526,7 +586,7 @@ function updateCartBar() {
     document.getElementById('cartItemCount').innerText = `${stats.qty} أصناف`;
     document.getElementById('cartTypeLabel').innerText = user.isGuest ? 'زائر' : selectedOrderType;
     const bar = document.getElementById('cartBar');
-    const showBar = stats.qty > 0 && !activeOrderId;
+    const showBar = stats.qty > 0 && (!activeOrderId || editingOrderId === activeOrderId);
     bar.classList.toggle('hidden', !showBar);
 }
 
@@ -534,12 +594,13 @@ function setOrderType(type) {
     selectedOrderType = type;
     const inside = document.getElementById('typeInside');
     const office = document.getElementById('typeOffice');
-    inside.className = `${type === 'داخل الكوفي كورنر' ? 'tab-active' : 'text-gray-500 border'} py-2.5 rounded-xl text-sm font-bold border transition-all`;
+    inside.className = `${type === 'داخل الكوفي كورنر' ? 'bg-blue-600 text-white border-blue-600' : 'text-blue-700 border-blue-300 bg-white'} py-2.5 rounded-xl text-sm font-bold border transition-all`;
     office.className = office.disabled
         ? 'py-2.5 rounded-xl text-sm font-bold border transition-all text-gray-300 bg-gray-50 cursor-not-allowed'
-        : `${type === 'توصيل للمكتب' ? 'tab-active' : 'text-gray-500 border'} py-2.5 rounded-xl text-sm font-bold border transition-all`;
+        : `${type === 'توصيل للمكتب' ? 'bg-blue-600 text-white border-blue-600' : 'text-blue-700 border-blue-300 bg-white'} py-2.5 rounded-xl text-sm font-bold border transition-all`;
     updateDraftOrderCard();
     updateCartBar();
+    persistState();
 }
 
 function enforceOrderTypeRules() {
@@ -579,13 +640,14 @@ function processOrder() {
         document.getElementById('receiptModal').classList.remove('hidden');
         return;
     }
-    sendOrder(pendingOrderItems, pendingOrderTotal, null);
+    sendOrder(pendingOrderItems, pendingOrderTotal, null, editingOrderId);
 }
 
-async function sendOrder(items, total, receipt) {
+async function sendOrder(items, total, receipt, orderId=null) {
     try {
-        const res = await fetch(`${API_URL}/order`, {
-            method: 'POST',
+        const isEdit = Boolean(orderId);
+        const res = await fetch(`${API_URL}/order${isEdit ? `/${orderId}` : ''}`, {
+            method: isEdit ? 'PUT' : 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 office: user.id,
@@ -597,7 +659,7 @@ async function sendOrder(items, total, receipt) {
         });
         const data = await res.json();
         if (data.status === 'success') {
-            showToast('تم إرسال طلبك بنجاح');
+            showToast(isEdit ? 'تم تعديل الطلب بنجاح' : 'تم إرسال طلبك بنجاح');
             clearCart();
             closeModal('receiptModal');
             poll();
@@ -627,7 +689,7 @@ function submitGuestOrder() {
         showToast('الرجاء رفع فاتورة الدفع أولاً');
         return;
     }
-    sendOrder(pendingOrderItems, pendingOrderTotal, receiptBase64);
+    sendOrder(pendingOrderItems, pendingOrderTotal, receiptBase64, editingOrderId);
 }
 
 async function cancelActiveOrder() {
@@ -635,6 +697,8 @@ async function cancelActiveOrder() {
     if (!confirm('هل تريد إلغاء طلبك؟')) return;
     await fetch(`${API_URL}/order/${activeOrderId}`, { method: 'DELETE' });
     showToast('تم إلغاء الطلب');
+    editingOrderId = null;
+    persistState();
     poll();
 }
 
@@ -697,7 +761,7 @@ function parseAIOrder(parsedOrder) {
 
 function confirmAIOrder() {
     if (!aiOrderData || !aiOrderData.items || !aiOrderData.items.length) return;
-    if (activeOrderId) {
+    if (activeOrderId && editingOrderId !== activeOrderId) {
         showToast('لديك طلب قيد الانتظار');
         return;
     }
@@ -712,6 +776,30 @@ function confirmAIOrder() {
     updateCartBar();
     document.getElementById('aiOrderSummary').classList.add('hidden');
     showToast('تمت إضافة الطلب لطلبك الحالي');
+    persistState();
+}
+
+function startEditingMissingOrder() {
+    if (!activeOrderId) return;
+    const details = document.getElementById('activeOrderText').innerText;
+    const items = details.split(',').map(item => item.trim()).filter(Boolean);
+    const newCart = {};
+    items.forEach(name => {
+        const menuItem = fullMenu.find(item => item.name === name);
+        if (!menuItem) return;
+        newCart[menuItem.id] = (newCart[menuItem.id] || 0) + 1;
+    });
+    cart = newCart;
+    editingOrderId = activeOrderId;
+    const currentType = document.getElementById('activeOrderType').innerText.trim();
+    if (currentType && !user.isGuest) selectedOrderType = currentType;
+    enforceOrderTypeRules();
+    renderMenu(currentCat);
+    updateDraftOrderCard();
+    updateCartBar();
+    persistState();
+    window.scrollTo({ top: document.getElementById('mainScreen').offsetTop, behavior: 'smooth' });
+    showToast('عدّل الطلب ثم اضغط تأكيد الطلب');
 }
 
 async function poll() {
@@ -735,9 +823,15 @@ async function poll() {
             } else {
                 document.getElementById('missingNoteBox').classList.add('hidden');
             }
+            document.getElementById('editMissingOrderBtn').classList.toggle('hidden', data.active_order.status !== 'صنف_ناقص');
         } else {
             activeOrderId = null;
             document.getElementById('activeOrderBanner').classList.add('hidden');
+            document.getElementById('editMissingOrderBtn').classList.add('hidden');
+            if (editingOrderId) {
+                editingOrderId = null;
+                persistState();
+            }
         }
 
         renderDebtSummary(data);
@@ -748,6 +842,7 @@ async function poll() {
             showReviewModal(data.review_due);
         }
         updateCartBar();
+        persistState();
     } catch (e) {}
 }
 
@@ -995,6 +1090,7 @@ function showToast(msg) {
         setTimeout(() => t.classList.add('hidden'), 300);
     }, 2500);
 }
+restoreState();
 </script>
 </body>
 </html>
