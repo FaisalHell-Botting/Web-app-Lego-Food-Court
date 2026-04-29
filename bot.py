@@ -1,5 +1,7 @@
+import hashlib
 import json
 import os
+import random
 import re
 from datetime import datetime, timedelta
 
@@ -127,7 +129,40 @@ ITEM_ALIASES = {
 
 
 def get_pal_time():
-    return (datetime.utcnow() + timedelta(hours=3)).strftime("%Y-%m-%d %H:%M:%S")
+    return get_pal_datetime().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def get_pal_datetime():
+    return datetime.utcnow() + timedelta(hours=3)
+
+
+def is_store_open():
+    return get_pal_datetime().hour < 20
+
+
+def store_closed_response():
+    return {
+        "status": "error",
+        "message": "الطلبات مغلقة الآن. نستقبل الطلبات حتى الساعة 8:00 مساءً بتوقيت فلسطين.",
+        "code": "store_closed",
+    }
+
+
+def is_valid_pin(pin):
+    return bool(re.fullmatch(r"\d{4}", str(pin or "")))
+
+
+def hash_pin(pin):
+    return hashlib.sha256(str(pin).encode("utf-8")).hexdigest()
+
+
+def generate_unique_pin(cursor):
+    for _ in range(200):
+        pin = f"{random.randint(0, 9999):04d}"
+        cursor.execute("SELECT 1 FROM office_pins WHERE pin_hash=%s LIMIT 1", (hash_pin(pin),))
+        if not cursor.fetchone():
+            return pin
+    return f"{random.randint(0, 9999):04d}"
 
 
 def parse_time(value):
@@ -307,7 +342,8 @@ def init_db():
             rating INTEGER DEFAULT 0,
             review_text TEXT,
             is_reviewed INTEGER DEFAULT 0,
-            approved_at TEXT
+            approved_at TEXT,
+            guest_phone TEXT
         )
         """
     )
@@ -320,6 +356,7 @@ def init_db():
         ("review_text", "TEXT"),
         ("is_reviewed", "INTEGER DEFAULT 0"),
         ("approved_at", "TEXT"),
+        ("guest_phone", "TEXT"),
     ]:
         try:
             c.execute(f"ALTER TABLE orders ADD COLUMN {col} {definition}")
@@ -377,6 +414,28 @@ def init_db():
         """
     )
 
+    c.execute(
+        """
+        CREATE TABLE IF NOT EXISTS office_pins (
+            id SERIAL PRIMARY KEY,
+            office TEXT UNIQUE,
+            pin_hash TEXT,
+            updated_at TEXT
+        )
+        """
+    )
+
+    c.execute(
+        """
+        CREATE TABLE IF NOT EXISTS office_pin_help (
+            id SERIAL PRIMARY KEY,
+            office TEXT,
+            status TEXT DEFAULT 'pending',
+            created_at TEXT,
+            resolved_at TEXT
+        )
+        """
+    )
     c.close()
     conn.close()
 
@@ -411,6 +470,100 @@ async def serve_logo():
         return FileResponse("logo.png")
     return {"error": "logo.png not found"}
 
+
+
+@app.get("/api/store-status")
+async def store_status():
+    return {
+        "is_open": is_store_open(),
+        "message": "الطلبات متاحة حتى الساعة 8:00 مساءً بتوقيت فلسطين" if is_store_open() else "الطلبات مغلقة الآن. نستقبل الطلبات حتى الساعة 8:00 مساءً بتوقيت فلسطين.",
+    }
+
+
+@app.get("/api/office-pin-status/{office}")
+async def office_pin_status(office: str):
+    office = clean_office_name(office)
+    if not office or is_guest_office(office):
+        return {"status": "error", "message": "invalid office"}
+    try:
+        conn = get_db()
+        c = conn.cursor()
+        c.execute("SELECT 1 FROM office_pins WHERE office=%s LIMIT 1", (office,))
+        exists = bool(c.fetchone())
+        c.close()
+        conn.close()
+        return {"status": "success", "has_pin": exists, "is_open": is_store_open()}
+    except Exception as exc:
+        return {"status": "error", "message": str(exc)}
+
+
+@app.post("/api/office-pin/setup")
+async def setup_office_pin(request: Request):
+    data = await request.json()
+    office = clean_office_name(data.get("office"))
+    pin = str(data.get("pin", "")).strip()
+    if not office or is_guest_office(office):
+        return {"status": "error", "message": "invalid office"}
+    if not is_valid_pin(pin):
+        return {"status": "error", "message": "الرقم السري يجب أن يكون 4 أرقام"}
+    try:
+        conn = get_db()
+        c = conn.cursor()
+        c.execute("SELECT 1 FROM office_pins WHERE office=%s LIMIT 1", (office,))
+        if c.fetchone():
+            c.close()
+            conn.close()
+            return {"status": "error", "message": "يوجد رقم سري لهذا المكتب"}
+        c.execute(
+            "INSERT INTO office_pins (office, pin_hash, updated_at) VALUES (%s,%s,%s)",
+            (office, hash_pin(pin), get_pal_time()),
+        )
+        conn.commit()
+        c.close()
+        conn.close()
+        return {"status": "success"}
+    except Exception as exc:
+        return {"status": "error", "message": str(exc)}
+
+
+@app.post("/api/office-pin/verify")
+async def verify_office_pin(request: Request):
+    data = await request.json()
+    office = clean_office_name(data.get("office"))
+    pin = str(data.get("pin", "")).strip()
+    if not office or not is_valid_pin(pin):
+        return {"status": "error", "message": "رقم سري غير صحيح"}
+    try:
+        conn = get_db()
+        c = conn.cursor()
+        c.execute("SELECT pin_hash FROM office_pins WHERE office=%s LIMIT 1", (office,))
+        row = c.fetchone()
+        c.close()
+        conn.close()
+        if row and row[0] == hash_pin(pin):
+            return {"status": "success"}
+        return {"status": "error", "message": "رقم سري غير صحيح"}
+    except Exception as exc:
+        return {"status": "error", "message": str(exc)}
+
+
+@app.post("/api/office-pin/help")
+async def request_office_pin_help(request: Request):
+    data = await request.json()
+    office = clean_office_name(data.get("office"))
+    if not office or is_guest_office(office):
+        return {"status": "error", "message": "invalid office"}
+    try:
+        conn = get_db()
+        c = conn.cursor()
+        c.execute("UPDATE office_pin_help SET status='resolved', resolved_at=%s WHERE office=%s AND status='pending'", (get_pal_time(), office))
+        c.execute("INSERT INTO office_pin_help (office, status, created_at) VALUES (%s,'pending',%s)", (office, get_pal_time()))
+        conn.commit()
+        c.close()
+        conn.close()
+        return {"status": "success"}
+    except Exception as exc:
+        return {"status": "error", "message": str(exc)}
 
 @app.get("/api/menu")
 async def get_menu():
@@ -472,12 +625,16 @@ async def chat_with_ai(request: Request):
 
 @app.post("/api/order")
 async def create_order(request: Request):
+    if not is_store_open():
+        return store_closed_response()
     data = await request.json()
     office = clean_office_name(data.get("office"))
     items = data.get("items", [])
     total_price = int(data.get("total_price", 0) or 0)
     order_type = clean_office_name(data.get("order_type") or "داخل الكوفي كورنر")
     receipt = data.get("receipt")
+    guest_phone = clean_office_name(data.get("guest_phone"))
+    office_pin = str(data.get("office_pin", "")).strip()
 
     if not office or not items:
         return {"status": "error", "message": "missing order data"}
@@ -486,9 +643,37 @@ async def create_order(request: Request):
         order_type = "داخل الكوفي كورنر"
 
     is_guest = is_guest_office(office)
-    status = "مقبول" if is_guest else "انتظار"
-    is_paid = 1 if is_guest else 0
-    approved_at = get_pal_time() if is_guest else None
+    if is_guest and not guest_phone:
+        return {"status": "error", "message": "رقم الجوال مطلوب لطلبات الزوار"}
+    if is_guest and not receipt:
+        return {"status": "error", "message": "فاتورة الدفع مطلوبة لطلبات الزوار"}
+
+    if not is_guest:
+        c = None
+        conn = None
+        try:
+            conn = get_db()
+            c = conn.cursor()
+            c.execute("SELECT pin_hash FROM office_pins WHERE office=%s LIMIT 1", (office,))
+            pin_row = c.fetchone()
+            if not pin_row or not is_valid_pin(office_pin) or pin_row[0] != hash_pin(office_pin):
+                c.close()
+                conn.close()
+                return {"status": "error", "message": "الرقم السري للمكتب غير صحيح"}
+            c.close()
+            conn.close()
+        except Exception as exc:
+            try:
+                if c:
+                    c.close()
+                if conn:
+                    conn.close()
+            except Exception:
+                pass
+            return {"status": "error", "message": str(exc)}
+    status = "بانتظار_دفع_زائر" if is_guest else "انتظار"
+    is_paid = 0
+    approved_at = None
 
     try:
         conn = get_db()
@@ -496,10 +681,10 @@ async def create_order(request: Request):
         c.execute(
             """
             INSERT INTO orders
-            (user_id, details, total_price, location, timestamp, status, is_paid, receipt, order_type, approved_at)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            (user_id, details, total_price, location, timestamp, status, is_paid, receipt, order_type, approved_at, guest_phone)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             """,
-            (0, ", ".join(items), total_price, office, get_pal_time(), status, is_paid, receipt, order_type, approved_at),
+            (0, ", ".join(items), total_price, office, get_pal_time(), status, is_paid, receipt, order_type, approved_at, guest_phone),
         )
         conn.commit()
         c.close()
@@ -507,7 +692,6 @@ async def create_order(request: Request):
         return {"status": "success"}
     except Exception as exc:
         return {"status": "error", "message": str(exc)}
-
 
 @app.delete("/api/order/{order_id}")
 async def cancel_order(order_id: int):
@@ -528,11 +712,14 @@ async def cancel_order(order_id: int):
 
 @app.put("/api/order/{order_id}")
 async def update_order(order_id: int, request: Request):
+    if not is_store_open():
+        return store_closed_response()
     data = await request.json()
     office = clean_office_name(data.get("office"))
     items = data.get("items", [])
     total_price = int(data.get("total_price", 0) or 0)
     order_type = clean_office_name(data.get("order_type") or "داخل الكوفي كورنر")
+    office_pin = str(data.get("office_pin", "")).strip()
 
     if not office or not items:
         return {"status": "error", "message": "missing order data"}
@@ -543,6 +730,12 @@ async def update_order(order_id: int, request: Request):
     try:
         conn = get_db()
         c = conn.cursor()
+        c.execute("SELECT pin_hash FROM office_pins WHERE office=%s LIMIT 1", (office,))
+        pin_row = c.fetchone()
+        if not pin_row or not is_valid_pin(office_pin) or pin_row[0] != hash_pin(office_pin):
+            c.close()
+            conn.close()
+            return {"status": "error", "message": "الرقم السري للمكتب غير صحيح"}
         c.execute(
             """
             UPDATE orders
@@ -560,7 +753,6 @@ async def update_order(order_id: int, request: Request):
         return {"status": "success"}
     except Exception as exc:
         return {"status": "error", "message": str(exc)}
-
 
 @app.post("/api/debt-payment")
 async def submit_debt_payment(request: Request):
@@ -855,11 +1047,11 @@ async def admin_dashboard():
 
         c.execute(
             """
-            SELECT id, details, total_price, location, timestamp, receipt
+            SELECT id, details, total_price, location, timestamp, receipt, guest_phone, status, is_paid
             FROM orders
-            WHERE location LIKE 'زائر%%' AND status='مقبول'
+            WHERE location LIKE 'زائر%%' AND status<>'ملغي'
             ORDER BY id DESC
-            LIMIT 20
+            LIMIT 50
             """
         )
         guest_orders = [
@@ -870,15 +1062,52 @@ async def admin_dashboard():
                 "location": row[3],
                 "timestamp": row[4],
                 "receipt": row[5],
+                "guest_phone": row[6],
+                "status": row[7],
+                "is_paid": row[8],
             }
             for row in c.fetchall()
         ]
-
         c.execute("SELECT id, amount, receipt, created_at FROM expenses ORDER BY id DESC")
         expenses = [
             {"id": row[0], "amount": row[1], "receipt": row[2], "created_at": row[3]}
             for row in c.fetchall()
         ]
+
+        c.execute(
+            """
+            SELECT office, MAX(updated_at)
+            FROM office_pins
+            GROUP BY office
+            ORDER BY office ASC
+            """
+        )
+        offices = [
+            {"office": row[0], "has_pin": True, "updated_at": row[1], "help_requested": False, "help_created_at": None}
+            for row in c.fetchall()
+        ]
+        office_map = {item["office"]: item for item in offices}
+
+        c.execute(
+            """
+            SELECT DISTINCT location
+            FROM orders
+            WHERE location NOT LIKE 'زائر%%'
+            ORDER BY location ASC
+            """
+        )
+        for row in c.fetchall():
+            if row[0] not in office_map:
+                office_map[row[0]] = {"office": row[0], "has_pin": False, "updated_at": None, "help_requested": False, "help_created_at": None}
+
+        c.execute("SELECT office, created_at FROM office_pin_help WHERE status='pending' ORDER BY id DESC")
+        for office_name, created_at in c.fetchall():
+            if office_name not in office_map:
+                office_map[office_name] = {"office": office_name, "has_pin": False, "updated_at": None, "help_requested": True, "help_created_at": created_at}
+            else:
+                office_map[office_name]["help_requested"] = True
+                office_map[office_name]["help_created_at"] = created_at
+        offices = sorted(office_map.values(), key=lambda item: item["office"])
 
         c.close()
         conn.close()
@@ -896,15 +1125,43 @@ async def admin_dashboard():
             "reviews": reviews,
             "guest_orders": guest_orders,
             "expenses": expenses,
+            "offices": offices,
         }
     except Exception as exc:
         return {"error": str(exc)}
 
 
+
+@app.get("/api/admin/debt-details/{office}")
+async def admin_debt_details(office: str):
+    office = clean_office_name(office)
+    try:
+        conn = get_db()
+        c = conn.cursor()
+        c.execute(
+            """
+            SELECT id, details, total_price, timestamp, order_type
+            FROM orders
+            WHERE location=%s AND status='مقبول' AND is_paid=0
+            ORDER BY id DESC
+            """,
+            (office,),
+        )
+        orders = [
+            {"id": row[0], "details": row[1], "items": [item.strip() for item in (row[1] or "").split(",") if item.strip()], "total_price": row[2], "timestamp": row[3], "order_type": row[4]}
+            for row in c.fetchall()
+        ]
+        c.close()
+        conn.close()
+        return {"status": "success", "office": office, "orders": orders, "total_debt": sum(order["total_price"] or 0 for order in orders)}
+    except Exception as exc:
+        return {"status": "error", "message": str(exc)}
+
 @app.post("/api/admin/action")
 async def admin_action(request: Request):
     data = await request.json()
     action = data.get("action")
+    new_pin = None
     order_id = data.get("order_id")
     office = clean_office_name(data.get("office"))
     try:
@@ -915,6 +1172,8 @@ async def admin_action(request: Request):
             c.execute("UPDATE orders SET status='مقبول', approved_at=%s WHERE id=%s", (get_pal_time(), order_id))
         elif action == "missing":
             c.execute("UPDATE orders SET status='صنف_ناقص', missing_note=%s WHERE id=%s", (data.get("note"), order_id))
+        elif action == "confirm_visitor_payment":
+            c.execute("UPDATE orders SET status='مقبول', is_paid=1, approved_at=%s WHERE id=%s AND location LIKE 'زائر%%'", (get_pal_time(), order_id))
         elif action == "remind":
             if not office:
                 c.close()
@@ -947,6 +1206,74 @@ async def admin_action(request: Request):
             c.execute("UPDATE debt_payment_requests SET status='paid' WHERE id=%s", (order_id,))
             c.execute("UPDATE orders SET is_paid=1 WHERE location=%s AND status='مقبول' AND is_paid=0", (pay_office,))
             c.execute("UPDATE reminders SET is_active=0 WHERE office=%s", (pay_office,))
+        elif action == "reset_office_pin":
+            if not office:
+                c.close()
+                conn.close()
+                return {"status": "error", "message": "office is required"}
+            new_pin = generate_unique_pin(c)
+            c.execute(
+                """
+                INSERT INTO office_pins (office, pin_hash, updated_at)
+                VALUES (%s,%s,%s)
+                ON CONFLICT (office) DO UPDATE SET pin_hash=EXCLUDED.pin_hash, updated_at=EXCLUDED.updated_at
+                """,
+                (office, hash_pin(new_pin), get_pal_time()),
+            )
+            c.execute("UPDATE office_pin_help SET status='resolved', resolved_at=%s WHERE office=%s AND status='pending'", (get_pal_time(), office))
+        elif action == "set_total_debt":
+            target_amount = int(data.get("amount", 0) or 0)
+            note = clean_office_name(data.get("note")) or "تصحيح الدين النهائي"
+            if not office or target_amount < 0:
+                c.close()
+                conn.close()
+                return {"status": "error", "message": "office and valid amount are required"}
+            current_amount = fetch_current_debt(c, office)
+            diff = target_amount - int(current_amount or 0)
+            if diff != 0:
+                c.execute(
+                    """
+                    INSERT INTO orders (user_id, details, total_price, location, timestamp, status, is_paid, order_type, approved_at)
+                    VALUES (%s,%s,%s,%s,%s,'مقبول',0,'تسوية دين يدوية',%s)
+                    """,
+                    (0, f"تسوية دين: {note}", diff, office, get_pal_time(), get_pal_time()),
+                )        elif action == "add_manual_debt":
+            amount = int(data.get("amount", 0) or 0)
+            note = clean_office_name(data.get("note")) or "إضافة دين يدوية"
+            if not office or amount <= 0:
+                c.close()
+                conn.close()
+                return {"status": "error", "message": "office and amount are required"}
+            c.execute(
+                """
+                INSERT INTO orders (user_id, details, total_price, location, timestamp, status, is_paid, order_type, approved_at)
+                VALUES (%s,%s,%s,%s,%s,'مقبول',0,'إضافة يدوية',%s)
+                """,
+                (0, f"إضافة دين: {note}", amount, office, get_pal_time(), get_pal_time()),
+            )
+        elif action == "remove_debt_item":
+            item_name = clean_office_name(data.get("item_name"))
+            if not order_id or not item_name:
+                c.close()
+                conn.close()
+                return {"status": "error", "message": "order and item are required"}
+            c.execute("SELECT details, total_price FROM orders WHERE id=%s AND status='مقبول' AND is_paid=0", (order_id,))
+            order_row = c.fetchone()
+            if not order_row:
+                c.close()
+                conn.close()
+                return {"status": "error", "message": "order not found"}
+            items = [item.strip() for item in (order_row[0] or "").split(",") if item.strip()]
+            if item_name not in items:
+                c.close()
+                conn.close()
+                return {"status": "error", "message": "item not found"}
+            items.remove(item_name)
+            new_total = max(0, int(order_row[1] or 0) - int(PRICES.get(item_name, 0) or 0))
+            if not items or new_total <= 0:
+                c.execute("UPDATE orders SET details=%s, total_price=0, status='ملغي' WHERE id=%s", (order_row[0], order_id))
+            else:
+                c.execute("UPDATE orders SET details=%s, total_price=%s WHERE id=%s", (", ".join(items), new_total, order_id))
         elif action == "add_expense":
             amount = int(data.get("amount", 0) or 0)
             receipt = data.get("receipt")
@@ -964,6 +1291,8 @@ async def admin_action(request: Request):
         conn.commit()
         c.close()
         conn.close()
+        if action == "reset_office_pin":
+            return {"status": "success", "new_pin": new_pin}
         return {"status": "success"}
     except Exception as exc:
         return {"status": "error", "message": str(exc)}
