@@ -262,8 +262,17 @@
 
 <div id="receiptModal" class="fixed inset-0 bg-black/70 z-[80] flex items-center justify-center p-4 hidden">
     <div class="bg-white rounded-3xl w-full max-w-sm p-6 slide-up">
-        <h3 class="font-bold text-lg text-navy mb-2">أرفق فاتورة الدفع</h3>
-        <p class="text-sm text-gray-500 mb-4 leading-relaxed">أنت زائر، لازم ترفق صورة فاتورة الدفع مع طلبك</p>
+        <h3 class="font-bold text-lg text-navy mb-2">تأكيد طلب الزائر</h3>
+        <p class="text-sm text-gray-500 mb-3 leading-relaxed">أدخل رقم جوالك وأرفق فاتورة الدفع. سيراجع الكاشير الفاتورة لاحقاً ويتواصل معك عند الحاجة.</p>
+        <div class="bg-gray-50 rounded-2xl p-3 mb-3 border">
+            <div class="flex justify-between items-center mb-2">
+                <span class="text-xs text-gray-400 font-bold">إجمالي الطلب</span>
+                <span id="guestPaymentTotal" class="font-black text-navy">0 ₪</span>
+            </div>
+            <div id="guestPaymentInfo" class="space-y-2"></div>
+        </div>
+        <input type="tel" id="guestPhoneInput" dir="ltr" placeholder="رقم الجوال" inputmode="tel"
+               class="w-full border-2 border-gray-200 p-3 rounded-xl mb-3 text-center font-bold focus:outline-none focus:border-navy">
         <div class="border-2 border-dashed border-gray-300 rounded-2xl p-6 text-center mb-4 cursor-pointer hover:border-navy transition-colors" onclick="document.getElementById('receiptInput').click()">
             <div id="receiptPreview" class="hidden"><img id="receiptImg" class="max-h-40 mx-auto rounded-xl object-contain"></div>
             <div id="receiptPlaceholder">
@@ -273,15 +282,23 @@
             </div>
         </div>
         <input type="file" id="receiptInput" accept="image/*" class="hidden" onchange="handleReceiptUpload(this)">
-        <button onclick="submitGuestOrder()" class="w-full bg-navy text-white py-3 rounded-xl font-bold mb-2 hover:bg-opacity-90 transition-all">
-            إرسال الطلب مع الفاتورة
-        </button>
-        <button onclick="closeModal('receiptModal')" class="w-full bg-gray-100 text-gray-600 py-3 rounded-xl font-bold">
-            إلغاء
-        </button>
+        <button onclick="submitGuestOrder()" class="w-full bg-navy text-white py-3 rounded-xl font-bold mb-2 hover:bg-opacity-90 transition-all">إرسال الطلب مع الفاتورة</button>
+        <button onclick="closeModal('receiptModal')" class="w-full bg-gray-100 text-gray-600 py-3 rounded-xl font-bold">إلغاء</button>
     </div>
 </div>
-
+<div id="officePinModal" class="fixed inset-0 bg-black/70 z-[85] flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl w-full max-w-sm p-6 slide-up">
+        <h3 id="officePinTitle" class="font-bold text-lg text-navy mb-2">الرقم السري للمكتب</h3>
+        <p id="officePinHint" class="text-sm text-gray-500 mb-4 leading-relaxed"></p>
+        <input type="password" id="officePinInput" inputmode="numeric" maxlength="4" placeholder="4 أرقام"
+               class="w-full border-2 border-gray-200 p-3.5 rounded-xl mb-3 text-center font-black text-xl tracking-[0.4em] focus:outline-none focus:border-navy">
+        <input type="password" id="officePinConfirmInput" inputmode="numeric" maxlength="4" placeholder="تأكيد الرقم السري"
+               class="w-full border-2 border-gray-200 p-3.5 rounded-xl mb-4 text-center font-black text-xl tracking-[0.4em] focus:outline-none focus:border-navy hidden">
+        <button onclick="submitOfficePin()" class="w-full bg-navy text-white py-3 rounded-xl font-bold mb-2 hover:bg-opacity-90 transition-all">متابعة الطلب</button>
+        <button id="officePinHelpBtn" onclick="requestOfficePinHelp()" class="w-full bg-yellow-50 text-yellow-700 py-3 rounded-xl font-bold mb-2 hidden">طلب مساعدة من الكاشير</button>
+        <button onclick="closeModal('officePinModal')" class="w-full bg-gray-100 text-gray-600 py-3 rounded-xl font-bold">إلغاء</button>
+    </div>
+</div>
 <div id="ledgerScreen" class="fixed inset-0 bg-[#F8F9FA] z-[90] overflow-y-auto hidden">
     <div class="max-w-md mx-auto p-4">
         <div class="flex items-center gap-3 pt-4 mb-6">
@@ -400,6 +417,8 @@ let activeOrderId = null;
 let pendingOrderItems = [];
 let pendingOrderTotal = 0;
 let receiptBase64 = null;
+let pendingGuestPhone = '';
+let pendingOfficePin = '';
 let debtReceiptBase64 = null;
 let selectedRating = 0;
 let reviewOrderId = null;
@@ -411,6 +430,8 @@ let pollingStarted = false;
 let reviewShown = false;
 let latestReminder = null;
 let editingOrderId = null;
+let storeIsOpen = true;
+let officePinMode = 'verify';
 const debtTransferDefaults = {
     bank: 'بنك فلسطين',
     id: '1512081',
@@ -675,9 +696,14 @@ function enforceOrderTypeRules() {
     setOrderType('داخل الكوفي كورنر');
 }
 
-function processOrder() {
+async function processOrder() {
     const stats = getCartStats();
     if (!stats.qty) return;
+    await refreshStoreStatus();
+    if (!storeIsOpen) {
+        showToast('الطلبات مغلقة الآن. نستقبل الطلبات حتى الساعة 8:00 مساءً بتوقيت فلسطين.');
+        return;
+    }
     pendingOrderItems = [];
     stats.items.forEach(item => {
         for (let i = 0; i < item.qty; i++) pendingOrderItems.push(item.name);
@@ -685,15 +711,94 @@ function processOrder() {
     pendingOrderTotal = stats.total;
     if (user.isGuest) {
         receiptBase64 = null;
+        pendingGuestPhone = '';
+        document.getElementById('guestPhoneInput').value = '';
+        document.getElementById('guestPaymentTotal').innerText = `${pendingOrderTotal} ₪`;
+        document.getElementById('guestPaymentInfo').innerHTML = renderGuestPaymentInfo();
         document.getElementById('receiptPreview').classList.add('hidden');
         document.getElementById('receiptPlaceholder').classList.remove('hidden');
         document.getElementById('receiptModal').classList.remove('hidden');
         return;
     }
-    sendOrder(pendingOrderItems, pendingOrderTotal, null, editingOrderId);
+    openOfficePinModal();
 }
 
-async function sendOrder(items, total, receipt, orderId=null) {
+async function refreshStoreStatus() {
+    try {
+        const res = await fetch(`${API_URL}/store-status`);
+        const data = await res.json();
+        storeIsOpen = data.is_open !== false;
+    } catch (e) {
+        storeIsOpen = true;
+    }
+    updateCartBar();
+    return storeIsOpen;
+}
+
+async function openOfficePinModal() {
+    try {
+        const res = await fetch(`${API_URL}/office-pin-status/${encodeURIComponent(user.id)}`);
+        const data = await res.json();
+        officePinMode = data.has_pin ? 'verify' : 'setup';
+    } catch (e) {
+        officePinMode = 'verify';
+    }
+    document.getElementById('officePinInput').value = '';
+    document.getElementById('officePinConfirmInput').value = '';
+    document.getElementById('officePinConfirmInput').classList.toggle('hidden', officePinMode !== 'setup');
+    document.getElementById('officePinHelpBtn').classList.toggle('hidden', officePinMode === 'setup');
+    document.getElementById('officePinTitle').innerText = officePinMode === 'setup' ? 'أنشئ رقم سري للمكتب' : 'أدخل الرقم السري للمكتب';
+    document.getElementById('officePinHint').innerText = officePinMode === 'setup'
+        ? 'هذه أول مرة يتم فيها تأكيد طلب لهذا المكتب. اختر رقم سري من 4 أرقام.'
+        : 'أدخل الرقم السري الخاص بالمكتب لتأكيد الطلب.';
+    document.getElementById('officePinModal').classList.remove('hidden');
+}
+
+async function submitOfficePin() {
+    const pin = document.getElementById('officePinInput').value.trim();
+    const confirmPin = document.getElementById('officePinConfirmInput').value.trim();
+    if (!/^\d{4}$/.test(pin)) {
+        showToast('الرقم السري يجب أن يكون 4 أرقام');
+        return;
+    }
+    if (officePinMode === 'setup' && pin !== confirmPin) {
+        showToast('تأكيد الرقم السري غير مطابق');
+        return;
+    }
+    const endpoint = officePinMode === 'setup' ? 'office-pin/setup' : 'office-pin/verify';
+    try {
+        const res = await fetch(`${API_URL}/${endpoint}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ office: user.id, pin })
+        });
+        const data = await res.json();
+        if (data.status !== 'success') {
+            showToast(data.message || 'رقم سري غير صحيح');
+            return;
+        }
+        closeModal('officePinModal');
+        pendingOfficePin = pin;
+        sendOrder(pendingOrderItems, pendingOrderTotal, null, editingOrderId);
+    } catch (e) {
+        showToast('تعذر الاتصال بالسيرفر');
+    }
+}
+
+async function requestOfficePinHelp() {
+    try {
+        await fetch(`${API_URL}/office-pin/help`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ office: user.id })
+        });
+        showToast('تم إرسال طلب المساعدة. راجع الكاشير للحصول على رقم جديد.');
+        closeModal('officePinModal');
+    } catch (e) {
+        showToast('تعذر إرسال طلب المساعدة');
+    }
+}
+async function sendOrder(items, total, receipt, orderId=null, guestPhone='') {
     try {
         const isEdit = Boolean(orderId);
         const res = await fetch(`${API_URL}/order${isEdit ? `/${orderId}` : ''}`, {
@@ -704,12 +809,14 @@ async function sendOrder(items, total, receipt, orderId=null) {
                 items,
                 total_price: total,
                 order_type: user.isGuest ? 'داخل الكوفي كورنر' : selectedOrderType,
-                receipt
+                receipt,
+                guest_phone: guestPhone,
+                office_pin: user.isGuest ? null : pendingOfficePin
             })
         });
         const data = await res.json();
         if (data.status === 'success') {
-            showToast(isEdit ? 'تم تعديل الطلب بنجاح' : 'تم إرسال طلبك بنجاح');
+            showToast(user.isGuest && !isEdit ? 'تم إرسال طلبك، سيتم مراجعة الفاتورة والتواصل معك عند الحاجة' : (isEdit ? 'تم تعديل الطلب بنجاح' : 'تم إرسال طلبك بنجاح'));
             clearCart();
             closeModal('receiptModal');
             poll();
@@ -735,11 +842,17 @@ function handleReceiptUpload(input) {
 }
 
 function submitGuestOrder() {
+    const phone = document.getElementById('guestPhoneInput').value.trim();
+    if (!/^05\d{8}$/.test(phone.replace(/\s+/g, ''))) {
+        showToast('الرجاء إدخال رقم جوال صحيح');
+        return;
+    }
     if (!receiptBase64) {
         showToast('الرجاء رفع فاتورة الدفع أولاً');
         return;
     }
-    sendOrder(pendingOrderItems, pendingOrderTotal, receiptBase64, editingOrderId);
+    pendingGuestPhone = phone;
+    sendOrder(pendingOrderItems, pendingOrderTotal, receiptBase64, editingOrderId, pendingGuestPhone);
 }
 
 async function cancelActiveOrder() {
@@ -942,6 +1055,14 @@ function paymentInfoCard(label, value, copyValue) {
     `;
 }
 
+function renderGuestPaymentInfo() {
+    return `
+        ${paymentInfoCard('البنك', debtTransferDefaults.bank, debtTransferDefaults.bank)}
+        ${paymentInfoCard('ID', debtTransferDefaults.id, debtTransferDefaults.id)}
+        ${paymentInfoCard('IBAN', debtTransferDefaults.iban, debtTransferDefaults.iban)}
+        ${paymentInfoCard('محفظة بال باي', debtTransferDefaults.wallet, debtTransferDefaults.wallet)}
+    `;
+}
 function renderPaymentInfo(info) {
     const parsed = parsePaymentInfo(info);
     document.getElementById('popupPaymentInfo').innerHTML = `
@@ -958,24 +1079,35 @@ function renderLedger(orders) {
         list.innerHTML = '<p class="text-center text-gray-400 py-8">لا توجد طلبات بعد</p>';
         return;
     }
-    list.innerHTML = orders.map(o => `
+    list.innerHTML = orders.map(o => {
+        const amount = Number(o.total_price || 0);
+        const isAdjustment = (o.order_type || '').includes('تسوية دين') || (o.details || '').startsWith('تسوية دين:');
+        const adjustmentReason = isAdjustment ? String(o.details || '').replace('تسوية دين:', '').trim() : '';
+        const amountText = isAdjustment && amount > 0 ? `+${amount} ₪` : `${amount} ₪`;
+        const amountClass = isAdjustment && amount < 0 ? 'text-green-600' : (isAdjustment && amount > 0 ? 'text-red-600' : 'text-navy');
+        const title = isAdjustment ? 'تصحيح الدين' : o.details;
+        const subtitle = isAdjustment
+            ? `${amount < 0 ? 'تم خصم قيمة من الدين' : 'تم إضافة قيمة على الدين'}${adjustmentReason ? ` - السبب: ${adjustmentReason}` : ''}`
+            : '';
+        return `
         <div class="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm slide-up">
             <div class="flex justify-between items-start mb-2 gap-3">
                 <div class="min-w-0">
-                    <p class="font-bold text-navy text-sm leading-relaxed">${o.details}</p>
+                    <p class="font-bold text-navy text-sm leading-relaxed">${title}</p>
+                    ${subtitle ? `<p class="text-xs ${amount < 0 ? 'text-green-600' : 'text-red-500'} font-bold mt-1 leading-relaxed">${subtitle}</p>` : ''}
                     <p class="text-xs text-gray-400 mt-1">${o.timestamp}</p>
-                    ${o.order_type ? `<p class="text-[11px] text-gray-500 font-bold mt-1">${o.order_type}</p>` : ''}
+                    ${o.order_type && !isAdjustment ? `<p class="text-[11px] text-gray-500 font-bold mt-1">${o.order_type}</p>` : ''}
                 </div>
                 <div class="text-left shrink-0">
-                    <p class="font-black text-lg text-navy">${o.total_price} ₪</p>
+                    <p class="font-black text-lg ${amountClass}">${amountText}</p>
                     <span class="text-xs font-bold px-2 py-0.5 rounded-full ${o.is_paid ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}">
                         ${o.is_paid ? 'مسدد' : 'دين'}
                     </span>
                 </div>
             </div>
             ${o.receipt ? `<div class="mt-2"><img src="${o.receipt}" class="w-full max-h-32 object-contain rounded-xl border"></div>` : ''}
-        </div>
-    `).join('');
+        </div>`;
+    }).join('');
 }
 
 async function handleReminder(reminder, latestPaymentRequest, totalDebt) {
