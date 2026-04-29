@@ -271,7 +271,7 @@
             </div>
             <div id="guestPaymentInfo" class="space-y-2"></div>
         </div>
-        <input type="tel" id="guestPhoneInput" dir="ltr" placeholder="رقم الجوال" inputmode="tel"
+        <input type="tel" id="guestPhoneInput" dir="ltr" placeholder="أدخل رقم الجوال" inputmode="tel"
                class="w-full border-2 border-gray-200 p-3 rounded-xl mb-3 text-center font-bold focus:outline-none focus:border-navy">
         <div class="border-2 border-dashed border-gray-300 rounded-2xl p-6 text-center mb-4 cursor-pointer hover:border-navy transition-colors" onclick="document.getElementById('receiptInput').click()">
             <div id="receiptPreview" class="hidden"><img id="receiptImg" class="max-h-40 mx-auto rounded-xl object-contain"></div>
@@ -1042,22 +1042,23 @@ function parsePaymentInfo(info) {
 }
 
 function paymentInfoCard(label, value, copyValue) {
+    const copyButton = copyValue ? `
+            <button onclick="copyText('${String(copyValue).replace(/'/g, "\\'")}')" class="shrink-0 bg-gray-100 hover:bg-gray-200 text-navy text-xs font-bold px-3 py-2 rounded-lg transition-colors">
+                نسخ
+            </button>` : '';
     return `
         <div class="bg-white border rounded-xl p-3 flex items-center justify-between gap-3">
             <div class="min-w-0">
                 <p class="text-[11px] text-gray-400 font-bold mb-1">${label}</p>
                 <p class="text-sm text-navy font-bold break-all">${value}</p>
             </div>
-            <button onclick="copyText('${String(copyValue).replace(/'/g, "\\'")}')" class="shrink-0 bg-gray-100 hover:bg-gray-200 text-navy text-xs font-bold px-3 py-2 rounded-lg transition-colors">
-                نسخ
-            </button>
+            ${copyButton}
         </div>
     `;
 }
-
 function renderGuestPaymentInfo() {
     return `
-        ${paymentInfoCard('البنك', debtTransferDefaults.bank, debtTransferDefaults.bank)}
+        ${paymentInfoCard('البنك', debtTransferDefaults.bank)}
         ${paymentInfoCard('ID', debtTransferDefaults.id, debtTransferDefaults.id)}
         ${paymentInfoCard('IBAN', debtTransferDefaults.iban, debtTransferDefaults.iban)}
         ${paymentInfoCard('محفظة بال باي', debtTransferDefaults.wallet, debtTransferDefaults.wallet)}
@@ -1066,7 +1067,7 @@ function renderGuestPaymentInfo() {
 function renderPaymentInfo(info) {
     const parsed = parsePaymentInfo(info);
     document.getElementById('popupPaymentInfo').innerHTML = `
-        ${paymentInfoCard('البنك', parsed.bank, parsed.bank)}
+        ${paymentInfoCard('البنك', parsed.bank)}
         ${paymentInfoCard('ID', parsed.id, parsed.id)}
         ${paymentInfoCard('IBAN', parsed.iban, parsed.iban)}
         ${paymentInfoCard('محفظة بال باي', parsed.wallet, parsed.wallet)}
