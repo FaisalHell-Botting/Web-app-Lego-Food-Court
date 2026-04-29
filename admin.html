@@ -75,6 +75,9 @@
             <button onclick="switchTab('expenses')" id="tab_expenses" class="font-bold px-4 py-2 rounded-lg text-gray-300 hover:bg-white/10 text-sm whitespace-nowrap transition-colors">
                 المصاريف
             </button>
+            <button onclick="switchTab('offices')" id="tab_offices" class="font-bold px-4 py-2 rounded-lg text-gray-300 hover:bg-white/10 text-sm whitespace-nowrap transition-colors">
+                إدارة المكاتب
+            </button>
         </div>
     </div>
 </header>
@@ -104,6 +107,10 @@
 
     <div id="view_guests" class="hidden">
         <div id="guestOrdersList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+    </div>
+
+    <div id="view_offices" class="hidden">
+        <div id="officesList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
     </div>
 
     <div id="view_reviews" class="hidden">
@@ -146,6 +153,35 @@
     </div>
 </div>
 
+
+<div id="debtEditModal" class="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white p-6 rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-y-auto slide-up">
+        <div class="flex justify-between items-start gap-3 mb-4">
+            <div><h3 class="font-black text-lg text-[#2E3468]">تعديل دين المكتب</h3><p id="debtEditOfficeLabel" class="text-xs text-gray-400 font-bold mt-1"></p></div>
+            <button onclick="closeModal('debtEditModal')" class="text-gray-400 font-bold text-xl">×</button>
+        </div>
+        <div class="bg-blue-50 border border-blue-100 rounded-2xl p-4 mb-4">
+            <div class="flex justify-between items-center gap-3 mb-3">
+                <span class="text-sm font-bold text-gray-500">الدين الحالي</span>
+                <span id="currentDebtTotalText" class="font-black text-xl text-[#2E3468]">0 ₪</span>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
+                <input id="finalDebtAmount" type="number" min="0" placeholder="القيمة النهائية" class="border-2 border-gray-200 p-3 rounded-xl font-bold focus:outline-none focus:border-[#2E3468]">
+                <input id="finalDebtNote" type="text" placeholder="سبب التصحيح" class="md:col-span-2 border-2 border-gray-200 p-3 rounded-xl font-bold focus:outline-none focus:border-[#2E3468]">
+            </div>
+            <button onclick="submitFinalDebtAmount()" class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold mt-3">حفظ القيمة النهائية</button>
+        </div>
+        <div id="debtEditOrders" class="space-y-3 mb-5"></div>
+        <div class="border-t pt-4">
+            <h4 class="font-bold text-[#2E3468] mb-3">إضافة قيمة للدين</h4>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
+                <input id="manualDebtAmount" type="number" min="1" placeholder="القيمة" class="border-2 border-gray-200 p-3 rounded-xl font-bold focus:outline-none focus:border-[#2E3468]">
+                <input id="manualDebtNote" type="text" placeholder="السبب / الوصف" class="md:col-span-2 border-2 border-gray-200 p-3 rounded-xl font-bold focus:outline-none focus:border-[#2E3468]">
+            </div>
+            <button onclick="submitManualDebt()" class="w-full bg-[#2E3468] text-white py-3 rounded-xl font-bold mt-3">إضافة للدين</button>
+        </div>
+    </div>
+</div>
 <div id="expenseModal" class="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 hidden">
     <div class="bg-white p-6 rounded-3xl w-full max-w-sm slide-up">
         <h3 class="font-black text-lg text-[#2E3468] mb-1">إضافة مصروف</h3>
@@ -179,6 +215,8 @@ let previousActiveCount = 0;
 let audioAlertsEnabled = false;
 let announcedOrders = new Set();
 let expenseReceiptBase64 = null;
+let currentDebtOffice = null;
+let currentDebtTotal = 0;
 const ADMIN_PASSWORD = '444555666';
 
 function loginAdmin() {
@@ -204,7 +242,7 @@ function ensureAdminAuth() {
 }
 
 function switchTab(tab) {
-    ['active','ledger','guests','reviews','expenses'].forEach(t => {
+    ['active','ledger','guests','reviews','expenses','offices'].forEach(t => {
         document.getElementById(`view_${t}`).classList.add('hidden');
         document.getElementById(`tab_${t}`).className = 'font-bold px-4 py-2 rounded-lg text-gray-300 hover:bg-white/10 text-sm whitespace-nowrap transition-colors';
     });
@@ -240,6 +278,7 @@ async function fetchData() {
         renderGuests(data.guest_orders || []);
         renderReviews(data.reviews || []);
         renderExpenses(data.expenses || []);
+        renderOffices(data.offices || []);
     } catch (e) {
         console.error(e);
     }
@@ -422,6 +461,7 @@ function renderLedger(debts) {
                     <button onclick="action('mark_paid', null, '${d.office}')" class="bg-green-100 text-green-700 px-3 py-1.5 text-xs rounded-lg font-bold hover:bg-green-200 transition-colors">
                         سداد يدوي
                     </button>
+                    <button onclick="openDebtEditor('${d.office}')" class="bg-blue-100 text-blue-700 px-3 py-1.5 text-xs rounded-lg font-bold hover:bg-blue-200 transition-colors">تعديل</button>
                 </div>
             </td>
         </tr>
@@ -437,22 +477,32 @@ function renderGuests(orders) {
         </div>`;
         return;
     }
-    guestList.innerHTML = orders.map(o => `
+    guestList.innerHTML = orders.map(o => {
+        const isPaid = Number(o.is_paid || 0) === 1 || o.status === 'مقبول';
+        const phone = o.guest_phone || '';
+        const phoneEscaped = phone.replace(/'/g, "\\'");
+        return `
         <div class="bg-white p-4 rounded-2xl border shadow-sm slide-up">
-            <div class="flex justify-between items-start mb-2">
+            <div class="flex justify-between items-start mb-2 gap-3">
                 <span class="font-bold text-[#2E3468] text-sm">#${o.id} · ${o.location}</span>
-                <span class="text-xs bg-green-100 text-green-700 font-bold px-2 py-1 rounded-full">مدفوع</span>
+                <span class="text-xs ${isPaid ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'} font-bold px-2 py-1 rounded-full">${isPaid ? 'مدفوع' : 'بانتظار المراجعة'}</span>
             </div>
             <p class="text-sm text-navy font-bold bg-gray-50 p-3 rounded-xl mb-3 leading-relaxed">${o.details}</p>
+            <div class="bg-blue-50 border border-blue-100 rounded-xl p-3 mb-3">
+                <p class="text-xs text-gray-500 font-bold mb-2">رقم جوال الزائر</p>
+                ${phone ? `<div class="flex gap-2"><a href="tel:${phone}" class="flex-1 bg-[#2E3468] text-white text-center py-2 rounded-lg text-sm font-bold">اتصال</a><button onclick="copyPhone('${phoneEscaped}')" class="flex-1 bg-white border text-[#2E3468] py-2 rounded-lg text-sm font-bold">نسخ الرقم</button></div><p dir="ltr" class="text-center text-[#2E3468] font-black mt-2">${phone}</p>` : '<p class="text-xs text-red-400 font-bold">لا يوجد رقم جوال</p>'}
+            </div>
             <div class="flex justify-between items-center mb-3">
                 <span class="text-xs text-gray-400">${o.timestamp}</span>
                 <span class="font-black text-[#2E3468]">${o.total_price} ₪</span>
             </div>
-            ${o.receipt ? `<button onclick="showFullReceipt('${o.receipt}')" class="w-full border rounded-xl py-2.5 text-sm font-bold hover:bg-gray-50">عرض الفاتورة</button>` : '<p class="text-xs text-red-400 font-bold">لا توجد فاتورة</p>'}
-        </div>
-    `).join('');
+            <div class="grid grid-cols-1 gap-2">
+                ${o.receipt ? `<button onclick="showFullReceipt('${o.receipt}')" class="w-full border rounded-xl py-2.5 text-sm font-bold hover:bg-gray-50">عرض الفاتورة</button>` : '<p class="text-xs text-red-400 font-bold">لا توجد فاتورة</p>'}
+                ${isPaid ? '' : `<button onclick="action('confirm_visitor_payment', ${o.id})" class="w-full bg-green-600 text-white rounded-xl py-2.5 text-sm font-bold shadow hover:bg-green-700 transition-colors">تأكيد الفاتورة</button>`}
+            </div>
+        </div>`;
+    }).join('');
 }
-
 function renderReviews(reviews) {
     const ratingEmojis = { 5: '😍', 4: '😊', 3: '😐', 2: '😕', 1: '😡' };
     const list = document.getElementById('reviewsList');
@@ -479,6 +529,23 @@ function renderReviews(reviews) {
     `).join('');
 }
 
+function renderOffices(offices) {
+    const list = document.getElementById('officesList');
+    if (!offices.length) {
+        list.innerHTML = `<div class="col-span-full text-center py-16 text-gray-400"><p class="font-bold">لا توجد مكاتب مسجلة بعد</p></div>`;
+        return;
+    }
+    list.innerHTML = offices.map(o => `
+        <div class="bg-white p-4 rounded-2xl border shadow-sm slide-up">
+            <div class="flex justify-between items-start gap-3 mb-3">
+                <div><p class="font-black text-[#2E3468]">${o.office}</p><p class="text-xs text-gray-400 mt-1">آخر تحديث: ${o.updated_at || 'غير محدد'}</p></div>
+                <span class="text-xs font-bold px-2 py-1 rounded-full ${o.has_pin ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}">${o.has_pin ? 'PIN مفعل' : 'بدون PIN'}</span>
+            </div>
+            ${o.help_requested ? `<p class="text-xs font-bold bg-yellow-50 text-yellow-700 p-2 rounded-xl mb-3">يوجد طلب مساعدة ${o.help_created_at || ''}</p>` : ''}
+            <button onclick="resetOfficePin('${String(o.office).replace(/'/g, "\\'")}')" class="w-full bg-[#2E3468] text-white py-2.5 rounded-xl text-sm font-bold">تغيير الرقم</button>
+        </div>
+    `).join('');
+}
 function renderExpenses(expenses) {
     const list = document.getElementById('expensesList');
     if (!expenses.length) {
@@ -520,12 +587,90 @@ async function action(act, id, office=null, note=null) {
         if (act === 'remind') alert(`تم إرسال تذكير الدفع لـ ${office}`);
         if (act === 'mark_paid') alert(`تم تسجيل سداد ${office}`);
         if (act === 'confirm_debt_payment') alert('تم تأكيد طلب تسديد الدين وتحويله إلى مدفوع');
+        if (act === 'confirm_visitor_payment') alert('تم تأكيد فاتورة الزائر');
         fetchData();
     } catch (e) {
         alert('حدث خطأ، حاول مجدداً');
     }
 }
 
+async function resetOfficePin(office) {
+    const res = await fetch(`${API_URL}/admin/action`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'reset_office_pin', office }) });
+    const data = await res.json();
+    if (data.status !== 'success') { alert(data.message || 'تعذر تغيير الرقم'); return; }
+    alert(`الرقم الجديد للمكتب ${office}: ${data.new_pin}\nسلّمه للمكتب خارج التطبيق.`);
+    fetchData();
+}
+
+async function openDebtEditor(office) {
+    currentDebtOffice = office;
+    document.getElementById('debtEditOfficeLabel').innerText = office;
+    document.getElementById('manualDebtAmount').value = '';
+    document.getElementById('manualDebtNote').value = '';
+    document.getElementById('debtEditOrders').innerHTML = '<p class="text-center text-gray-400 py-6">جاري التحميل...</p>';
+    document.getElementById('debtEditModal').classList.remove('hidden');
+    await loadDebtDetails();
+}
+
+async function loadDebtDetails() {
+    const res = await fetch(`${API_URL}/admin/debt-details/${encodeURIComponent(currentDebtOffice)}`);
+    const data = await res.json();
+    const box = document.getElementById('debtEditOrders');
+    if (data.status !== 'success') { box.innerHTML = '<p class="text-center text-gray-400 py-6">تعذر تحميل الدين</p>'; return; }
+    currentDebtTotal = Number(data.total_debt || 0);
+    document.getElementById('currentDebtTotalText').innerText = `${currentDebtTotal} ₪`;
+    document.getElementById('finalDebtAmount').value = currentDebtTotal;
+    if (!data.orders.length) { box.innerHTML = '<p class="text-center text-gray-400 py-6">لا توجد طلبات دين غير مدفوعة</p>'; return; }
+    box.innerHTML = data.orders.map(order => `
+        <div class="border rounded-2xl p-4 bg-gray-50">
+            <div class="flex justify-between items-start gap-3 mb-3"><div><p class="font-bold text-[#2E3468]">#${order.id} - ${order.timestamp || ''}</p><p class="text-xs text-gray-400 mt-1">${order.order_type || ''}</p></div><span class="font-black text-[#2E3468]">${order.total_price} ₪</span></div>
+            <div class="space-y-2">${order.items.map(item => `<div class="flex justify-between items-center bg-white border rounded-xl p-2"><span class="text-sm font-bold text-[#2E3468]">${item}</span><button onclick="removeDebtItem(${order.id}, '${item.replace(/'/g, "\\'")}')" class="text-xs font-bold text-red-500 bg-red-50 px-3 py-1.5 rounded-lg">حذف الصنف</button></div>`).join('')}</div>
+        </div>
+    `).join('');
+}
+
+async function removeDebtItem(orderId, itemName) {
+    if (!confirm(`حذف ${itemName} من الطلب؟`)) return;
+    const res = await fetch(`${API_URL}/admin/action`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'remove_debt_item', order_id: orderId, item_name: itemName }) });
+    const data = await res.json();
+    if (data.status !== 'success') { alert(data.message || 'تعذر حذف الصنف'); return; }
+    await loadDebtDetails();
+    fetchData();
+}
+
+async function submitFinalDebtAmount() {
+    const amount = Number(document.getElementById('finalDebtAmount').value || 0);
+    const note = document.getElementById('finalDebtNote').value.trim();
+    if (amount < 0) {
+        alert('أدخل قيمة صحيحة');
+        return;
+    }
+    if (!confirm(`تعديل الدين النهائي من ${currentDebtTotal} ₪ إلى ${amount} ₪؟`)) return;
+    const res = await fetch(`${API_URL}/admin/action`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'set_total_debt', office: currentDebtOffice, amount, note })
+    });
+    const data = await res.json();
+    if (data.status !== 'success') {
+        alert(data.message || 'تعذر تصحيح الدين');
+        return;
+    }
+    await loadDebtDetails();
+    fetchData();
+}
+async function submitManualDebt() {
+    const amount = Number(document.getElementById('manualDebtAmount').value || 0);
+    const note = document.getElementById('manualDebtNote').value.trim();
+    if (amount <= 0) { alert('أدخل قيمة صحيحة'); return; }
+    const res = await fetch(`${API_URL}/admin/action`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'add_manual_debt', office: currentDebtOffice, amount, note }) });
+    const data = await res.json();
+    if (data.status !== 'success') { alert(data.message || 'تعذر إضافة الدين'); return; }
+    document.getElementById('manualDebtAmount').value = '';
+    document.getElementById('manualDebtNote').value = '';
+    await loadDebtDetails();
+    fetchData();
+}
 function openExpenseModal() {
     expenseReceiptBase64 = null;
     document.getElementById('expenseAmountInput').value = '';
@@ -633,6 +778,9 @@ function submitMissing() {
     closeModal('missingPromptModal');
 }
 
+function copyPhone(value) {
+    navigator.clipboard.writeText(value).then(() => alert('تم نسخ رقم الجوال')).catch(() => alert(value));
+}
 function showFullReceipt(src) {
     document.getElementById('receiptFullImg').src = src;
     document.getElementById('receiptViewModal').classList.remove('hidden');
