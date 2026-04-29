@@ -137,7 +137,7 @@ def get_pal_datetime():
 
 
 def is_store_open():
-    return get_pal_datetime().hour < 20
+    return get_pal_datetime().hour < 21
 
 
 def store_closed_response():
