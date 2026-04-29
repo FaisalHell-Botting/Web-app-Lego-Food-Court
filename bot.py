@@ -1237,7 +1237,8 @@ async def admin_action(request: Request):
                     VALUES (%s,%s,%s,%s,%s,'مقبول',0,'تسوية دين يدوية',%s)
                     """,
                     (0, f"تسوية دين: {note}", diff, office, get_pal_time(), get_pal_time()),
-                )        elif action == "add_manual_debt":
+                )
+        elif action == "add_manual_debt":
             amount = int(data.get("amount", 0) or 0)
             note = clean_office_name(data.get("note")) or "إضافة دين يدوية"
             if not office or amount <= 0:
