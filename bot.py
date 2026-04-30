@@ -1010,6 +1010,14 @@ async def admin_dashboard():
                 }
             )
 
+        c.execute("SELECT COALESCE(SUM(total_price), 0) FROM orders WHERE status='مقبول'")
+        total_sales = c.fetchone()[0] or 0
+
+        c.execute("SELECT COUNT(*) FROM orders WHERE status='مقبول'")
+        total_count = c.fetchone()[0] or 0
+
+        c.execute("SELECT COALESCE(SUM(total_price), 0) FROM orders WHERE status='مقبول' AND is_paid=1")
+        paid_invoices = c.fetchone()[0] or 0
         c.execute(
             """
             SELECT COALESCE(SUM(office_debt), 0)
