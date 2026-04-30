@@ -172,14 +172,6 @@
             <button onclick="submitFinalDebtAmount()" class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold mt-3">حفظ القيمة النهائية</button>
         </div>
         <div id="debtEditOrders" class="space-y-3 mb-5"></div>
-        <div class="border-t pt-4">
-            <h4 class="font-bold text-[#2E3468] mb-3">إضافة قيمة للدين</h4>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
-                <input id="manualDebtAmount" type="number" min="1" placeholder="القيمة" class="border-2 border-gray-200 p-3 rounded-xl font-bold focus:outline-none focus:border-[#2E3468]">
-                <input id="manualDebtNote" type="text" placeholder="السبب / الوصف" class="md:col-span-2 border-2 border-gray-200 p-3 rounded-xl font-bold focus:outline-none focus:border-[#2E3468]">
-            </div>
-            <button onclick="submitManualDebt()" class="w-full bg-[#2E3468] text-white py-3 rounded-xl font-bold mt-3">إضافة للدين</button>
-        </div>
     </div>
 </div>
 <div id="expenseModal" class="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 hidden">
@@ -605,8 +597,6 @@ async function resetOfficePin(office) {
 async function openDebtEditor(office) {
     currentDebtOffice = office;
     document.getElementById('debtEditOfficeLabel').innerText = office;
-    document.getElementById('manualDebtAmount').value = '';
-    document.getElementById('manualDebtNote').value = '';
     document.getElementById('debtEditOrders').innerHTML = '<p class="text-center text-gray-400 py-6">جاري التحميل...</p>';
     document.getElementById('debtEditModal').classList.remove('hidden');
     await loadDebtDetails();
@@ -683,20 +673,7 @@ async function submitFinalDebtAmount() {
     }
     await loadDebtDetails();
     fetchData();
-}
-async function submitManualDebt() {
-    const amount = Number(document.getElementById('manualDebtAmount').value || 0);
-    const note = document.getElementById('manualDebtNote').value.trim();
-    if (amount <= 0) { alert('أدخل قيمة صحيحة'); return; }
-    const res = await fetch(`${API_URL}/admin/action`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'add_manual_debt', office: currentDebtOffice, amount, note }) });
-    const data = await res.json();
-    if (data.status !== 'success') { alert(data.message || 'تعذر إضافة الدين'); return; }
-    document.getElementById('manualDebtAmount').value = '';
-    document.getElementById('manualDebtNote').value = '';
-    await loadDebtDetails();
-    fetchData();
-}
-function openExpenseModal() {
+}`r`nfunction openExpenseModal() {
     expenseReceiptBase64 = null;
     document.getElementById('expenseAmountInput').value = '';
     document.getElementById('expenseReceiptPreview').classList.add('hidden');
