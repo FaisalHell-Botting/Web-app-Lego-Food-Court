@@ -990,18 +990,22 @@ async def admin_dashboard():
             FROM orders
             WHERE status='مقبول' AND is_paid=0 AND location NOT LIKE 'زائر%%'
             GROUP BY location
-            HAVING SUM(total_price) > 0
             ORDER BY location ASC
             """
         )
         debt_rows = c.fetchall()
         debts = []
+        total_debts = 0
         for office, amount in debt_rows:
+            amount = amount or 0
+            if amount <= 0:
+                continue
+            total_debts += amount
             reminder = get_active_reminder(c, office)
             debts.append(
                 {
                     "office": office,
-                    "amount": amount or 0,
+                    "amount": amount,
                     "status": "غير مدفوع",
                     "has_active_reminder": bool(reminder),
                     "reminder_id": reminder["id"] if reminder else None,
@@ -1018,20 +1022,6 @@ async def admin_dashboard():
 
         c.execute("SELECT COALESCE(SUM(total_price), 0) FROM orders WHERE status='مقبول' AND is_paid=1")
         paid_invoices = c.fetchone()[0] or 0
-        c.execute(
-            """
-            SELECT COALESCE(SUM(office_debt), 0)
-            FROM (
-                SELECT location, SUM(total_price) AS office_debt
-                FROM orders
-                WHERE status='مقبول' AND is_paid=0 AND location NOT LIKE 'زائر%%'
-                GROUP BY location
-                HAVING SUM(total_price) > 0
-            ) debts_by_office
-            """
-        )
-        total_debts = c.fetchone()[0] or 0
-
         c.execute("SELECT COALESCE(SUM(amount), 0) FROM expenses")
         total_expenses = c.fetchone()[0] or 0
         total_profit = total_sales - total_expenses
