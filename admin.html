@@ -673,7 +673,8 @@ async function submitFinalDebtAmount() {
     }
     await loadDebtDetails();
     fetchData();
-}`r`nfunction openExpenseModal() {
+}
+function openExpenseModal() {
     expenseReceiptBase64 = null;
     document.getElementById('expenseAmountInput').value = '';
     document.getElementById('expenseReceiptPreview').classList.add('hidden');
