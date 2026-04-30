@@ -987,17 +987,17 @@ async def admin_dashboard():
 
         c.execute(
             """
-            SELECT location, SUM(total_price)
+            SELECT location, SUM(total_price), MAX(COALESCE(approved_at, timestamp)) AS last_debt_at
             FROM orders
             WHERE status='مقبول' AND is_paid=0 AND location NOT LIKE 'زائر%%'
             GROUP BY location
-            ORDER BY location ASC
+            ORDER BY last_debt_at DESC, location ASC
             """
         )
         debt_rows = c.fetchall()
         debts = []
         total_debts = 0
-        for office, amount in debt_rows:
+        for office, amount, last_debt_at in debt_rows:
             amount = amount or 0
             if amount <= 0:
                 continue
@@ -1012,6 +1012,7 @@ async def admin_dashboard():
                     "reminder_id": reminder["id"] if reminder else None,
                     "reminder_amount": reminder["amount"] if reminder else 0,
                     "reminder_created_at": reminder["created_at"] if reminder else None,
+                    "last_debt_at": last_debt_at,
                 }
             )
 
