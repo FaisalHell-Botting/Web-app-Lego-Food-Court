@@ -844,6 +844,7 @@ async def sync_user(office: str):
             SELECT id, details, total_price, timestamp, is_paid, status, receipt, order_type
             FROM orders
             WHERE location=%s AND status NOT IN ('انتظار','صنف_ناقص','ملغي')
+                          AND COALESCE(details, '') <> 'تم حذف جميع الأصناف من هذا الطلب'
             ORDER BY id DESC
             """,
             (office,),
