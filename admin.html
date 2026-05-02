@@ -245,8 +245,11 @@ function switchTab(tab) {
 async function fetchData() {
     if (!ensureAdminAuth()) return;
     try {
-        const res = await fetch(`${API_URL}/admin/dashboard`);
+        const res = await fetch(`${API_URL}/admin/dashboard?t=${Date.now()}`, { cache: 'no-store' });
         const data = await res.json();
+        if (!res.ok || data.error || !data.stats) {
+            throw new Error(data.error || 'تعذر تحميل بيانات لوحة الكاشير');
+        }
 
         document.getElementById('s_sales').innerText = `${data.stats.total_sales || 0} ₪`;
         document.getElementById('s_count').innerText = data.stats.total_count || 0;
@@ -273,6 +276,7 @@ async function fetchData() {
         renderOffices(data.offices || []);
     } catch (e) {
         console.error(e);
+        alert(e.message || 'تعذر تحميل بيانات لوحة الكاشير');
     }
 }
 
