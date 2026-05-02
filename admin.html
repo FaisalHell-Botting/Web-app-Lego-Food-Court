@@ -407,7 +407,7 @@ function renderActiveOrders(orders) {
                 <p class="text-xs text-gray-500 mb-2 font-bold">قيمة الدين المرفقة</p>
                 <p class="font-black text-2xl text-[#2E3468] mb-3">${order.total_price} ₪</p>
                 <p class="text-xs text-indigo-700 font-bold mb-2">وصل للكاشير ${timeAgo(order.timestamp)}</p>
-                <button onclick="showFullReceipt('${order.receipt}')" class="bg-white border border-indigo-200 text-indigo-700 py-2.5 rounded-xl text-sm font-bold mb-3 hover:bg-indigo-50 transition-colors">
+                <button onclick="showReceipt('debt_payment', ${order.id})" class="bg-white border border-indigo-200 text-indigo-700 py-2.5 rounded-xl text-sm font-bold mb-3 hover:bg-indigo-50 transition-colors">
                     عرض الصورة المرفقة
                 </button>
                 <button onclick="action('confirm_debt_payment', ${order.id})" class="bg-[#2E3468] text-white py-2.5 rounded-xl text-sm font-bold shadow hover:bg-opacity-90 transition-all mt-auto">
@@ -520,7 +520,7 @@ function renderGuests(orders) {
                 <span class="font-black text-[#2E3468]">${o.total_price} ₪</span>
             </div>
             <div class="grid grid-cols-1 gap-2">
-                ${o.receipt ? `<button onclick="showFullReceipt('${o.receipt}')" class="w-full border rounded-xl py-2.5 text-sm font-bold hover:bg-gray-50">عرض الفاتورة</button>` : '<p class="text-xs text-red-400 font-bold">لا توجد فاتورة</p>'}
+                ${o.has_receipt ? `<button onclick="showReceipt('order', ${o.id})" class="w-full border rounded-xl py-2.5 text-sm font-bold hover:bg-gray-50">عرض الفاتورة</button>` : '<p class="text-xs text-red-400 font-bold">لا توجد فاتورة</p>'}
                 ${isPaid || isRejected ? '' : `<button onclick="action('confirm_visitor_payment', ${o.id})" class="w-full bg-green-600 text-white rounded-xl py-2.5 text-sm font-bold shadow hover:bg-green-700 transition-colors">تأكيد الفاتورة</button><button onclick="rejectVisitorPayment(${o.id})" class="w-full bg-red-50 text-red-600 border border-red-100 rounded-xl py-2.5 text-sm font-bold hover:bg-red-100 transition-colors">رفض الفاتورة</button>`}
             </div>
         </div>`;
@@ -606,7 +606,7 @@ function renderExpenses(expenses) {
                 </button>
             </div>
             <p class="font-black text-2xl text-[#2E3468] mb-3">${expense.amount} ₪</p>
-            ${expense.receipt ? `<button onclick="showFullReceipt('${expense.receipt}')" class="w-full border rounded-xl py-2.5 text-sm font-bold hover:bg-gray-50">عرض الفاتورة</button>` : '<p class="text-xs text-gray-400">لا توجد صورة مرفقة</p>'}
+            ${expense.has_receipt ? `<button onclick="showReceipt('expense', ${expense.id})" class="w-full border rounded-xl py-2.5 text-sm font-bold hover:bg-gray-50">عرض الفاتورة</button>` : '<p class="text-xs text-gray-400">لا توجد صورة مرفقة</p>'}
         </div>
     `).join('');
 }
@@ -833,6 +833,23 @@ function submitMissing() {
 function copyPhone(value) {
     navigator.clipboard.writeText(value).then(() => alert('تم نسخ رقم الجوال')).catch(() => alert(value));
 }
+async function showReceipt(source, id) {
+    try {
+        const img = document.getElementById('receiptFullImg');
+        img.src = '';
+        document.getElementById('receiptViewModal').classList.remove('hidden');
+        const res = await fetch(`${API_URL}/admin/receipt/${source}/${id}`, { cache: 'no-store' });
+        const data = await res.json();
+        if (data.status !== 'success' || !data.receipt) {
+            throw new Error(data.message || 'تعذر تحميل الصورة');
+        }
+        img.src = data.receipt;
+    } catch (e) {
+        closeModal('receiptViewModal');
+        alert(e.message || 'تعذر تحميل الصورة');
+    }
+}
+
 function showFullReceipt(src) {
     document.getElementById('receiptFullImg').src = src;
     document.getElementById('receiptViewModal').classList.remove('hidden');
