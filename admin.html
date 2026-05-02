@@ -12,6 +12,21 @@
         .hidden { display: none !important; }
         .slide-up { animation: slideUp 0.25s ease-out; }
         @keyframes slideUp { from { transform: translateY(12px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .success-border-loading { position: relative; overflow: hidden; border: 1px solid rgba(46, 52, 104, 0.18); }
+        .success-border-loading::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: 1.5rem;
+            padding: 2px;
+            background: conic-gradient(from 0deg, #2E3468, #60A5FA, #2E3468, transparent 72%);
+            -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+            -webkit-mask-composite: xor;
+            mask-composite: exclude;
+            animation: successBorderSpin 3s linear forwards;
+            pointer-events: none;
+        }
+        @keyframes successBorderSpin { to { transform: rotate(360deg); } }
     </style>
 </head>
 <body class="text-[#2E3468] pb-10">
@@ -153,6 +168,13 @@
     </div>
 </div>
 
+<div id="newPinModal" class="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 hidden">
+    <div id="newPinModalBox" class="bg-white rounded-3xl w-full max-w-sm p-6 slide-up text-center success-border-loading">
+        <h3 class="font-black text-lg text-[#2E3468] mb-2">تم إرسال رقم سري جديد للمكتب</h3>
+        <p id="newPinOfficeLabel" class="text-xs text-gray-400 font-bold mb-4"></p>
+        <button onclick="closeModal('newPinModal')" class="w-full border rounded-xl py-2.5 text-sm font-bold hover:bg-gray-50">تمام</button>
+    </div>
+</div>
 
 <div id="debtEditModal" class="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 hidden">
     <div class="bg-white p-6 rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-y-auto slide-up">
@@ -653,8 +675,17 @@ async function resetOfficePin(office) {
     const res = await fetch(`${API_URL}/admin/action`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'reset_office_pin', office }) });
     const data = await res.json();
     if (data.status !== 'success') { alert(data.message || 'تعذر تغيير الرقم'); return; }
-    alert(`الرقم الجديد للمكتب ${office}: ${data.new_pin}\nسلّمه للمكتب خارج التطبيق.`);
+    showNewPinModal(office);
     fetchData();
+}
+
+function showNewPinModal(office) {
+    document.getElementById('newPinOfficeLabel').innerText = `مكتب ${office}`;
+    const box = document.getElementById('newPinModalBox');
+    box.classList.remove('success-border-loading');
+    void box.offsetWidth;
+    box.classList.add('success-border-loading');
+    document.getElementById('newPinModal').classList.remove('hidden');
 }
 
 async function openDebtEditor(office) {
