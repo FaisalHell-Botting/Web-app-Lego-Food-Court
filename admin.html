@@ -471,41 +471,29 @@ function renderGuests(orders) {
     }
     guestList.innerHTML = orders.map(o => {
         const isPaid = Number(o.is_paid || 0) === 1 || o.status === 'مقبول';
-        const isRejected = o.status === 'فاتورة_زائر_مرفوضة';
-        const statusClass = isPaid ? 'bg-green-100 text-green-700' : (isRejected ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700');
-        const statusText = isPaid ? 'مدفوع' : (isRejected ? 'فاتورة مرفوضة' : 'بانتظار المراجعة');
         const phone = o.guest_phone || '';
         const phoneEscaped = phone.replace(/'/g, "\\'");
         return `
         <div class="bg-white p-4 rounded-2xl border shadow-sm slide-up">
             <div class="flex justify-between items-start mb-2 gap-3">
                 <span class="font-bold text-[#2E3468] text-sm">#${o.id} · ${o.location}</span>
-                <span class="text-xs ${statusClass} font-bold px-2 py-1 rounded-full">${statusText}</span>
+                <span class="text-xs ${isPaid ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'} font-bold px-2 py-1 rounded-full">${isPaid ? 'مدفوع' : 'بانتظار المراجعة'}</span>
             </div>
             <p class="text-sm text-navy font-bold bg-gray-50 p-3 rounded-xl mb-3 leading-relaxed">${o.details}</p>
             <div class="bg-blue-50 border border-blue-100 rounded-xl p-3 mb-3">
                 <p class="text-xs text-gray-500 font-bold mb-2">رقم جوال الزائر</p>
                 ${phone ? `<div class="flex gap-2"><a href="tel:${phone}" class="flex-1 bg-[#2E3468] text-white text-center py-2 rounded-lg text-sm font-bold">اتصال</a><button onclick="copyPhone('${phoneEscaped}')" class="flex-1 bg-white border text-[#2E3468] py-2 rounded-lg text-sm font-bold">نسخ الرقم</button></div><p dir="ltr" class="text-center text-[#2E3468] font-black mt-2">${phone}</p>` : '<p class="text-xs text-red-400 font-bold">لا يوجد رقم جوال</p>'}
             </div>
-            ${isRejected && o.rejection_note ? `<div class="bg-red-50 border border-red-100 text-red-700 rounded-xl p-3 mb-3 text-xs font-bold leading-relaxed">سبب الرفض: ${o.rejection_note}</div>` : ''}
             <div class="flex justify-between items-center mb-3">
                 <span class="text-xs text-gray-400">${o.timestamp}</span>
                 <span class="font-black text-[#2E3468]">${o.total_price} ₪</span>
             </div>
             <div class="grid grid-cols-1 gap-2">
                 ${o.receipt ? `<button onclick="showFullReceipt('${o.receipt}')" class="w-full border rounded-xl py-2.5 text-sm font-bold hover:bg-gray-50">عرض الفاتورة</button>` : '<p class="text-xs text-red-400 font-bold">لا توجد فاتورة</p>'}
-                ${isPaid ? '' : `<button onclick="action('confirm_visitor_payment', ${o.id})" class="w-full bg-green-600 text-white rounded-xl py-2.5 text-sm font-bold shadow hover:bg-green-700 transition-colors">تأكيد الفاتورة</button><button onclick="rejectVisitorPayment(${o.id})" class="w-full bg-red-50 text-red-600 border border-red-100 rounded-xl py-2.5 text-sm font-bold hover:bg-red-100 transition-colors">رفض الفاتورة</button>`}
+                ${isPaid ? '' : `<button onclick="action('confirm_visitor_payment', ${o.id})" class="w-full bg-green-600 text-white rounded-xl py-2.5 text-sm font-bold shadow hover:bg-green-700 transition-colors">تأكيد الفاتورة</button>`}
             </div>
         </div>`;
     }).join('');
-}
-
-async function rejectVisitorPayment(id) {
-    const note = prompt('اكتب سبب رفض فاتورة الزائر');
-    if (note === null) return;
-    const cleanNote = note.trim();
-    if (!cleanNote) { alert('سبب الرفض مطلوب'); return; }
-    await action('reject_visitor_payment', id, null, cleanNote);
 }
 function renderReviews(reviews) {
     const ratingEmojis = { 5: '😍', 4: '😊', 3: '😐', 2: '😕', 1: '😡' };
@@ -592,7 +580,6 @@ async function action(act, id, office=null, note=null) {
         if (act === 'mark_paid') alert(`تم تسجيل سداد ${office}`);
         if (act === 'confirm_debt_payment') alert('تم تأكيد طلب تسديد الدين وتحويله إلى مدفوع');
         if (act === 'confirm_visitor_payment') alert('تم تأكيد فاتورة الزائر');
-        if (act === 'reject_visitor_payment') alert('تم رفض فاتورة الزائر وحفظ السبب');
         fetchData();
     } catch (e) {
         alert('حدث خطأ، حاول مجدداً');
