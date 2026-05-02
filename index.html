@@ -60,23 +60,38 @@
             0%, 100% { transform: scale(1); filter: drop-shadow(0 0 0 rgba(59,130,246,0)); }
             50% { transform: scale(1.14); filter: drop-shadow(0 0 7px rgba(59,130,246,0.55)); }
         }
-        .help-status-loading {
+        .help-status-loading { border-color: rgba(247, 204, 70, 0.75) !important; }
+        .modal-focus-backdrop {
+            background-color: rgba(0, 0, 0, 0.62) !important;
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+        }
+        .modal-border-loading {
             position: relative;
             overflow: hidden;
-            border-color: rgba(247, 204, 70, 0.75) !important;
+            border: 1px solid rgba(247, 204, 70, 0.55);
         }
-        .help-status-loading::before {
+        .modal-border-loading::before {
             content: '';
             position: absolute;
             inset: 0;
-            border-radius: 1rem;
-            padding: 2px;
-            background: conic-gradient(from 0deg, #F7CC46, #2E3468, #F7CC46, transparent 72%);
+            border-radius: 1.5rem;
+            padding: 3px;
+            background: conic-gradient(from 0deg, #F7CC46, #2E3468, #60A5FA, #F7CC46, transparent 76%);
             -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
             -webkit-mask-composite: xor;
             mask-composite: exclude;
             animation: helpBorderSpin 3s linear forwards;
             pointer-events: none;
+            z-index: 2;
+        }
+        .modal-border-loading > * { position: relative; z-index: 3; }
+        .success-focus-status {
+            min-height: 210px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
         }
         @keyframes helpBorderSpin { to { transform: rotate(360deg); } }
         @keyframes sparkFlash {
@@ -280,7 +295,7 @@
 </div>
 
 <div id="receiptModal" class="fixed inset-0 bg-black/70 z-[80] flex items-center justify-center p-4 hidden">
-    <div class="bg-white rounded-3xl w-full max-w-sm max-h-[90vh] overflow-y-auto p-6 slide-up">
+    <div id="receiptModalBox" class="bg-white rounded-3xl w-full max-w-sm max-h-[90vh] overflow-y-auto p-6 slide-up">
         <h3 class="font-bold text-lg text-navy mb-2">تأكيد طلب الزائر</h3>
         <p class="text-sm text-gray-500 mb-3 leading-relaxed">أدخل رقم جوالك وأرفق فاتورة الدفع. سيراجع الكاشير الفاتورة لاحقاً ويتواصل معك عند الحاجة.</p>
         <div class="bg-gray-50 rounded-2xl p-3 mb-3 border">
@@ -311,7 +326,7 @@
     </div>
 </div>
 <div id="officePinModal" class="fixed inset-0 bg-black/70 z-[85] flex items-center justify-center p-4 hidden">
-    <div class="bg-white rounded-3xl w-full max-w-sm max-h-[90vh] overflow-y-auto p-6 slide-up">
+    <div id="officePinModalBox" class="bg-white rounded-3xl w-full max-w-sm max-h-[90vh] overflow-y-auto p-6 slide-up">
         <h3 id="officePinTitle" class="font-bold text-lg text-navy mb-2">الرقم السري للمكتب</h3>
         <p id="officePinHint" class="text-sm text-gray-500 mb-4 leading-relaxed"></p>
         <input type="password" id="officePinInput" inputmode="numeric" maxlength="4" placeholder="4 أرقام"
@@ -395,7 +410,7 @@
 </div>
 
 <div id="debtPaymentModal" class="fixed inset-0 bg-black/70 z-[96] flex items-center justify-center p-4 hidden">
-    <div class="bg-white rounded-3xl w-full max-w-sm max-h-[90vh] overflow-y-auto p-6 slide-up">
+    <div id="debtPaymentModalBox" class="bg-white rounded-3xl w-full max-w-sm max-h-[90vh] overflow-y-auto p-6 slide-up">
         <h3 class="font-black text-lg text-navy mb-2">إرسال إثبات السداد</h3>
         <p class="text-sm text-gray-500 mb-4">ارفع صورة التحويل حتى تصل للإدارة كطلب تسديد دين</p>
         <div class="bg-gray-50 p-3 rounded-xl mb-4">
@@ -760,7 +775,7 @@ async function processOrder() {
     if (!stats.qty) return;
     await refreshStoreStatus();
     if (!storeIsOpen) {
-        showToast('الطلبات مغلقة الآن. نستقبل الطلبات حتى الساعة 8:00 مساءً بتوقيت فلسطين.');
+        showToast('الطلبات مغلقة الآن. نستقبل الطلبات حتى الساعة 8:30 مساءً بتوقيت فلسطين.');
         return;
     }
     pendingOrderItems = [];
@@ -1372,16 +1387,41 @@ async function ackNewOfficePin() {
 function resetInlineSuccessStatus(id) {
     const status = document.getElementById(id);
     if (!status) return;
+    const box = status.parentElement;
+    const modal = box ? box.parentElement : null;
     status.classList.add('hidden');
-    status.classList.remove('help-status-loading');
+    status.classList.remove('help-status-loading', 'success-focus-status');
+    if (box) {
+        box.classList.remove('modal-border-loading');
+        Array.from(box.children).forEach(child => {
+            if (child.dataset.successHidden === '1') {
+                child.classList.remove('hidden');
+                delete child.dataset.successHidden;
+            }
+        });
+    }
+    if (modal) modal.classList.remove('modal-focus-backdrop');
 }
 
 function showInlineSuccessStatus(statusId, modalId, onDone=null) {
     const status = document.getElementById(statusId);
-    if (!status) return;
+    const modal = document.getElementById(modalId);
+    if (!status || !modal) return;
+    const box = status.parentElement;
+    if (box) {
+        Array.from(box.children).forEach(child => {
+            if (child !== status && !child.classList.contains('hidden')) {
+                child.dataset.successHidden = '1';
+                child.classList.add('hidden');
+            }
+        });
+        box.classList.remove('modal-border-loading');
+        void box.offsetWidth;
+        box.classList.add('modal-border-loading');
+    }
+    modal.classList.add('modal-focus-backdrop');
     status.classList.remove('hidden', 'help-status-loading');
-    void status.offsetWidth;
-    status.classList.add('help-status-loading');
+    status.classList.add('help-status-loading', 'success-focus-status');
     setTimeout(() => {
         closeModal(modalId);
         resetInlineSuccessStatus(statusId);
