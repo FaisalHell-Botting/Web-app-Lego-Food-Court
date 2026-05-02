@@ -1082,35 +1082,40 @@ function renderLedger(orders) {
     }
     list.innerHTML = orders.map(o => {
         const amount = Number(o.total_price || 0);
-        const isAdjustment = (o.order_type || '').includes('تسوية دين') || (o.details || '').startsWith('تسوية دين:');
-        const adjustmentReason = isAdjustment ? String(o.details || '').replace('تسوية دين:', '').trim() : '';
+        const details = String(o.details || '');
+        const orderType = String(o.order_type || '');
+        const isAdjustment = orderType.includes('تسوية دين') || details.startsWith('تسوية دين:');
+        const isPaymentRejected = orderType.includes('رفض سداد الدين') || details.startsWith('رفض سداد الدين:');
+        const adjustmentReason = isAdjustment ? details.replace('تسوية دين:', '').trim() : '';
+        const rejectionReason = isPaymentRejected ? details.replace('رفض سداد الدين:', '').trim() : '';
         const amountText = isAdjustment && amount > 0 ? `+${amount} ₪` : `${amount} ₪`;
-        const amountClass = isAdjustment && amount < 0 ? 'text-green-600' : (isAdjustment && amount > 0 ? 'text-red-600' : 'text-navy');
-        const title = isAdjustment ? 'تصحيح الدين' : o.details;
-        const subtitle = isAdjustment
-            ? `${amount < 0 ? 'تم خصم قيمة من الدين' : 'تم إضافة قيمة على الدين'}${adjustmentReason ? ` - السبب: ${adjustmentReason}` : ''}`
-            : '';
-        return `
-        <div class="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm slide-up">
-            <div class="flex justify-between items-start mb-2 gap-3">
-                <div class="min-w-0">
-                    <p class="font-bold text-navy text-sm leading-relaxed">${title}</p>
-                    ${subtitle ? `<p class="text-xs ${amount < 0 ? 'text-green-600' : 'text-red-500'} font-bold mt-1 leading-relaxed">${subtitle}</p>` : ''}
+        const amountClass = isPaymentRejected ? 'text-gray-400' : (isAdjustment && amount < 0 ? 'text-green-600' : (isAdjustment && amount > 0 ? 'text-red-600' : 'text-navy'));
+        const title = isPaymentRejected ? 'رفض إثبات السداد' : (isAdjustment ? 'تصحيح الدين' : details);
+        const subtitle = isPaymentRejected
+            ? `سبب الرفض: ${rejectionReason || 'لم يتم توضيح السبب'}`
+            : (isAdjustment
+                ? `${amount < 0 ? 'تم خصم قيمة من الدين' : 'تم إضافة قيمة على الدين'}${adjustmentReason ? ` - السبب: ${adjustmentReason}` : ''}`
+                : '');
+        const subtitleClass = isPaymentRejected ? 'text-red-500' : (amount < 0 ? 'text-green-600' : 'text-red-500');
+        const badgeText = isPaymentRejected ? 'مرفوض' : (o.is_paid ? 'مسدد' : 'دين');
+        const badgeClass = isPaymentRejected ? 'bg-red-100 text-red-600' : (o.is_paid ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600');
+        return `<div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 mb-3">
+            <div class="flex justify-between items-start gap-3">
+                <div class="flex-1">
+                    <p class="font-bold text-navy text-sm">${title}</p>
+                    ${subtitle ? `<p class="text-xs ${subtitleClass} mt-1 font-bold leading-relaxed">${subtitle}</p>` : ''}
                     <p class="text-xs text-gray-400 mt-1">${o.timestamp}</p>
-                    ${o.order_type && !isAdjustment ? `<p class="text-[11px] text-gray-500 font-bold mt-1">${o.order_type}</p>` : ''}
+                    ${o.order_type && !isAdjustment && !isPaymentRejected ? `<p class="text-xs text-gray-400 mt-1">${o.order_type}</p>` : ''}
                 </div>
-                <div class="text-left shrink-0">
-                    <p class="font-black text-lg ${amountClass}">${amountText}</p>
-                    <span class="text-xs font-bold px-2 py-0.5 rounded-full ${o.is_paid ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}">
-                        ${o.is_paid ? 'مسدد' : 'دين'}
-                    </span>
+                <div class="text-left">
+                    <p class="font-black ${amountClass}">${amountText}</p>
+                    <span class="text-[10px] px-2 py-1 rounded-full ${badgeClass}">${badgeText}</span>
                 </div>
             </div>
-            ${o.receipt ? `<div class="mt-2"><img src="${o.receipt}" class="w-full max-h-32 object-contain rounded-xl border"></div>` : ''}
+            ${o.receipt ? `<button onclick="showFullReceipt('${o.receipt}')" class="mt-3 text-xs text-gold font-bold">عرض إثبات السداد</button>` : ''}
         </div>`;
     }).join('');
 }
-
 async function handleReminder(reminder, latestPaymentRequest, totalDebt) {
     latestReminder = reminder || null;
     const reminderCard = document.getElementById('reminderCard');
