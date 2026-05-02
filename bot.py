@@ -1044,7 +1044,7 @@ async def admin_dashboard():
 
         c.execute(
             """
-            SELECT id, details, total_price, location, timestamp, receipt, guest_phone, status, is_paid, missing_note
+            SELECT id, details, total_price, location, timestamp, receipt, guest_phone, status, is_paid
             FROM orders
             WHERE location LIKE 'زائر%%' AND status<>'ملغي'
             ORDER BY id DESC
@@ -1062,7 +1062,6 @@ async def admin_dashboard():
                 "guest_phone": row[6],
                 "status": row[7],
                 "is_paid": row[8],
-                "rejection_note": row[9],
             }
             for row in c.fetchall()
         ]
@@ -1175,14 +1174,7 @@ async def admin_action(request: Request):
         elif action == "missing":
             c.execute("UPDATE orders SET status='صنف_ناقص', missing_note=%s WHERE id=%s", (data.get("note"), order_id))
         elif action == "confirm_visitor_payment":
-            c.execute("UPDATE orders SET status='مقبول', is_paid=1, approved_at=%s, missing_note=NULL WHERE id=%s AND location LIKE 'زائر%%'", (get_pal_time(), order_id))
-        elif action == "reject_visitor_payment":
-            note = clean_office_name(data.get("note"))
-            if not note:
-                c.close()
-                conn.close()
-                return {"status": "error", "message": "سبب الرفض مطلوب"}
-            c.execute("UPDATE orders SET status='فاتورة_زائر_مرفوضة', is_paid=0, missing_note=%s WHERE id=%s AND location LIKE 'زائر%%'", (note, order_id))
+            c.execute("UPDATE orders SET status='مقبول', is_paid=1, approved_at=%s WHERE id=%s AND location LIKE 'زائر%%'", (get_pal_time(), order_id))
         elif action == "remind":
             if not office:
                 c.close()
@@ -1306,12 +1298,7 @@ async def admin_action(request: Request):
             )
         elif action == "delete_expense":
             c.execute("DELETE FROM expenses WHERE id=%s", (order_id,))
-        else:
-            c.close()
-            conn.close()
-            return {"status": "error", "message": f"unknown admin action: {action}"}
-
-        conn.commit()
+conn.commit()
         c.close()
         conn.close()
         if action == "reset_office_pin":
