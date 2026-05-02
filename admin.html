@@ -82,7 +82,7 @@
                 سجل الديون
             </button>
             <button onclick="switchTab('guests')" id="tab_guests" class="font-bold px-4 py-2 rounded-lg text-gray-300 hover:bg-white/10 text-sm whitespace-nowrap transition-colors">
-                طلبات الزوار
+                طلبات الزوار <span id="guestPendingCount" class="ml-1 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full hidden">0</span>
             </button>
             <button onclick="switchTab('reviews')" id="tab_reviews" class="font-bold px-4 py-2 rounded-lg text-gray-300 hover:bg-white/10 text-sm whitespace-nowrap transition-colors">
                 التقييمات
@@ -297,6 +297,14 @@ async function fetchData() {
             officeHelpBadge.classList.remove('hidden');
         } else {
             officeHelpBadge.classList.add('hidden');
+        }
+        const guestPendingCount = (data.guest_orders || []).filter(o => Number(o.is_paid || 0) !== 1 && o.status !== 'مقبول' && o.status !== 'فاتورة_زائر_مرفوضة').length;
+        const guestPendingBadge = document.getElementById('guestPendingCount');
+        if (guestPendingCount > 0) {
+            guestPendingBadge.innerText = guestPendingCount;
+            guestPendingBadge.classList.remove('hidden');
+        } else {
+            guestPendingBadge.classList.add('hidden');
         }
         renderActiveOrders(data.active_orders || []);
         renderLedger(data.debts || []);
