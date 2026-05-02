@@ -939,7 +939,7 @@ async def admin_dashboard():
 
         c.execute(
             """
-            SELECT id, details, total_price, location, status, order_type, missing_note
+            SELECT id, details, total_price, location, status, order_type, missing_note, timestamp
             FROM orders
             WHERE status IN ('انتظار','صنف_ناقص')
             ORDER BY id ASC
@@ -955,6 +955,7 @@ async def admin_dashboard():
                 "status": row[4],
                 "order_type": row[5],
                 "missing_note": row[6],
+                "timestamp": row[7],
                 "kind": "order",
             }
             for row in active_rows
@@ -1044,7 +1045,7 @@ async def admin_dashboard():
 
         c.execute(
             """
-            SELECT id, details, total_price, location, timestamp, receipt, guest_phone, status, is_paid
+            SELECT id, details, total_price, location, timestamp, receipt, guest_phone, status, is_paid, missing_note
             FROM orders
             WHERE location LIKE 'زائر%%' AND status<>'ملغي'
             ORDER BY id DESC
@@ -1062,6 +1063,7 @@ async def admin_dashboard():
                 "guest_phone": row[6],
                 "status": row[7],
                 "is_paid": row[8],
+                "rejection_note": row[9],
             }
             for row in c.fetchall()
         ]
@@ -1174,7 +1176,14 @@ async def admin_action(request: Request):
         elif action == "missing":
             c.execute("UPDATE orders SET status='صنف_ناقص', missing_note=%s WHERE id=%s", (data.get("note"), order_id))
         elif action == "confirm_visitor_payment":
-            c.execute("UPDATE orders SET status='مقبول', is_paid=1, approved_at=%s WHERE id=%s AND location LIKE 'زائر%%'", (get_pal_time(), order_id))
+            c.execute("UPDATE orders SET status='مقبول', is_paid=1, approved_at=%s, missing_note=NULL WHERE id=%s AND location LIKE 'زائر%%'", (get_pal_time(), order_id))
+        elif action == "reject_visitor_payment":
+            note = clean_office_name(data.get("note"))
+            if not note:
+                c.close()
+                conn.close()
+                return {"status": "error", "message": "سبب الرفض مطلوب"}
+            c.execute("UPDATE orders SET status='فاتورة_زائر_مرفوضة', is_paid=0, missing_note=%s WHERE id=%s AND location LIKE 'زائر%%'", (note, order_id))
         elif action == "remind":
             if not office:
                 c.close()
@@ -1207,6 +1216,30 @@ async def admin_action(request: Request):
             c.execute("UPDATE debt_payment_requests SET status='paid' WHERE id=%s", (order_id,))
             c.execute("UPDATE orders SET is_paid=1 WHERE location=%s AND status='مقبول' AND is_paid=0", (pay_office,))
             c.execute("UPDATE reminders SET is_active=0 WHERE office=%s", (pay_office,))
+        elif action == "reject_debt_payment":
+            note = clean_office_name(data.get("note"))
+            if not note:
+                c.close()
+                conn.close()
+                return {"status": "error", "message": "سبب الرفض مطلوب"}
+            c.execute(
+                "SELECT office, amount FROM debt_payment_requests WHERE id=%s AND status='pending'",
+                (order_id,),
+            )
+            payment_row = c.fetchone()
+            if not payment_row:
+                c.close()
+                conn.close()
+                return {"status": "error", "message": "payment request not found"}
+            pay_office, pay_amount = payment_row
+            c.execute("UPDATE debt_payment_requests SET status='rejected' WHERE id=%s", (order_id,))
+            c.execute(
+                """
+                INSERT INTO orders (user_id, details, total_price, location, timestamp, status, is_paid, order_type, approved_at)
+                VALUES (%s,%s,0,%s,%s,'مقبول',1,'رفض سداد الدين',%s)
+                """,
+                (0, f"رفض سداد الدين: {note}", pay_office, get_pal_time(), get_pal_time()),
+            )
         elif action == "reset_office_pin":
             if not office:
                 c.close()
