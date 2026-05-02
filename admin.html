@@ -358,6 +358,26 @@ function extractItemsLabel(details) {
         .join('، ');
 }
 
+function parsePalTime(value) {
+    if (!value) return null;
+    const normalized = String(value).replace(' ', 'T');
+    const date = new Date(normalized);
+    return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function timeAgo(value) {
+    const date = parsePalTime(value);
+    if (!date) return value || '';
+    const diffMinutes = Math.max(0, Math.floor((Date.now() - date.getTime()) / 60000));
+    if (diffMinutes < 1) return 'الآن';
+    if (diffMinutes === 1) return 'قبل دقيقة';
+    if (diffMinutes < 60) return `قبل ${diffMinutes} دقائق`;
+    const hours = Math.floor(diffMinutes / 60);
+    if (hours === 1) return 'قبل ساعة';
+    if (hours < 24) return `قبل ${hours} ساعات`;
+    const days = Math.floor(hours / 24);
+    return days === 1 ? 'قبل يوم' : `قبل ${days} أيام`;
+}
 function renderActiveOrders(orders) {
     const list = document.getElementById('activeOrdersList');
     if (!orders.length) {
@@ -382,12 +402,14 @@ function renderActiveOrders(orders) {
                 </div>
                 <p class="text-xs text-gray-500 mb-2 font-bold">قيمة الدين المرفقة</p>
                 <p class="font-black text-2xl text-[#2E3468] mb-3">${order.total_price} ₪</p>
+                <p class="text-xs text-indigo-700 font-bold mb-2">وصل للكاشير ${timeAgo(order.timestamp)}</p>
                 <button onclick="showFullReceipt('${order.receipt}')" class="bg-white border border-indigo-200 text-indigo-700 py-2.5 rounded-xl text-sm font-bold mb-3 hover:bg-indigo-50 transition-colors">
                     عرض الصورة المرفقة
                 </button>
                 <button onclick="action('confirm_debt_payment', ${order.id})" class="bg-[#2E3468] text-white py-2.5 rounded-xl text-sm font-bold shadow hover:bg-opacity-90 transition-all mt-auto">
                     تأكيد السداد وتحويله لمدفوع
                 </button>
+                <button onclick="rejectDebtPayment(${order.id})" class="bg-red-50 text-red-600 border border-red-100 py-2.5 rounded-xl text-sm font-bold shadow hover:bg-red-100 transition-all mt-2">رفض السداد</button>
             </div>`;
         }
 
@@ -412,6 +434,7 @@ function renderActiveOrders(orders) {
                     </div>
                 </div>
             <p class="text-xs text-gray-400 mb-2 font-bold">${order.order_type || 'داخل الكوفي كورنر'}</p>
+            <p class="text-xs text-blue-600 mb-2 font-bold">وصل للكاشير ${timeAgo(order.timestamp)}</p>
             <p class="text-[#2E3468] mb-3 text-sm bg-white p-3 rounded-xl leading-relaxed font-bold border">${order.details}</p>
             ${order.missing_note ? `<div class="bg-red-50 border border-red-200 p-2 rounded-lg mb-3"><p class="text-xs text-red-600 font-bold">ناقص: ${order.missing_note}</p></div>` : ''}
             <div class="flex justify-between items-center mb-3">
@@ -471,29 +494,49 @@ function renderGuests(orders) {
     }
     guestList.innerHTML = orders.map(o => {
         const isPaid = Number(o.is_paid || 0) === 1 || o.status === 'مقبول';
+        const isRejected = o.status === 'فاتورة_زائر_مرفوضة';
+        const statusClass = isPaid ? 'bg-green-100 text-green-700' : (isRejected ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700');
+        const statusText = isPaid ? 'مدفوع' : (isRejected ? 'فاتورة مرفوضة' : 'بانتظار المراجعة');
         const phone = o.guest_phone || '';
         const phoneEscaped = phone.replace(/'/g, "\\'");
         return `
         <div class="bg-white p-4 rounded-2xl border shadow-sm slide-up">
             <div class="flex justify-between items-start mb-2 gap-3">
                 <span class="font-bold text-[#2E3468] text-sm">#${o.id} · ${o.location}</span>
-                <span class="text-xs ${isPaid ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'} font-bold px-2 py-1 rounded-full">${isPaid ? 'مدفوع' : 'بانتظار المراجعة'}</span>
+                <span class="text-xs ${statusClass} font-bold px-2 py-1 rounded-full">${statusText}</span>
             </div>
             <p class="text-sm text-navy font-bold bg-gray-50 p-3 rounded-xl mb-3 leading-relaxed">${o.details}</p>
             <div class="bg-blue-50 border border-blue-100 rounded-xl p-3 mb-3">
                 <p class="text-xs text-gray-500 font-bold mb-2">رقم جوال الزائر</p>
                 ${phone ? `<div class="flex gap-2"><a href="tel:${phone}" class="flex-1 bg-[#2E3468] text-white text-center py-2 rounded-lg text-sm font-bold">اتصال</a><button onclick="copyPhone('${phoneEscaped}')" class="flex-1 bg-white border text-[#2E3468] py-2 rounded-lg text-sm font-bold">نسخ الرقم</button></div><p dir="ltr" class="text-center text-[#2E3468] font-black mt-2">${phone}</p>` : '<p class="text-xs text-red-400 font-bold">لا يوجد رقم جوال</p>'}
             </div>
+            ${isRejected && o.rejection_note ? `<div class="bg-red-50 border border-red-100 text-red-700 rounded-xl p-3 mb-3 text-xs font-bold leading-relaxed">سبب الرفض: ${o.rejection_note}</div>` : ''}
             <div class="flex justify-between items-center mb-3">
-                <span class="text-xs text-gray-400">${o.timestamp}</span>
+                <span class="text-xs text-gray-400">${timeAgo(o.timestamp)}</span>
                 <span class="font-black text-[#2E3468]">${o.total_price} ₪</span>
             </div>
             <div class="grid grid-cols-1 gap-2">
                 ${o.receipt ? `<button onclick="showFullReceipt('${o.receipt}')" class="w-full border rounded-xl py-2.5 text-sm font-bold hover:bg-gray-50">عرض الفاتورة</button>` : '<p class="text-xs text-red-400 font-bold">لا توجد فاتورة</p>'}
-                ${isPaid ? '' : `<button onclick="action('confirm_visitor_payment', ${o.id})" class="w-full bg-green-600 text-white rounded-xl py-2.5 text-sm font-bold shadow hover:bg-green-700 transition-colors">تأكيد الفاتورة</button>`}
+                ${isPaid || isRejected ? '' : `<button onclick="action('confirm_visitor_payment', ${o.id})" class="w-full bg-green-600 text-white rounded-xl py-2.5 text-sm font-bold shadow hover:bg-green-700 transition-colors">تأكيد الفاتورة</button><button onclick="rejectVisitorPayment(${o.id})" class="w-full bg-red-50 text-red-600 border border-red-100 rounded-xl py-2.5 text-sm font-bold hover:bg-red-100 transition-colors">رفض الفاتورة</button>`}
             </div>
         </div>`;
     }).join('');
+}
+
+async function rejectDebtPayment(id) {
+    const note = prompt('اكتب سبب رفض إثبات سداد المكتب');
+    if (note === null) return;
+    const cleanNote = note.trim();
+    if (!cleanNote) { alert('سبب الرفض مطلوب'); return; }
+    await action('reject_debt_payment', id, null, cleanNote);
+}
+
+async function rejectVisitorPayment(id) {
+    const note = prompt('اكتب سبب رفض فاتورة الزائر');
+    if (note === null) return;
+    const cleanNote = note.trim();
+    if (!cleanNote) { alert('سبب الرفض مطلوب'); return; }
+    await action('reject_visitor_payment', id, null, cleanNote);
 }
 function renderReviews(reviews) {
     const ratingEmojis = { 5: '😍', 4: '😊', 3: '😐', 2: '😕', 1: '😡' };
@@ -579,7 +622,9 @@ async function action(act, id, office=null, note=null) {
         if (act === 'remind') alert(`تم إرسال تذكير الدفع لـ ${office}`);
         if (act === 'mark_paid') alert(`تم تسجيل سداد ${office}`);
         if (act === 'confirm_debt_payment') alert('تم تأكيد طلب تسديد الدين وتحويله إلى مدفوع');
+        if (act === 'reject_debt_payment') alert('تم رفض إثبات السداد وإرسال السبب للمكتب');
         if (act === 'confirm_visitor_payment') alert('تم تأكيد فاتورة الزائر');
+        if (act === 'reject_visitor_payment') alert('تم رفض فاتورة الزائر وحفظ السبب للكاشير');
         fetchData();
     } catch (e) {
         alert('حدث خطأ، حاول مجدداً');
