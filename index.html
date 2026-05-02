@@ -301,6 +301,11 @@
             </div>
         </div>
         <input type="file" id="receiptInput" accept="image/*" class="hidden" onchange="handleReceiptUpload(this)">
+        <div id="guestOrderSuccessStatus" class="hidden bg-yellow-50 border border-yellow-200 rounded-2xl p-4 text-center mb-3">
+            <div class="w-12 h-12 mx-auto mb-3 rounded-full bg-white border border-yellow-200 flex items-center justify-center text-2xl font-black text-yellow-600">✓</div>
+            <p class="font-black text-navy text-sm mb-1">تم إرسال طلبك للكاشير</p>
+            <p class="text-xs text-gray-500 font-bold leading-relaxed">سيتم مراجعة الفاتورة والتواصل معك عند الحاجة</p>
+        </div>
         <button id="guestSubmitBtn" onclick="submitGuestOrder()" class="w-full bg-navy text-white py-3 rounded-xl font-bold mb-2 hover:bg-opacity-90 transition-all">إرسال الطلب مع الفاتورة</button>
         <button onclick="closeModal('receiptModal')" class="w-full bg-gray-100 text-gray-600 py-3 rounded-xl font-bold">إلغاء</button>
     </div>
@@ -323,7 +328,16 @@
         <button onclick="closeModal('officePinModal')" class="w-full bg-gray-100 text-gray-600 py-3 rounded-xl font-bold">إلغاء</button>
     </div>
 </div>
-<div id="ledgerScreen" class="fixed inset-0 bg-[#F8F9FA] z-[90] overflow-y-auto hidden">
+<div id="newOfficePinModal" class="fixed inset-0 bg-black/70 z-[86] flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl w-full max-w-sm p-6 slide-up text-center help-status-loading">
+        <h3 class="font-black text-lg text-navy mb-2">تم إنشاء كلمة سر جديدة لك</h3>
+        <p class="text-xs text-gray-400 font-bold mb-4">استخدم هذا الرقم في الطلبات القادمة</p>
+        <div class="bg-blue-50 border border-blue-100 rounded-2xl p-4 mb-4">
+            <p id="newOfficePinValue" dir="ltr" class="text-4xl font-black text-blue-700 tracking-[0.35em]"></p>
+        </div>
+        <button onclick="ackNewOfficePin()" class="w-full bg-navy text-white py-3 rounded-xl font-bold hover:bg-opacity-90 transition-all">تمام</button>
+    </div>
+</div><div id="ledgerScreen" class="fixed inset-0 bg-[#F8F9FA] z-[90] overflow-y-auto hidden">
     <div class="max-w-md mx-auto p-4">
         <div class="flex items-center gap-3 pt-4 mb-6">
             <button onclick="toggleLedger()" class="bg-white border p-2.5 rounded-xl font-bold text-navy shadow-sm">←</button>
@@ -395,6 +409,11 @@
             </div>
         </div>
         <input type="file" id="debtReceiptInput" accept="image/*" class="hidden" onchange="handleDebtReceiptUpload(this)">
+        <div id="debtPaymentSuccessStatus" class="hidden bg-yellow-50 border border-yellow-200 rounded-2xl p-4 text-center mb-3">
+            <div class="w-12 h-12 mx-auto mb-3 rounded-full bg-white border border-yellow-200 flex items-center justify-center text-2xl font-black text-yellow-600">✓</div>
+            <p class="font-black text-navy text-sm mb-1">تم إرسال طلب تسديد الدين للإدارة</p>
+            <p class="text-xs text-gray-500 font-bold leading-relaxed">سيقوم الكاشير بمراجعة الإثبات وتأكيد السداد</p>
+        </div>
         <button onclick="submitDebtPayment()" class="w-full bg-navy text-white py-3 rounded-xl font-bold mb-2">
             إرسال طلب التسديد
         </button>
@@ -457,6 +476,7 @@ let latestReminder = null;
 let editingOrderId = null;
 let storeIsOpen = true;
 let officePinMode = 'verify';
+let pendingNewOfficePin = null;
 const debtTransferDefaults = {
     bank: 'بنك فلسطين',
     id: '1512081',
@@ -754,6 +774,7 @@ async function processOrder() {
         document.getElementById('guestPaymentInfo').innerHTML = renderGuestPaymentInfo();
         document.getElementById('receiptPreview').classList.add('hidden');
         document.getElementById('receiptPlaceholder').classList.remove('hidden');
+        resetInlineSuccessStatus('guestOrderSuccessStatus');
         document.getElementById('receiptModal').classList.remove('hidden');
         return;
     }
@@ -782,9 +803,7 @@ async function openOfficePinModal() {
     }
     document.getElementById('officePinInput').value = '';
     document.getElementById('officePinConfirmInput').value = '';
-    const helpStatus = document.getElementById('officePinHelpStatus');
-    helpStatus.classList.add('hidden');
-    helpStatus.classList.remove('help-status-loading');
+    resetInlineSuccessStatus('officePinHelpStatus');
     document.getElementById('officePinConfirmInput').classList.toggle('hidden', officePinMode !== 'setup');
     document.getElementById('officePinHelpBtn').classList.toggle('hidden', officePinMode === 'setup');
     document.getElementById('officePinTitle').innerText = officePinMode === 'setup' ? 'أنشئ رقم سري للمكتب' : 'أدخل الرقم السري للمكتب';
@@ -833,10 +852,7 @@ async function requestOfficePinHelp() {
             body: JSON.stringify({ office: user.id })
         });
         document.getElementById('officePinHelpBtn').classList.add('hidden');
-        const helpStatus = document.getElementById('officePinHelpStatus');
-        helpStatus.classList.remove('hidden');
-        helpStatus.classList.add('help-status-loading');
-        setTimeout(() => closeModal('officePinModal'), 3000);
+        showInlineSuccessStatus('officePinHelpStatus', 'officePinModal');
     } catch (e) {
         showToast('تعذر إرسال طلب المساعدة');
     }
@@ -868,11 +884,19 @@ async function sendOrder(items, total, receipt, orderId=null, guestPhone='') {
         });
         const data = await res.json();
         if (data.status === 'success') {
-            showToast(user.isGuest && !isEdit ? 'تم إرسال طلبك، سيتم مراجعة الفاتورة والتواصل معك عند الحاجة' : (isEdit ? 'تم تعديل الطلب بنجاح' : 'تم إرسال طلبك بنجاح'));
-            clearCart();
-            closeModal('receiptModal');
-            resetGuestSubmitButton();
-            poll();
+            if (user.isGuest && !isEdit) {
+                clearCart();
+                showInlineSuccessStatus('guestOrderSuccessStatus', 'receiptModal', () => {
+                    resetGuestSubmitButton();
+                    poll();
+                });
+            } else {
+                showToast(isEdit ? 'تم تعديل الطلب بنجاح' : 'تم إرسال طلبك بنجاح');
+                clearCart();
+                closeModal('receiptModal');
+                resetGuestSubmitButton();
+                poll();
+            }
         } else {
             showToast(data.message || 'حدث خطأ، حاول مجدداً');
             resetGuestSubmitButton();
@@ -1063,6 +1087,7 @@ async function poll() {
         renderDebtSummary(data);
         renderLedger(data.orders || []);
         handleReminder(data.active_reminder, data.latest_payment_request, data.total_debt || 0);
+        handleNewOfficePin(data.new_office_pin);
 
         if (data.review_due && document.getElementById('reviewModal').classList.contains('hidden')) {
             showReviewModal(data.review_due);
@@ -1220,6 +1245,7 @@ function openDebtPaymentModal() {
     debtReceiptBase64 = null;
     document.getElementById('debtReceiptPreview').classList.add('hidden');
     document.getElementById('debtReceiptPlaceholder').classList.remove('hidden');
+    resetInlineSuccessStatus('debtPaymentSuccessStatus');
     document.getElementById('debtPaymentModal').classList.remove('hidden');
 }
 
@@ -1257,9 +1283,7 @@ async function submitDebtPayment() {
         });
         const data = await res.json();
         if (data.status === 'success') {
-            showToast('تم إرسال طلب تسديد الدين للإدارة');
-            closeModal('debtPaymentModal');
-            poll();
+            showInlineSuccessStatus('debtPaymentSuccessStatus', 'debtPaymentModal', poll);
         } else {
             showToast(data.message || 'تعذر إرسال طلب التسديد');
         }
@@ -1319,6 +1343,47 @@ async function submitReview() {
 
 function skipReview() {
     closeModal('reviewModal');
+}
+
+function handleNewOfficePin(newPinData) {
+    if (!newPinData || !newPinData.id || !newPinData.pin || pendingNewOfficePin?.id === newPinData.id) return;
+    pendingNewOfficePin = newPinData;
+    document.getElementById('newOfficePinValue').innerText = newPinData.pin;
+    document.getElementById('newOfficePinModal').classList.remove('hidden');
+}
+
+async function ackNewOfficePin() {
+    const seenPin = pendingNewOfficePin;
+    closeModal('newOfficePinModal');
+    pendingNewOfficePin = null;
+    if (!seenPin) return;
+    try {
+        await fetch(`${API_URL}/office-pin/new-pin-seen`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ office: user.id, id: seenPin.id })
+        });
+    } catch (e) {}
+}
+
+function resetInlineSuccessStatus(id) {
+    const status = document.getElementById(id);
+    if (!status) return;
+    status.classList.add('hidden');
+    status.classList.remove('help-status-loading');
+}
+
+function showInlineSuccessStatus(statusId, modalId, onDone=null) {
+    const status = document.getElementById(statusId);
+    if (!status) return;
+    status.classList.remove('hidden', 'help-status-loading');
+    void status.offsetWidth;
+    status.classList.add('help-status-loading');
+    setTimeout(() => {
+        closeModal(modalId);
+        resetInlineSuccessStatus(statusId);
+        if (typeof onDone === 'function') onDone();
+    }, 3000);
 }
 
 function closeModal(id) {
