@@ -1306,6 +1306,10 @@ async def admin_action(request: Request):
             )
         elif action == "delete_expense":
             c.execute("DELETE FROM expenses WHERE id=%s", (order_id,))
+        else:
+            c.close()
+            conn.close()
+            return {"status": "error", "message": f"unknown admin action: {action}"}
 
         conn.commit()
         c.close()
