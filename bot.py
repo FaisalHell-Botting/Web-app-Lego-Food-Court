@@ -931,6 +931,29 @@ async def submit_review(request: Request):
         return {"status": "error", "message": str(exc)}
 
 
+@app.get("/api/admin/receipt/{source}/{item_id}")
+async def admin_receipt(source: str, item_id: int):
+    table_map = {
+        "order": "orders",
+        "debt_payment": "debt_payment_requests",
+        "expense": "expenses",
+    }
+    table = table_map.get(source)
+    if not table:
+        return {"status": "error", "message": "invalid receipt source"}
+    try:
+        conn = get_db()
+        c = conn.cursor()
+        c.execute(f"SELECT receipt FROM {table} WHERE id=%s", (item_id,))
+        row = c.fetchone()
+        c.close()
+        conn.close()
+        if not row or not row[0]:
+            return {"status": "error", "message": "receipt not found"}
+        return {"status": "success", "receipt": row[0]}
+    except Exception as exc:
+        return {"status": "error", "message": str(exc)}
+
 @app.get("/api/admin/dashboard")
 async def admin_dashboard():
     try:
@@ -963,7 +986,7 @@ async def admin_dashboard():
 
         c.execute(
             """
-            SELECT id, office, amount, receipt, status, created_at
+            SELECT id, office, amount, (receipt IS NOT NULL AND receipt <> '') AS has_receipt, status, created_at
             FROM debt_payment_requests
             WHERE status='pending'
             ORDER BY id ASC
@@ -980,7 +1003,7 @@ async def admin_dashboard():
                     "status": row[4],
                     "order_type": "سداد دين",
                     "missing_note": None,
-                    "receipt": row[3],
+                    "has_receipt": bool(row[3]),
                     "timestamp": row[5],
                     "kind": "debt_payment",
                 }
@@ -1045,7 +1068,7 @@ async def admin_dashboard():
 
         c.execute(
             """
-            SELECT id, details, total_price, location, timestamp, receipt, guest_phone, status, is_paid, missing_note
+            SELECT id, details, total_price, location, timestamp, (receipt IS NOT NULL AND receipt <> '') AS has_receipt, guest_phone, status, is_paid, missing_note
             FROM orders
             WHERE location LIKE 'زائر%%' AND status<>'ملغي'
             ORDER BY id DESC
@@ -1059,7 +1082,7 @@ async def admin_dashboard():
                 "total_price": row[2],
                 "location": row[3],
                 "timestamp": row[4],
-                "receipt": row[5],
+                "has_receipt": bool(row[5]),
                 "guest_phone": row[6],
                 "status": row[7],
                 "is_paid": row[8],
@@ -1067,9 +1090,9 @@ async def admin_dashboard():
             }
             for row in c.fetchall()
         ]
-        c.execute("SELECT id, amount, receipt, created_at FROM expenses ORDER BY id DESC")
+        c.execute("SELECT id, amount, (receipt IS NOT NULL AND receipt <> '') AS has_receipt, created_at FROM expenses ORDER BY id DESC")
         expenses = [
-            {"id": row[0], "amount": row[1], "receipt": row[2], "created_at": row[3]}
+            {"id": row[0], "amount": row[1], "has_receipt": bool(row[2]), "created_at": row[3]}
             for row in c.fetchall()
         ]
 
