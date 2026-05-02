@@ -137,13 +137,14 @@ def get_pal_datetime():
 
 
 def is_store_open():
-    return get_pal_datetime().hour < 20
+    now = get_pal_datetime()
+    return (now.hour, now.minute) < (20, 30)
 
 
 def store_closed_response():
     return {
         "status": "error",
-        "message": "الطلبات مغلقة الآن. نستقبل الطلبات حتى الساعة 8:00 مساءً بتوقيت فلسطين.",
+        "message": "الطلبات مغلقة الآن. نستقبل الطلبات حتى الساعة 8:30 مساءً بتوقيت فلسطين.",
         "code": "store_closed",
     }
 
@@ -487,7 +488,7 @@ async def serve_logo():
 async def store_status():
     return {
         "is_open": is_store_open(),
-        "message": "الطلبات متاحة حتى الساعة 8:00 مساءً بتوقيت فلسطين" if is_store_open() else "الطلبات مغلقة الآن. نستقبل الطلبات حتى الساعة 8:00 مساءً بتوقيت فلسطين.",
+        "message": "الطلبات متاحة حتى الساعة 8:30 مساءً بتوقيت فلسطين" if is_store_open() else "الطلبات مغلقة الآن. نستقبل الطلبات حتى الساعة 8:30 مساءً بتوقيت فلسطين.",
     }
 
 
