@@ -12,20 +12,34 @@
         .hidden { display: none !important; }
         .slide-up { animation: slideUp 0.25s ease-out; }
         @keyframes slideUp { from { transform: translateY(12px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-        .success-border-loading { position: relative; overflow: hidden; border: 1px solid rgba(46, 52, 104, 0.18); }
+        .success-border-loading {
+            position: relative;
+            overflow: hidden;
+            border: 0 !important;
+            isolation: isolate;
+        }
         .success-border-loading::before {
             content: '';
             position: absolute;
-            inset: 0;
-            border-radius: 1.5rem;
-            padding: 2px;
-            background: conic-gradient(from 0deg, #2E3468, #60A5FA, #2E3468, transparent 72%);
-            -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-            -webkit-mask-composite: xor;
-            mask-composite: exclude;
+            width: 180%;
+            height: 180%;
+            top: -40%;
+            right: -40%;
+            background: conic-gradient(from 0deg, transparent 0 62%, #2E3468 68%, #F7CC46 78%, #FFE58A 86%, transparent 92% 100%);
             animation: successBorderSpin 3s linear forwards;
             pointer-events: none;
+            z-index: 0;
         }
+        .success-border-loading::after {
+            content: '';
+            position: absolute;
+            inset: 3px;
+            border-radius: calc(1.5rem - 3px);
+            background: #fff;
+            pointer-events: none;
+            z-index: 1;
+        }
+        .success-border-loading > * { position: relative; z-index: 2; }
         @keyframes successBorderSpin { to { transform: rotate(360deg); } }
     </style>
 </head>
