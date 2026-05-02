@@ -76,7 +76,7 @@
                 المصاريف
             </button>
             <button onclick="switchTab('offices')" id="tab_offices" class="font-bold px-4 py-2 rounded-lg text-gray-300 hover:bg-white/10 text-sm whitespace-nowrap transition-colors">
-                إدارة المكاتب
+                إدارة المكاتب <span id="officeHelpCount" class="ml-1 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full hidden">0</span>
             </button>
         </div>
     </div>
@@ -133,7 +133,7 @@
         <p class="text-xs text-gray-400 mb-4 pb-3 border-b">اختر الأصناف غير المتوفرة</p>
         <div id="missingItemsContainer" class="space-y-2 mb-4 max-h-56 overflow-y-auto"></div>
         <button onclick="submitMissing()" class="w-full bg-red-500 text-white py-3 rounded-xl font-bold mb-2 hover:bg-red-600 transition-colors shadow">
-            إرسال تنبيه للموظف
+            إرسال تنبيه للمستخدم
         </button>
         <button onclick="closeModal('missingPromptModal')" class="w-full bg-gray-100 text-gray-600 py-3 rounded-xl font-bold hover:bg-gray-200 transition-colors">
             إلغاء
@@ -268,6 +268,14 @@ async function fetchData() {
         handleIncomingAudioAlerts(data.active_orders || []);
         previousActiveCount = activeCount;
 
+        const officeHelpCount = (data.offices || []).filter(o => o.help_requested).length;
+        const officeHelpBadge = document.getElementById('officeHelpCount');
+        if (officeHelpCount > 0) {
+            officeHelpBadge.innerText = officeHelpCount;
+            officeHelpBadge.classList.remove('hidden');
+        } else {
+            officeHelpBadge.classList.add('hidden');
+        }
         renderActiveOrders(data.active_orders || []);
         renderLedger(data.debts || []);
         renderGuests(data.guest_orders || []);
@@ -410,10 +418,12 @@ function renderActiveOrders(orders) {
                 <button onclick="showReceipt('debt_payment', ${order.id})" class="bg-white border border-indigo-200 text-indigo-700 py-2.5 rounded-xl text-sm font-bold mb-3 hover:bg-indigo-50 transition-colors">
                     عرض الصورة المرفقة
                 </button>
-                <button onclick="action('confirm_debt_payment', ${order.id})" class="bg-[#2E3468] text-white py-2.5 rounded-xl text-sm font-bold shadow hover:bg-opacity-90 transition-all mt-auto">
-                    تأكيد السداد وتحويله لمدفوع
-                </button>
-                <button onclick="rejectDebtPayment(${order.id})" class="bg-red-50 text-red-600 border border-red-100 py-2.5 rounded-xl text-sm font-bold shadow hover:bg-red-100 transition-all mt-2">رفض السداد</button>
+                <div class="grid grid-cols-5 gap-2 mt-auto">
+                    <button onclick="action('confirm_debt_payment', ${order.id})" class="col-span-3 bg-[#2E3468] text-white py-2.5 rounded-xl text-sm font-bold shadow hover:bg-opacity-90 transition-all">
+                        تأكيد السداد
+                    </button>
+                    <button onclick="rejectDebtPayment(${order.id})" class="col-span-2 bg-red-50 text-red-600 border border-red-100 py-2.5 rounded-xl text-sm font-bold shadow hover:bg-red-100 transition-all">رفض</button>
+                </div>
             </div>`;
         }
 
@@ -445,11 +455,11 @@ function renderActiveOrders(orders) {
                 <span class="text-xs text-gray-400 font-bold">الإجمالي:</span>
                 <span class="font-black text-xl text-[#2E3468]">${order.total_price} ₪</span>
             </div>
-            <div class="grid grid-cols-2 gap-2 mt-auto">
-                <button onclick="action('approve', ${order.id})" class="bg-[#2E3468] text-white py-2.5 rounded-xl text-sm font-bold shadow hover:bg-opacity-90 transition-all">
+            <div class="grid grid-cols-5 gap-2 mt-auto">
+                <button onclick="action('approve', ${order.id})" class="col-span-3 bg-[#2E3468] text-white py-2.5 rounded-xl text-sm font-bold shadow hover:bg-opacity-90 transition-all">
                     موافقة
                 </button>
-                <button onclick="promptMissing(${order.id}, '${detailsEscaped}')" class="border-2 border-red-200 text-red-500 py-2.5 rounded-xl text-sm font-bold hover:bg-red-50 transition-colors">
+                <button onclick="promptMissing(${order.id}, '${detailsEscaped}')" class="col-span-2 border-2 border-red-200 text-red-500 py-2.5 rounded-xl text-sm font-bold hover:bg-red-50 transition-colors">
                     صنف ناقص
                 </button>
             </div>
@@ -504,7 +514,7 @@ function renderGuests(orders) {
         const phone = o.guest_phone || '';
         const phoneEscaped = phone.replace(/'/g, "\\'");
         return `
-        <div class="bg-white p-4 rounded-2xl border shadow-sm slide-up">
+        <div class="bg-white p-4 rounded-2xl border shadow-sm slide-up ${o.help_requested ? 'border-red-200 bg-red-50/40' : ''}">
             <div class="flex justify-between items-start mb-2 gap-3">
                 <span class="font-bold text-[#2E3468] text-sm">#${o.id} · ${o.location}</span>
                 <span class="text-xs ${statusClass} font-bold px-2 py-1 rounded-full">${statusText}</span>
@@ -521,7 +531,7 @@ function renderGuests(orders) {
             </div>
             <div class="grid grid-cols-1 gap-2">
                 ${o.has_receipt ? `<button onclick="showReceipt('order', ${o.id})" class="w-full border rounded-xl py-2.5 text-sm font-bold hover:bg-gray-50">عرض الفاتورة</button>` : '<p class="text-xs text-red-400 font-bold">لا توجد فاتورة</p>'}
-                ${isPaid || isRejected ? '' : `<button onclick="action('confirm_visitor_payment', ${o.id})" class="w-full bg-green-600 text-white rounded-xl py-2.5 text-sm font-bold shadow hover:bg-green-700 transition-colors">تأكيد الفاتورة</button><button onclick="rejectVisitorPayment(${o.id})" class="w-full bg-red-50 text-red-600 border border-red-100 rounded-xl py-2.5 text-sm font-bold hover:bg-red-100 transition-colors">رفض الفاتورة</button>`}
+                ${isPaid || isRejected ? '' : `<div class="grid grid-cols-5 gap-2"><button onclick="action('confirm_visitor_payment', ${o.id})" class="col-span-3 bg-green-600 text-white rounded-xl py-2.5 text-sm font-bold shadow hover:bg-green-700 transition-colors">تأكيد الفاتورة</button><button onclick="rejectVisitorPayment(${o.id})" class="col-span-2 bg-red-50 text-red-600 border border-red-100 rounded-xl py-2.5 text-sm font-bold hover:bg-red-100 transition-colors">رفض</button></div>`}
             </div>
         </div>`;
     }).join('');
@@ -570,12 +580,16 @@ function renderReviews(reviews) {
 
 function renderOffices(offices) {
     const list = document.getElementById('officesList');
+    const sortedOffices = [...offices].sort((a, b) => {
+        if (a.help_requested !== b.help_requested) return a.help_requested ? -1 : 1;
+        return String(a.office).localeCompare(String(b.office), 'ar', { numeric: true });
+    });
     if (!offices.length) {
         list.innerHTML = `<div class="col-span-full text-center py-16 text-gray-400"><p class="font-bold">لا توجد مكاتب مسجلة بعد</p></div>`;
         return;
     }
-    list.innerHTML = offices.map(o => `
-        <div class="bg-white p-4 rounded-2xl border shadow-sm slide-up">
+    list.innerHTML = sortedOffices.map(o => `
+        <div class="bg-white p-4 rounded-2xl border shadow-sm slide-up ${o.help_requested ? 'border-red-200 bg-red-50/40' : ''}">
             <div class="flex justify-between items-start gap-3 mb-3">
                 <div><p class="font-black text-[#2E3468]">${o.office}</p><p class="text-xs text-gray-400 mt-1">آخر تحديث: ${o.updated_at || 'غير محدد'}</p></div>
                 <span class="text-xs font-bold px-2 py-1 rounded-full ${o.has_pin ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}">${o.has_pin ? 'PIN مفعل' : 'بدون PIN'}</span>
