@@ -1298,7 +1298,7 @@ async def admin_action(request: Request):
             )
         elif action == "delete_expense":
             c.execute("DELETE FROM expenses WHERE id=%s", (order_id,))
-conn.commit()
+        conn.commit()
         c.close()
         conn.close()
         if action == "reset_office_pin":
