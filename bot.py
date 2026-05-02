@@ -655,11 +655,12 @@ async def create_order(request: Request):
     if any(item in SNACK_ITEM_NAMES for item in items):
         order_type = "داخل الكوفي كورنر"
 
+
     is_guest = is_guest_office(office)
     if not is_guest and not is_valid_office_number(office):
         return {"status": "error", "message": "رقم المكتب يجب أن يكون 3 أرقام ويبدأ بـ 2 أو 4"}
-    if is_guest and not guest_phone:
-        return {"status": "error", "message": "رقم الجوال مطلوب لطلبات الزوار"}
+    if is_guest and not re.fullmatch(r"05\d{8}", guest_phone or ""):
+        return {"status": "error", "message": "رقم الجوال يجب أن يبدأ بـ 05 ويتكون من 10 أرقام"}
     if is_guest and not receipt:
         return {"status": "error", "message": "فاتورة الدفع مطلوبة لطلبات الزوار"}
 
