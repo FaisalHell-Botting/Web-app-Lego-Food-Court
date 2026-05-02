@@ -138,7 +138,7 @@ def get_pal_datetime():
 
 def is_store_open():
     now = get_pal_datetime()
-    return (now.hour, now.minute) < (20, 30)
+    return (now.hour, now.minute) < (20, 45)
 
 
 def store_closed_response():
