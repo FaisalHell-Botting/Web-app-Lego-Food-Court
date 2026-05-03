@@ -117,6 +117,11 @@
     </div>
 
     <div id="view_ledger" class="hidden">
+        <div class="flex justify-end mb-4">
+            <button onclick="downloadDebtCsv()" class="bg-[#2E3468] text-white px-4 py-2 rounded-xl text-sm font-bold shadow hover:bg-opacity-90 transition-all">
+                تحميل الكشف
+            </button>
+        </div>
         <div class="bg-white rounded-2xl shadow-sm border overflow-hidden">
             <div class="overflow-x-auto">
                 <table class="w-full text-right text-sm">
@@ -244,6 +249,7 @@ let audioAlertsEnabled = false;
 let announcedOrders = new Set();
 let expenseReceiptBase64 = null;
 let currentDebtOffice = null;
+let latestDebts = [];
 let currentDebtTotal = 0;
 const ADMIN_PASSWORD = '444555666';
 
@@ -512,6 +518,7 @@ function renderActiveOrders(orders) {
 }
 
 function renderLedger(debts) {
+    latestDebts = debts || [];
     const body = document.getElementById('ledgerList');
     if (!debts.length) {
         body.innerHTML = '<tr><td colspan="4" class="p-8 text-center text-gray-400">لا توجد ديون مسجلة</td></tr>';
@@ -539,6 +546,39 @@ function renderLedger(debts) {
             </td>
         </tr>
     `).join('');
+}
+
+function csvCell(value) {
+    const text = String(value ?? '').replace(/"/g, '""');
+    return `"${text}"`;
+}
+
+function downloadDebtCsv() {
+    if (!latestDebts.length) {
+        alert('لا توجد ديون لتصديرها');
+        return;
+    }
+    const rows = [
+        ['المكتب', 'قيمة الدين', 'حالة التذكير', 'تاريخ التذكير', 'آخر دين'],
+        ...latestDebts.map(d => [
+            d.office || '',
+            d.amount || 0,
+            d.has_active_reminder ? 'مرسل' : 'لم يرسل',
+            d.reminder_created_at || '',
+            d.last_debt_at || ''
+        ])
+    ];
+    const csv = '\uFEFF' + rows.map(row => row.map(csvCell).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const date = new Date().toISOString().slice(0, 10);
+    link.href = url;
+    link.download = `le-coffee-debts-${date}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
 }
 
 function renderGuests(orders) {
