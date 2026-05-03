@@ -74,9 +74,7 @@
                 <button id="audioToggleBtn" onclick="toggleAudioAlerts()" class="bg-white/10 text-white px-3 py-1.5 rounded-lg font-bold text-sm hover:bg-white/20 transition-colors">
                     تفعيل الصوت
                 </button>
-                <button onclick="fetchData()" class="bg-[#F7CC46] text-[#2E3468] px-4 py-1.5 rounded-lg font-bold text-sm hover:bg-yellow-300 transition-colors">
-                    تحديث
-                </button>
+                <button onclick="fetchData()" class="bg-[#F7CC46] text-[#2E3468] px-4 py-1.5 rounded-lg font-bold text-sm hover:bg-yellow-300 transition-colors flex items-center justify-center gap-1.5"><span class="inline-flex items-center justify-center gap-1.5"><svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg><span>تحديث</span></span></button>
             </div>
         </div>
 
@@ -118,9 +116,7 @@
 
     <div id="view_ledger" class="hidden">
         <div class="flex justify-end mb-4">
-            <button onclick="downloadDebtCsv()" class="bg-[#2E3468] text-white px-4 py-2 rounded-xl text-sm font-bold shadow hover:bg-opacity-90 transition-all">
-                تحميل الكشف
-            </button>
+            <button onclick="downloadDebtCsv()" class="bg-[#2E3468] text-white px-4 py-2 rounded-xl text-sm font-bold shadow hover:bg-opacity-90 transition-all flex items-center justify-center gap-1.5"><svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg><span>تحميل الكشف</span></button>
         </div>
         <div class="bg-white rounded-2xl shadow-sm border overflow-hidden">
             <div class="overflow-x-auto">
@@ -153,9 +149,7 @@
 
     <div id="view_expenses" class="hidden">
         <div class="flex justify-end mb-4">
-            <button onclick="openExpenseModal()" class="bg-[#2E3468] text-white px-4 py-2 rounded-xl text-sm font-bold shadow hover:bg-opacity-90 transition-all">
-                إضافة
-            </button>
+            <button onclick="openExpenseModal()" class="bg-[#2E3468] text-white px-4 py-2 rounded-xl text-sm font-bold shadow hover:bg-opacity-90 transition-all flex items-center justify-center gap-1.5"><span class="inline-flex items-center justify-center gap-1.5"><svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg><span>إضافة</span></span></button>
         </div>
         <div id="expensesList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
     </div>
@@ -166,12 +160,8 @@
         <h3 class="font-black text-lg text-[#2E3468] mb-1">تحديد الصنف الناقص</h3>
         <p class="text-xs text-gray-400 mb-4 pb-3 border-b">اختر الأصناف غير المتوفرة</p>
         <div id="missingItemsContainer" class="space-y-2 mb-4 max-h-56 overflow-y-auto"></div>
-        <button onclick="submitMissing()" class="w-full bg-red-500 text-white py-3 rounded-xl font-bold mb-2 hover:bg-red-600 transition-colors shadow">
-            إرسال تنبيه للمستخدم
-        </button>
-        <button onclick="closeModal('missingPromptModal')" class="w-full bg-gray-100 text-gray-600 py-3 rounded-xl font-bold hover:bg-gray-200 transition-colors">
-            إلغاء
-        </button>
+        <button onclick="submitMissing()" class="w-full bg-red-500 text-white py-3 rounded-xl font-bold mb-2 hover:bg-red-600 transition-colors shadow flex items-center justify-center gap-1.5"><span class="inline-flex items-center justify-center gap-1.5"><svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg><span>إرسال تنبيه للمستخدم</span></span></button>
+        <button onclick="closeModal('missingPromptModal')" class="w-full bg-gray-100 text-gray-600 py-3 rounded-xl font-bold hover:bg-gray-200 transition-colors flex items-center justify-center gap-1.5"><span class="inline-flex items-center justify-center gap-1.5"><svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg><span>إلغاء</span></span></button>
     </div>
 </div>
 
@@ -191,7 +181,7 @@
     <div id="newPinModalBox" class="bg-white rounded-3xl w-full max-w-sm p-6 slide-up text-center success-border-loading">
         <h3 class="font-black text-lg text-[#2E3468] mb-2">تم إرسال رقم سري جديد للمكتب</h3>
         <p id="newPinOfficeLabel" class="text-xs text-gray-400 font-bold mb-4"></p>
-        <button onclick="closeModal('newPinModal')" class="w-full border rounded-xl py-2.5 text-sm font-bold hover:bg-gray-50">تمام</button>
+        <button onclick="closeModal('newPinModal')" class="w-full border rounded-xl py-2.5 text-sm font-bold hover:bg-gray-50 flex items-center justify-center gap-1.5"><span class="inline-flex items-center justify-center gap-1.5"><svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span>تمام</span></span></button>
     </div>
 </div>
 
@@ -210,7 +200,7 @@
                 <input id="finalDebtAmount" type="number" min="0" placeholder="القيمة النهائية" class="border-2 border-gray-200 p-3 rounded-xl font-bold focus:outline-none focus:border-[#2E3468]">
                 <input id="finalDebtNote" type="text" placeholder="سبب التصحيح" class="md:col-span-2 border-2 border-gray-200 p-3 rounded-xl font-bold focus:outline-none focus:border-[#2E3468]">
             </div>
-            <button onclick="submitFinalDebtAmount()" class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold mt-3">حفظ القيمة النهائية</button>
+            <button onclick="submitFinalDebtAmount()" class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold mt-3 flex items-center justify-center gap-1.5"><span class="inline-flex items-center justify-center gap-1.5"><svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></svg><span>حفظ القيمة النهائية</span></span></button>
         </div>
         <div id="debtEditOrders" class="space-y-3 mb-5"></div>
     </div>
@@ -229,12 +219,8 @@
             </div>
         </div>
         <input type="file" id="expenseReceiptInput" accept="image/*" class="hidden" onchange="handleExpenseReceiptUpload(this)">
-        <button onclick="submitExpense()" class="w-full bg-[#2E3468] text-white py-3 rounded-xl font-bold mb-2 hover:bg-opacity-90 transition-all">
-            حفظ المصروف
-        </button>
-        <button onclick="closeExpenseModal()" class="w-full bg-gray-100 text-gray-600 py-3 rounded-xl font-bold hover:bg-gray-200 transition-colors">
-            إلغاء
-        </button>
+        <button onclick="submitExpense()" class="w-full bg-[#2E3468] text-white py-3 rounded-xl font-bold mb-2 hover:bg-opacity-90 transition-all flex items-center justify-center gap-1.5"><span class="inline-flex items-center justify-center gap-1.5"><svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></svg><span>حفظ المصروف</span></span></button>
+        <button onclick="closeExpenseModal()" class="w-full bg-gray-100 text-gray-600 py-3 rounded-xl font-bold hover:bg-gray-200 transition-colors flex items-center justify-center gap-1.5"><span class="inline-flex items-center justify-center gap-1.5"><svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg><span>إلغاء</span></span></button>
     </div>
 </div>
 
@@ -244,6 +230,13 @@ const ICON_CHECK = '<svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none
 const ICON_X = '<svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
 const ICON_PHONE = '<svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.9.32 1.77.59 2.61a2 2 0 0 1-.45 2.11L8 9.69a16 16 0 0 0 6.31 6.31l1.25-1.25a2 2 0 0 1 2.11-.45c.84.27 1.71.47 2.61.59A2 2 0 0 1 22 16.92Z"/></svg>';
 const ICON_WARNING = '<svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>';
+const ICON_IMAGE = '<svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/></svg>';
+const ICON_BELL = '<svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.27 21a2 2 0 0 0 3.46 0"/><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/></svg>';
+const ICON_WALLET = '<svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0 0 4h14a2 2 0 0 1 2 2v3"/><path d="M3 6v12a2 2 0 0 0 2 2h16v-5"/><path d="M18 12h4v6h-4a3 3 0 0 1 0-6Z"/></svg>';
+const ICON_EDIT = '<svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
+const ICON_COPY = '<svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>';
+const ICON_KEY = '<svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></svg>';
+const ICON_TRASH = '<svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>';
 let targetMissingOrder = null;
 let currentOrderDetailsArray = [];
 let selectedMissingItems = [];
@@ -468,9 +461,7 @@ function renderActiveOrders(orders) {
                 <p class="text-xs text-gray-500 mb-2 font-bold">قيمة الدين المرفقة</p>
                 <p class="font-black text-2xl text-[#2E3468] mb-3">${order.total_price} ₪</p>
                 <p class="text-xs text-indigo-700 font-bold mb-2">وصل للكاشير ${timeAgo(order.timestamp)}</p>
-                <button onclick="showReceipt('debt_payment', ${order.id})" class="bg-white border border-indigo-200 text-indigo-700 py-2.5 rounded-xl text-sm font-bold mb-3 hover:bg-indigo-50 transition-colors">
-                    عرض الصورة المرفقة
-                </button>
+                <button onclick="showReceipt('debt_payment', ${order.id})" class="bg-white border border-indigo-200 text-indigo-700 py-2.5 rounded-xl text-sm font-bold mb-3 hover:bg-indigo-50 transition-colors flex items-center justify-center gap-1.5">${ICON_IMAGE}<span>عرض الصورة المرفقة</span></button>
                 <div class="grid grid-cols-5 gap-2 mt-auto">
                     <button onclick="action('confirm_debt_payment', ${order.id})" class="col-span-3 bg-[#2E3468] text-white py-2.5 rounded-xl text-sm font-bold shadow hover:bg-opacity-90 transition-all flex items-center justify-center gap-1.5">${ICON_CHECK}<span>تأكيد السداد</span></button>
                     <button onclick="rejectDebtPayment(${order.id})" class="col-span-2 bg-red-50 text-red-600 border border-red-100 py-2.5 rounded-xl text-sm font-bold shadow hover:bg-red-100 transition-all flex items-center justify-center gap-1.5">${ICON_X}<span>رفض</span></button>
@@ -532,13 +523,9 @@ function renderLedger(debts) {
             </td>
             <td class="p-4">
                 <div class="flex gap-2">
-                    <button onclick="action('remind', null, '${d.office}')" class="bg-[#F7CC46] text-[#2E3468] px-3 py-1.5 text-xs rounded-lg font-bold shadow hover:bg-yellow-300 transition-colors">
-                        إرسال تذكير
-                    </button>
-                    <button onclick="action('mark_paid', null, '${d.office}')" class="bg-green-100 text-green-700 px-3 py-1.5 text-xs rounded-lg font-bold hover:bg-green-200 transition-colors">
-                        سداد يدوي
-                    </button>
-                    <button onclick="openDebtEditor('${d.office}')" class="bg-blue-100 text-blue-700 px-3 py-1.5 text-xs rounded-lg font-bold hover:bg-blue-200 transition-colors">تعديل</button>
+                    <button onclick="action('remind', null, '${d.office}')" class="bg-[#F7CC46] text-[#2E3468] px-3 py-1.5 text-xs rounded-lg font-bold shadow hover:bg-yellow-300 transition-colors flex items-center justify-center gap-1.5">${ICON_BELL}<span>إرسال تذكير</span></button>
+                    <button onclick="action('mark_paid', null, '${d.office}')" class="bg-green-100 text-green-700 px-3 py-1.5 text-xs rounded-lg font-bold hover:bg-green-200 transition-colors flex items-center justify-center gap-1.5">${ICON_WALLET}<span>سداد يدوي</span></button>
+                    <button onclick="openDebtEditor('${d.office}')" class="bg-blue-100 text-blue-700 px-3 py-1.5 text-xs rounded-lg font-bold hover:bg-blue-200 transition-colors flex items-center justify-center gap-1.5">${ICON_EDIT}<span>تعديل</span></button>
                 </div>
             </td>
         </tr>
@@ -603,7 +590,7 @@ function renderGuests(orders) {
             <p class="text-sm text-navy font-bold bg-gray-50 p-3 rounded-xl mb-3 leading-relaxed">${o.details}</p>
             <div class="bg-blue-50 border border-blue-100 rounded-xl p-3 mb-3">
                 <p class="text-xs text-gray-500 font-bold mb-2">رقم جوال الزائر</p>
-                ${phone ? `<div class="flex gap-2"><a href="tel:${phone}" class="flex-1 bg-[#2E3468] text-white text-center py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-1.5">${ICON_PHONE}<span>اتصال</span></a><button onclick="copyPhone('${phoneEscaped}')" class="flex-1 bg-white border text-[#2E3468] py-2 rounded-lg text-sm font-bold">نسخ الرقم</button></div><p dir="ltr" class="text-center text-[#2E3468] font-black mt-2">${phone}</p>` : '<p class="text-xs text-red-400 font-bold">لا يوجد رقم جوال</p>'}
+                ${phone ? `<div class="flex gap-2"><a href="tel:${phone}" class="flex-1 bg-[#2E3468] text-white text-center py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-1.5">${ICON_PHONE}<span>اتصال</span></a><button onclick="copyPhone('${phoneEscaped}')" class="flex-1 bg-white border text-[#2E3468] py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-1.5">${ICON_COPY}<span>نسخ الرقم</span></button></div><p dir="ltr" class="text-center text-[#2E3468] font-black mt-2">${phone}</p>` : '<p class="text-xs text-red-400 font-bold">لا يوجد رقم جوال</p>'}
             </div>
             ${isRejected && o.rejection_note ? `<div class="bg-red-50 border border-red-100 text-red-700 rounded-xl p-3 mb-3 text-xs font-bold leading-relaxed">سبب الرفض: ${o.rejection_note}</div>` : ''}
             <div class="flex justify-between items-center mb-3">
@@ -611,7 +598,7 @@ function renderGuests(orders) {
                 <span class="font-black text-[#2E3468]">${o.total_price} ₪</span>
             </div>
             <div class="grid grid-cols-1 gap-2">
-                ${o.has_receipt ? `<button onclick="showReceipt('order', ${o.id})" class="w-full border rounded-xl py-2.5 text-sm font-bold hover:bg-gray-50">عرض الفاتورة</button>` : '<p class="text-xs text-red-400 font-bold">لا توجد فاتورة</p>'}
+                ${o.has_receipt ? `<button onclick="showReceipt('order', ${o.id})" class="w-full border rounded-xl py-2.5 text-sm font-bold hover:bg-gray-50 flex items-center justify-center gap-1.5">${ICON_IMAGE}<span>عرض الفاتورة</span></button>` : '<p class="text-xs text-red-400 font-bold">لا توجد فاتورة</p>'}
                 ${isPaid || isRejected ? '' : `<div class="grid grid-cols-5 gap-2"><button onclick="action('confirm_visitor_payment', ${o.id})" class="col-span-3 bg-green-600 text-white rounded-xl py-2.5 text-sm font-bold shadow hover:bg-green-700 transition-colors flex items-center justify-center gap-1.5">${ICON_CHECK}<span>تأكيد الفاتورة</span></button><button onclick="rejectVisitorPayment(${o.id})" class="col-span-2 bg-red-50 text-red-600 border border-red-100 rounded-xl py-2.5 text-sm font-bold hover:bg-red-100 transition-colors flex items-center justify-center gap-1.5">${ICON_X}<span>رفض</span></button></div>`}
             </div>
         </div>`;
@@ -676,7 +663,7 @@ function renderOffices(offices) {
                 <span class="text-xs font-bold px-2 py-1 rounded-full ${o.has_pin ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}">${o.has_pin ? 'PIN مفعل' : 'بدون PIN'}</span>
             </div>
             ${o.help_requested ? `<p class="text-xs font-bold bg-yellow-50 text-yellow-700 p-2 rounded-xl mb-3">يوجد طلب مساعدة ${o.help_created_at || ''}</p>` : ''}
-            <button onclick="resetOfficePin('${String(o.office).replace(/'/g, "\\'")}')" class="w-full bg-[#2E3468] text-white py-2.5 rounded-xl text-sm font-bold">تغيير الرقم</button>
+            <button onclick="resetOfficePin('${String(o.office).replace(/'/g, "\\'")}')" class="w-full bg-[#2E3468] text-white py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-1.5">${ICON_KEY}<span>تغيير الرقم</span></button>
         </div>
     `).join('');
 }
@@ -696,12 +683,10 @@ function renderExpenses(expenses) {
                     <p class="text-xs text-gray-400 font-bold">تاريخ الإضافة</p>
                     <p class="text-sm font-bold text-[#2E3468] mt-1">${expense.created_at}</p>
                 </div>
-                <button onclick="deleteExpense(${expense.id})" class="text-xs font-bold text-red-500 bg-red-50 px-3 py-1.5 rounded-lg hover:bg-red-100 transition-colors">
-                    حذف
-                </button>
+                <button onclick="deleteExpense(${expense.id})" class="text-xs font-bold text-red-500 bg-red-50 px-3 py-1.5 rounded-lg hover:bg-red-100 transition-colors flex items-center justify-center gap-1.5">${ICON_TRASH}<span>حذف</span></button>
             </div>
             <p class="font-black text-2xl text-[#2E3468] mb-3">${expense.amount} ₪</p>
-            ${expense.has_receipt ? `<button onclick="showReceipt('expense', ${expense.id})" class="w-full border rounded-xl py-2.5 text-sm font-bold hover:bg-gray-50">عرض الفاتورة</button>` : '<p class="text-xs text-gray-400">لا توجد صورة مرفقة</p>'}
+            ${expense.has_receipt ? `<button onclick="showReceipt('expense', ${expense.id})" class="w-full border rounded-xl py-2.5 text-sm font-bold hover:bg-gray-50 flex items-center justify-center gap-1.5">${ICON_IMAGE}<span>عرض الفاتورة</span></button>` : '<p class="text-xs text-gray-400">لا توجد صورة مرفقة</p>'}
         </div>
     `).join('');
 }
@@ -773,7 +758,7 @@ function renderDebtOrderItems(order) {
                     <span class="block text-sm font-bold text-[#2E3468] break-words">${name}</span>
                     ${price ? `<span class="block text-[11px] text-gray-400 font-bold mt-1">${price} ₪</span>` : ''}
                 </div>
-                <button onclick="removeDebtItem(${order.id}, '${safeName}', '${safeDate}', ${price})" class="shrink-0 text-xs font-bold text-red-500 bg-red-50 px-3 py-1.5 rounded-lg">حذف الصنف</button>
+                <button onclick="removeDebtItem(${order.id}, '${safeName}', '${safeDate}', ${price})" class="shrink-0 text-xs font-bold text-red-500 bg-red-50 px-3 py-1.5 rounded-lg flex items-center justify-center gap-1.5">${ICON_TRASH}<span>حذف الصنف</span></button>
             </div>
         `;
     }).join('');
