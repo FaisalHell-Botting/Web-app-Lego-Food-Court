@@ -243,7 +243,7 @@ const API_URL = "https://web-app-lego-food-court.onrender.com/api";
 const ICON_CHECK = '<svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
 const ICON_X = '<svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
 const ICON_PHONE = '<svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.9.32 1.77.59 2.61a2 2 0 0 1-.45 2.11L8 9.69a16 16 0 0 0 6.31 6.31l1.25-1.25a2 2 0 0 1 2.11-.45c.84.27 1.71.47 2.61.59A2 2 0 0 1 22 16.92Z"/></svg>';
-
+const ICON_WARNING = '<svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>';
 let targetMissingOrder = null;
 let currentOrderDetailsArray = [];
 let selectedMissingItems = [];
@@ -508,7 +508,7 @@ function renderActiveOrders(orders) {
             </div>
             <div class="grid grid-cols-5 gap-2 mt-auto">
                 <button onclick="action('approve', ${order.id})" class="col-span-3 bg-[#2E3468] text-white py-2.5 rounded-xl text-sm font-bold shadow hover:bg-opacity-90 transition-all flex items-center justify-center gap-1.5">${ICON_CHECK}<span>موافقة</span></button>
-                <button onclick="promptMissing(${order.id}, '${detailsEscaped}')" class="col-span-2 border-2 border-red-200 text-red-500 py-2.5 rounded-xl text-sm font-bold hover:bg-red-50 transition-colors flex items-center justify-center gap-1.5">${ICON_X}<span>صنف ناقص</span></button>
+                <button onclick="promptMissing(${order.id}, '${detailsEscaped}')" class="col-span-2 border-2 border-red-200 text-red-500 py-2.5 rounded-xl text-sm font-bold hover:bg-red-50 transition-colors flex items-center justify-center gap-1.5">${ICON_WARNING}<span>صنف ناقص</span></button>
             </div>
         </div>`;
     }).join('');
