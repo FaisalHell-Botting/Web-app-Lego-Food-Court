@@ -223,7 +223,6 @@
 
     <div id="menuMode">
         <div class="flex gap-2 overflow-x-auto pb-2 scrollbar-hide mb-4">
-            <button onclick="renderMenu('all')" id="cat_all" class="bg-navy text-white px-4 py-1.5 rounded-full text-xs whitespace-nowrap font-bold">الكل</button>
             <button onclick="renderMenu('hot')" id="cat_hot" class="bg-white border text-gray-600 px-4 py-1.5 rounded-full text-xs whitespace-nowrap font-bold">ساخن</button>
             <button onclick="renderMenu('cold')" id="cat_cold" class="bg-white border text-gray-600 px-4 py-1.5 rounded-full text-xs whitespace-nowrap font-bold">بارد</button>
             <button onclick="renderMenu('snack')" id="cat_snack" class="bg-white border text-gray-600 px-4 py-1.5 rounded-full text-xs whitespace-nowrap font-bold">سندويشات</button>
@@ -504,7 +503,7 @@ let selectedRating = 0;
 let reviewOrderId = null;
 let chatHistory = [];
 let aiOrderData = null;
-let currentCat = 'all';
+let currentCat = 'hot';
 let selectedOrderType = 'داخل الكوفي كورنر';
 let pollingStarted = false;
 let reviewShown = false;
@@ -565,7 +564,7 @@ async function login(type) {
     document.getElementById('ledgerHeaderBtn').classList.toggle('hidden', user.isGuest);
     await loadMenu();
     setOrderType('داخل الكوفي كورنر');
-    renderMenu('all');
+    renderMenu('hot');
     updateDraftOrderCard();
     persistState();
     if (!pollingStarted) startPolling();
@@ -598,7 +597,7 @@ async function restoreState() {
         user = state.user;
         cart = state.cart || {};
         selectedOrderType = state.selectedOrderType || 'داخل الكوفي كورنر';
-        currentCat = state.currentCat || 'all';
+        currentCat = state.currentCat && state.currentCat !== 'all' ? state.currentCat : 'hot';
         chatHistory = state.chatHistory || [];
         editingOrderId = state.editingOrderId || null;
         document.getElementById('headerIdentityLabel').innerText = user.id;
@@ -629,9 +628,11 @@ function switchOrderMode(mode) {
 }
 
 function renderMenu(cat) {
+    cat = cat && cat !== 'all' ? cat : 'hot';
     currentCat = cat;
-    ['all','hot','cold','snack','candy'].forEach(c => {
+    ['hot','cold','snack','candy'].forEach(c => {
         const btn = document.getElementById('cat_' + c);
+        if (!btn) return;
         btn.className = c === cat
             ? 'bg-navy text-white px-4 py-1.5 rounded-full text-xs whitespace-nowrap font-bold'
             : 'bg-white border text-gray-600 px-4 py-1.5 rounded-full text-xs whitespace-nowrap font-bold';
@@ -647,7 +648,7 @@ function renderMenu(cat) {
         return;
     }
 
-    const items = cat === 'all' ? fullMenu : fullMenu.filter(i => i.cat === cat);
+    const items = fullMenu.filter(i => i.cat === cat);
     document.getElementById('menuContainer').innerHTML = items.map(item => {
         const qty = cart[item.id] || 0;
         return `
