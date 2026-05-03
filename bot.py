@@ -696,6 +696,20 @@ async def create_order(request: Request):
         conn = get_db()
         c = conn.cursor()
         details_text = ", ".join(items)
+        if not is_guest:
+            c.execute(
+                """
+                SELECT id
+                FROM orders
+                WHERE location=%s AND status IN ('انتظار','صنف_ناقص')
+                LIMIT 1
+                """,
+                (office,),
+            )
+            if c.fetchone():
+                c.close()
+                conn.close()
+                return {"status": "error", "message": "لديك طلب قيد الانتظار"}
         if is_guest:
             c.execute(
                 """
