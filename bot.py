@@ -712,8 +712,8 @@ async def create_order(request: Request):
                 (guest_phone, details_text, total_price),
             )
             duplicate_row = c.fetchone()
-            duplicate_time = parse_pal_time(duplicate_row[0]) if duplicate_row else None
-            if duplicate_time and datetime.now(PAL_TZ).replace(tzinfo=None) - duplicate_time <= timedelta(minutes=3):
+            duplicate_time = parse_time(duplicate_row[0]) if duplicate_row else None
+            if duplicate_time and get_pal_datetime() - duplicate_time <= timedelta(minutes=3):
                 c.close()
                 conn.close()
                 return {"status": "error", "message": "تم إرسال هذا الطلب مسبقاً. انتظر مراجعة الكاشير."}
