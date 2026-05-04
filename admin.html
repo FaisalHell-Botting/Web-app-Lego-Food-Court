@@ -793,11 +793,12 @@ function updateResponseAverage(stats) {
     const text = document.getElementById('s_response_avg');
     if (!card || !text) return;
     text.innerText = value ? `${value} دقيقة` : '0 دقيقة';
-    card.className = 'p-3 rounded-xl transition-colors ' + (
-        stats.response_level === 'good' ? 'bg-green-500/20 text-green-200' :
-        stats.response_level === 'warn' ? 'bg-orange-500/20 text-orange-200' :
-        stats.response_level === 'bad' ? 'bg-red-500/20 text-red-200' :
-        'bg-white/10 text-gray-200'
+    card.className = 'bg-white/10 p-3 rounded-xl transition-colors';
+    text.className = 'font-black text-lg ' + (
+        stats.response_level === 'good' ? 'text-green-400' :
+        stats.response_level === 'warn' ? 'text-orange-300' :
+        stats.response_level === 'bad' ? 'text-red-400' :
+        'text-gray-200'
     );
 }
 
