@@ -188,7 +188,7 @@ def normalize_menu_row(row):
         "name": row[2],
         "price": int(row[3] or 0),
         "cat": row[4],
-        "emoji": row[5] or get_menu_emoji(row[4], row[6] or ""),
+        "emoji": get_menu_emoji(row[4], row[6] or ""),
         "snack_type": row[6] or "",
         "is_active": int(row[7] or 0),
         "is_deleted": int(row[8] or 0),
@@ -611,7 +611,7 @@ def init_db():
         for idx, item in enumerate(MENU_ITEMS, start=1):
             category = item.get("cat") or "hot"
             snack_type = infer_candy_type(item)
-            emoji = get_menu_emoji(category, snack_type) if category == "candy" else item.get("emoji") or get_menu_emoji(category)
+            emoji = get_menu_emoji(category, snack_type)
             c.execute(
                 """
                 INSERT INTO menu_items (item_key, name, price, category, emoji, snack_type, is_active, is_deleted, sort_order, created_at, updated_at)
