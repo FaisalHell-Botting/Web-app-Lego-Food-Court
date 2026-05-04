@@ -1236,7 +1236,7 @@ function renderLedger(orders) {
                 <div class="flex-1">
                     <p class="font-bold text-navy text-sm">${title}</p>
                     ${subtitle ? `<p class="text-xs ${subtitleClass} mt-1 font-bold leading-relaxed">${subtitle}</p>` : ''}
-                    <p class="text-xs text-gray-400 mt-1">${o.timestamp}</p>
+                    <p class="text-xs text-gray-400 mt-1">${formatDisplayTime(o.timestamp)}</p>
                     ${o.order_type && !isAdjustment && !isPaymentRejected ? `<p class="text-xs text-gray-400 mt-1">${o.order_type}</p>` : ''}
                 </div>
                 <div class="text-left">
@@ -1264,7 +1264,7 @@ async function handleReminder(reminder, latestPaymentRequest, totalDebt) {
     document.getElementById('debtPaymentAmount').innerText = `${reminder.amount} ₪`;
 
     const statusText = latestPaymentRequest
-        ? `آخر طلب سداد: ${latestPaymentRequest.status === 'pending' ? 'بانتظار تأكيد الإدارة' : 'تمت معالجته'}${latestPaymentRequest.created_at ? ` - ${latestPaymentRequest.created_at}` : ''}`
+        ? `آخر طلب سداد: ${latestPaymentRequest.status === 'pending' ? 'بانتظار تأكيد الإدارة' : 'تمت معالجته'}${latestPaymentRequest.created_at ? ` - ${formatDisplayTime(latestPaymentRequest.created_at)}` : ''}`
         : 'لم يتم إرسال إثبات سداد بعد';
     document.getElementById('paymentRequestStatus').innerText = statusText;
     document.getElementById('openDebtPaymentBtn').disabled = latestPaymentRequest && latestPaymentRequest.status === 'pending';
@@ -1469,6 +1469,24 @@ async function copyText(value) {
     }
 }
 
+function parseDisplayTime(value) {
+    if (!value) return null;
+    const date = new Date(String(value).replace(' ', 'T'));
+    return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatDisplayTime(value) {
+    const date = parseDisplayTime(value);
+    if (!date) return value || '';
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    let hours = date.getHours();
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const suffix = hours >= 12 ? 'مساءً' : 'صباحاً';
+    hours = hours % 12 || 12;
+    return `${year}-${month}-${day} ${hours}:${minutes} ${suffix}`;
+}
 function showToast(msg) {
     const t = document.getElementById('toast');
     t.innerText = msg;
