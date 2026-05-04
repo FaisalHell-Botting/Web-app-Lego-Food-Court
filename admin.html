@@ -479,6 +479,18 @@ function parsePalTime(value) {
     return Number.isNaN(date.getTime()) ? null : date;
 }
 
+function formatDisplayTime(value) {
+    const date = parsePalTime(value);
+    if (!date) return value || '';
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    let hours = date.getHours();
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const suffix = hours >= 12 ? 'مساءً' : 'صباحاً';
+    hours = hours % 12 || 12;
+    return `${year}-${month}-${day} ${hours}:${minutes} ${suffix}`;
+}
 function timeAgo(value) {
     const date = parsePalTime(value);
     if (!date) return value || '';
@@ -574,7 +586,7 @@ function renderLedger(debts) {
             <td class="p-4"><span class="font-black text-lg text-red-500">${d.amount} ₪</span></td>
             <td class="p-4">
                 ${d.has_active_reminder
-                    ? `<span class="px-3 py-1 rounded-full text-xs font-bold bg-yellow-50 text-yellow-700">مرسل ${d.reminder_created_at || ''}</span>`
+                    ? `<span class="px-3 py-1 rounded-full text-xs font-bold bg-yellow-50 text-yellow-700">مرسل ${formatDisplayTime(d.reminder_created_at)}</span>`
                     : `<span class="px-3 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-500">لم يرسل</span>`}
             </td>
             <td class="p-4">
@@ -604,8 +616,8 @@ function downloadDebtCsv() {
             d.office || '',
             d.amount || 0,
             d.has_active_reminder ? 'مرسل' : 'لم يرسل',
-            d.reminder_created_at || '',
-            d.last_debt_at || ''
+            formatDisplayTime(d.reminder_created_at),
+            formatDisplayTime(d.last_debt_at)
         ])
     ];
     const csv = '\uFEFF' + rows.map(row => row.map(csvCell).join(',')).join('\n');
@@ -833,7 +845,7 @@ function renderReviews(reviews, stats={}) {
             </div>
             <p class="text-xs text-gray-400 mb-2 leading-relaxed">${r.details}</p>
             ${r.text ? `<p class="text-sm bg-yellow-50 p-3 rounded-xl text-[#2E3468] font-bold border-r-4 border-[#F7CC46] leading-relaxed">"${r.text}"</p>` : ''}
-            <p class="text-xs text-gray-400 mt-2">${r.date}</p>
+            <p class="text-xs text-gray-400 mt-2">${formatDisplayTime(r.date)}</p>
         </div>
     `).join('');
 }
@@ -851,10 +863,10 @@ function renderOffices(offices) {
     list.innerHTML = sortedOffices.map(o => `
         <div class="bg-white p-4 rounded-2xl border shadow-sm slide-up ${o.help_requested ? 'border-red-200 bg-red-50/40' : ''}">
             <div class="flex justify-between items-start gap-3 mb-3">
-                <div><p class="font-black text-[#2E3468]">${o.office}</p><p class="text-xs text-gray-400 mt-1">آخر تحديث: ${o.updated_at || 'غير محدد'}</p></div>
+                <div><p class="font-black text-[#2E3468]">${o.office}</p><p class="text-xs text-gray-400 mt-1">آخر تحديث: ${o.updated_at ? formatDisplayTime(o.updated_at) : 'غير محدد'}</p></div>
                 <span class="text-xs font-bold px-2 py-1 rounded-full ${o.has_pin ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}">${o.has_pin ? 'PIN مفعل' : 'بدون PIN'}</span>
             </div>
-            ${o.help_requested ? `<p class="text-xs font-bold bg-yellow-50 text-yellow-700 p-2 rounded-xl mb-3">يوجد طلب مساعدة ${o.help_created_at || ''}</p>` : ''}
+            ${o.help_requested ? `<p class="text-xs font-bold bg-yellow-50 text-yellow-700 p-2 rounded-xl mb-3">يوجد طلب مساعدة ${formatDisplayTime(o.help_created_at)}</p>` : ''}
             <button onclick="resetOfficePin('${String(o.office).replace(/'/g, "\\'")}')" class="w-full bg-[#2E3468] text-white py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-1.5">${ICON_KEY}<span>تغيير الرقم</span></button>
         </div>
     `).join('');
@@ -873,7 +885,7 @@ function renderExpenses(expenses) {
             <div class="flex justify-between items-start mb-3 gap-3">
                 <div>
                     <p class="text-xs text-gray-400 font-bold">تاريخ الإضافة</p>
-                    <p class="text-sm font-bold text-[#2E3468] mt-1">${expense.created_at}</p>
+                    <p class="text-sm font-bold text-[#2E3468] mt-1">${formatDisplayTime(expense.created_at)}</p>
                 </div>
                 <button onclick="deleteExpense(${expense.id})" class="text-xs font-bold text-red-500 bg-red-50 px-3 py-1.5 rounded-lg hover:bg-red-100 transition-colors flex items-center justify-center gap-1.5">${ICON_TRASH}<span>حذف</span></button>
             </div>
@@ -943,7 +955,7 @@ function renderDebtOrderItems(order) {
         const name = String(item.name || '');
         const price = Number(item.price || 0);
         const safeName = name.replace(/'/g, "\\'");
-        const safeDate = String(order.timestamp || '').replace(/'/g, "\\'");
+        const safeDate = String(formatDisplayTime(order.timestamp) || '').replace(/'/g, "\\'");
         return `
             <div class="flex justify-between items-center bg-white border rounded-xl p-2 gap-3">
                 <div class="min-w-0">
@@ -973,7 +985,7 @@ async function loadDebtDetails() {
             <div class="flex justify-between items-start gap-3">
                 <div>
                     <p class="font-black text-[#2E3468]">تصحيح الدين</p>
-                    <p class="text-xs text-gray-400 mt-1">#${item.id} - ${item.timestamp || ''}</p>
+                    <p class="text-xs text-gray-400 mt-1">#${item.id} - ${formatDisplayTime(item.timestamp)}</p>
                     <p class="text-sm font-bold text-gray-600 mt-2">${item.note || item.details || ''}</p>
                 </div>
                 <span class="font-black ${isDiscount ? 'text-green-600' : 'text-red-600'} whitespace-nowrap">${amountText}</span>
@@ -982,7 +994,7 @@ async function loadDebtDetails() {
     }).join('');
     const orderCards = (data.orders || []).map(order => `
         <div class="border rounded-2xl p-4 bg-gray-50">
-            <div class="flex justify-between items-start gap-3 mb-3"><div><p class="font-bold text-[#2E3468]">#${order.id} - ${order.timestamp || ''}</p><p class="text-xs text-gray-400 mt-1">${order.order_type || ''}</p></div><span class="font-black text-[#2E3468]">${order.total_price} ₪</span></div>
+            <div class="flex justify-between items-start gap-3 mb-3"><div><p class="font-bold text-[#2E3468]">#${order.id} - ${formatDisplayTime(order.timestamp)}</p><p class="text-xs text-gray-400 mt-1">${order.order_type || ''}</p></div><span class="font-black text-[#2E3468]">${order.total_price} ₪</span></div>
             <div class="space-y-2">${renderDebtOrderItems(order)}</div>
         </div>
     `).join('');
