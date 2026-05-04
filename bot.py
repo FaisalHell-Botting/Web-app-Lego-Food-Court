@@ -1444,10 +1444,35 @@ async def admin_debt_details(office: str):
                 items = [] if (row[1] or "").strip() == "تم حذف جميع الأصناف من هذا الطلب" else [item.strip() for item in (row[1] or "").split(",") if item.strip()]
                 item_details = [{"name": item, "price": int(PRICES.get(item, 0) or 0)} for item in items]
             orders.append({"id": row[0], "details": row[1], "items": items, "item_details": item_details, "total_price": row[2], "timestamp": row[3], "order_type": row[4]})
+        c.execute(
+            """
+            SELECT id, details, total_price, timestamp, order_type
+            FROM orders
+            WHERE location=%s AND status='مقبول' AND is_paid=0
+              AND COALESCE(order_type, '') IN ('تسوية دين يدوية', 'إضافة يدوية', 'حذف صنف من الدين')
+            ORDER BY id DESC
+            """,
+            (office,),
+        )
+        adjustment_rows = c.fetchall()
+        adjustments = []
+        for row in adjustment_rows:
+            amount = int(row[2] or 0)
+            raw_details = row[1] or ""
+            note = raw_details.replace("تسوية دين:", "", 1).strip() or raw_details
+            adjustments.append({
+                "id": row[0],
+                "details": raw_details,
+                "note": note,
+                "amount": amount,
+                "timestamp": row[3],
+                "order_type": row[4],
+                "kind": "discount" if amount < 0 else "addition",
+            })
         total_debt = fetch_current_debt(c, office)
         c.close()
         conn.close()
-        return {"status": "success", "office": office, "orders": orders, "total_debt": total_debt}
+        return {"status": "success", "office": office, "orders": orders, "adjustments": adjustments, "total_debt": total_debt}
     except Exception as exc:
         return {"status": "error", "message": str(exc)}
 
