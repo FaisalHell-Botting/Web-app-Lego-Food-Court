@@ -936,13 +936,30 @@ async function loadDebtDetails() {
     currentDebtTotal = Number(data.total_debt || 0);
     document.getElementById('currentDebtTotalText').innerText = `${currentDebtTotal} ₪`;
     document.getElementById('finalDebtAmount').value = currentDebtTotal;
-    if (!data.orders.length) { box.innerHTML = '<p class="text-center text-gray-400 py-6">لا توجد طلبات دين غير مدفوعة</p>'; return; }
-    box.innerHTML = data.orders.map(order => `
+    const adjustmentCards = (data.adjustments || []).map(item => {
+        const amount = Number(item.amount || 0);
+        const isDiscount = amount < 0;
+        const amountText = `${isDiscount ? '' : '+'}${amount} ₪`;
+        return `
+        <div class="border rounded-2xl p-4 ${isDiscount ? 'bg-green-50 border-green-100' : 'bg-red-50 border-red-100'}">
+            <div class="flex justify-between items-start gap-3">
+                <div>
+                    <p class="font-black text-[#2E3468]">تصحيح الدين</p>
+                    <p class="text-xs text-gray-400 mt-1">#${item.id} - ${item.timestamp || ''}</p>
+                    <p class="text-sm font-bold text-gray-600 mt-2">${item.note || item.details || ''}</p>
+                </div>
+                <span class="font-black ${isDiscount ? 'text-green-600' : 'text-red-600'} whitespace-nowrap">${amountText}</span>
+            </div>
+        </div>`;
+    }).join('');
+    const orderCards = (data.orders || []).map(order => `
         <div class="border rounded-2xl p-4 bg-gray-50">
             <div class="flex justify-between items-start gap-3 mb-3"><div><p class="font-bold text-[#2E3468]">#${order.id} - ${order.timestamp || ''}</p><p class="text-xs text-gray-400 mt-1">${order.order_type || ''}</p></div><span class="font-black text-[#2E3468]">${order.total_price} ₪</span></div>
             <div class="space-y-2">${renderDebtOrderItems(order)}</div>
         </div>
     `).join('');
+    if (!adjustmentCards && !orderCards) { box.innerHTML = '<p class="text-center text-gray-400 py-6">لا توجد طلبات دين غير مدفوعة</p>'; return; }
+    box.innerHTML = `${adjustmentCards}${orderCards}`;
 }
 
 async function removeDebtItem(orderId, itemName, orderTimestamp='', itemPrice=0) {
