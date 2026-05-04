@@ -1004,6 +1004,20 @@ async def submit_debt_payment(request: Request):
 
         c.execute(
             """
+            SELECT 1
+            FROM debt_payment_requests
+            WHERE office=%s AND status='pending'
+            LIMIT 1
+            """,
+            (office,),
+        )
+        if c.fetchone():
+            c.close()
+            conn.close()
+            return {"status": "error", "message": "يوجد طلب تسديد قيد المراجعة لهذا المكتب"}
+
+        c.execute(
+            """
             INSERT INTO debt_payment_requests (office, amount, receipt, status, created_at, reminder_id)
             VALUES (%s,%s,%s,'pending',%s,%s)
             """,
