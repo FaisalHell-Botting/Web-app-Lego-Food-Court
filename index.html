@@ -115,39 +115,48 @@
         .app-splash.hide { opacity: 0; visibility: hidden; pointer-events: none; }
         .splash-logo-wrap {
             position: relative;
-            width: 152px;
-            height: 152px;
-            border-radius: 38px;
+            width: 138px;
+            height: 138px;
+            border-radius: 26px;
             display: flex;
             align-items: center;
             justify-content: center;
-            animation: splashLogoRise 1.45s ease both;
+            isolation: isolate;
+            animation: splashLogoRise 0.85s ease both;
         }
         .splash-logo-wrap::before {
             content: '';
             position: absolute;
-            inset: -14px;
-            border-radius: 48px;
-            background: radial-gradient(circle, rgba(247,204,70,0.34) 0%, rgba(247,204,70,0.16) 42%, transparent 72%);
-            animation: splashHalo 1.9s ease-in-out infinite;
-            opacity: 0.9;
+            inset: 5px;
+            border-radius: 24px;
+            padding: 3px;
+            background: conic-gradient(from var(--splash-angle, 0deg), rgba(247,204,70,0.12), #F7CC46 18%, #FFF2A8 26%, rgba(247,204,70,0.2) 38%, rgba(247,204,70,0.08) 100%);
+            -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+            -webkit-mask-composite: xor;
+            mask-composite: exclude;
+            animation: splashBorderTrace 2.15s linear infinite;
+            z-index: 2;
+            pointer-events: none;
         }
         .splash-logo-wrap::after {
             content: '';
             position: absolute;
-            inset: 8px;
-            border-radius: 32px;
-            background: rgba(255,255,255,0.08);
-            box-shadow: 0 24px 70px rgba(0,0,0,0.2);
-            backdrop-filter: blur(2px);
+            inset: -28px;
+            border-radius: 42px;
+            background: radial-gradient(circle, rgba(247,204,70,0.34) 0%, rgba(247,204,70,0.16) 36%, transparent 68%);
+            animation: splashGlow 2.35s ease-in-out infinite;
+            z-index: 0;
+            pointer-events: none;
         }
         .splash-logo {
             position: relative;
-            z-index: 2;
-            width: 112px;
-            height: 112px;
-            object-fit: contain;
-            animation: splashLogoPulse 1.6s ease-in-out infinite;
+            z-index: 1;
+            width: 118px;
+            height: 118px;
+            object-fit: cover;
+            border-radius: 18px;
+            box-shadow: 0 18px 45px rgba(0,0,0,0.24);
+            animation: splashLogoFloat 2.35s ease-in-out infinite;
         }
         .splash-title {
             position: absolute;
@@ -160,18 +169,26 @@
             font-size: 15px;
             animation: splashTextFade 1.4s ease both;
         }
+        @property --splash-angle {
+            syntax: '<angle>';
+            inherits: false;
+            initial-value: 0deg;
+        }
         @keyframes splashLogoRise {
-            0% { opacity: 0; transform: translateY(16px) scale(0.88); }
-            55% { opacity: 1; transform: translateY(0) scale(1.04); }
+            0% { opacity: 0; transform: translateY(16px) scale(0.9); }
+            70% { opacity: 1; transform: translateY(0) scale(1.03); }
             100% { opacity: 1; transform: translateY(0) scale(1); }
         }
-        @keyframes splashLogoPulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.04); }
+        @keyframes splashLogoFloat {
+            0%, 100% { transform: translateY(0) scale(1); }
+            50% { transform: translateY(-4px) scale(1.025); }
         }
-        @keyframes splashHalo {
+        @keyframes splashGlow {
             0%, 100% { transform: scale(0.96); opacity: 0.55; }
             50% { transform: scale(1.08); opacity: 0.95; }
+        }
+        @keyframes splashBorderTrace {
+            to { --splash-angle: 360deg; }
         }
         @keyframes splashTextFade {
             from { opacity: 0; transform: translate(-50%, 8px); }
