@@ -90,20 +90,23 @@
             <button onclick="switchTab('active')" id="tab_active" class="font-bold px-4 py-2 rounded-lg bg-[#F7CC46] text-[#2E3468] text-sm whitespace-nowrap">
                 الطلبات الجارية <span id="activeCount" class="ml-1 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full hidden">0</span>
             </button>
-            <button onclick="switchTab('ledger')" id="tab_ledger" class="font-bold px-4 py-2 rounded-lg text-gray-300 hover:bg-white/10 text-sm whitespace-nowrap transition-colors">
-                سجل الديون
-            </button>
             <button onclick="switchTab('guests')" id="tab_guests" class="font-bold px-4 py-2 rounded-lg text-gray-300 hover:bg-white/10 text-sm whitespace-nowrap transition-colors">
                 طلبات الزوار <span id="guestPendingCount" class="ml-1 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full hidden">0</span>
             </button>
-            <button onclick="switchTab('reviews')" id="tab_reviews" class="font-bold px-4 py-2 rounded-lg text-gray-300 hover:bg-white/10 text-sm whitespace-nowrap transition-colors">
-                التقييمات
+            <button onclick="switchTab('offices')" id="tab_offices" class="font-bold px-4 py-2 rounded-lg text-gray-300 hover:bg-white/10 text-sm whitespace-nowrap transition-colors">
+                إدارة المكاتب <span id="officeHelpCount" class="ml-1 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full hidden">0</span>
+            </button>
+            <button onclick="switchTab('ledger')" id="tab_ledger" class="font-bold px-4 py-2 rounded-lg text-gray-300 hover:bg-white/10 text-sm whitespace-nowrap transition-colors">
+                سجل الديون
             </button>
             <button onclick="switchTab('expenses')" id="tab_expenses" class="font-bold px-4 py-2 rounded-lg text-gray-300 hover:bg-white/10 text-sm whitespace-nowrap transition-colors">
                 المصاريف
             </button>
-            <button onclick="switchTab('offices')" id="tab_offices" class="font-bold px-4 py-2 rounded-lg text-gray-300 hover:bg-white/10 text-sm whitespace-nowrap transition-colors">
-                إدارة المكاتب <span id="officeHelpCount" class="ml-1 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full hidden">0</span>
+            <button onclick="switchTab('menu')" id="tab_menu" class="font-bold px-4 py-2 rounded-lg text-gray-300 hover:bg-white/10 text-sm whitespace-nowrap transition-colors">
+                إدارة المنيو
+            </button>
+            <button onclick="switchTab('reviews')" id="tab_reviews" class="font-bold px-4 py-2 rounded-lg text-gray-300 hover:bg-white/10 text-sm whitespace-nowrap transition-colors">
+                التقييمات
             </button>
         </div>
     </div>
@@ -152,6 +155,15 @@
             <button onclick="openExpenseModal()" class="bg-[#2E3468] text-white px-4 py-2 rounded-xl text-sm font-bold shadow hover:bg-opacity-90 transition-all flex items-center justify-center gap-1.5"><span class="inline-flex items-center justify-center gap-1.5"><svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg><span>إضافة</span></span></button>
         </div>
         <div id="expensesList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+    </div>
+
+    <div id="view_menu" class="hidden">
+        <div class="flex justify-end mb-4">
+            <button onclick="openMenuItemModal()" class="bg-[#2E3468] text-white px-4 py-2 rounded-xl text-sm font-bold shadow hover:bg-opacity-90 transition-all flex items-center justify-center gap-1.5">
+                <span class="inline-flex items-center justify-center gap-1.5"><svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg><span>إضافة صنف</span></span>
+            </button>
+        </div>
+        <div id="menuAdminList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
     </div>
 </main>
 
@@ -224,6 +236,43 @@
     </div>
 </div>
 
+<div id="menuItemModal" class="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 hidden">
+  <div class="bg-white p-6 rounded-3xl w-full max-w-sm slide-up">
+    <div class="text-center mb-5">
+      <div class="w-12 h-12 mx-auto rounded-2xl bg-[#EEF1FF] text-[#2E3468] flex items-center justify-center mb-3">
+        <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+      </div>
+      <h3 id="menuItemModalTitle" class="text-xl font-extrabold text-[#2E3468]">إضافة صنف</h3>
+      <p class="text-xs text-gray-400 mt-1">الأيقونة تُحدد تلقائياً حسب التصنيف أو نوع التسالي</p>
+    </div>
+    <input id="menuItemId" type="hidden">
+    <div class="space-y-3">
+      <input id="menuItemName" class="w-full border-2 border-gray-100 rounded-2xl p-3 text-sm outline-none focus:border-[#2E3468]" placeholder="اسم الصنف">
+      <input id="menuItemPrice" type="number" min="0" class="w-full border-2 border-gray-100 rounded-2xl p-3 text-sm outline-none focus:border-[#2E3468]" placeholder="السعر بالشيكل">
+      <select id="menuItemCategory" onchange="handleMenuCategoryChange()" class="w-full border-2 border-gray-100 rounded-2xl p-3 text-sm outline-none focus:border-[#2E3468] bg-white">
+        <option value="hot">ساخن</option>
+        <option value="cold">بارد</option>
+        <option value="sandwich">سندويشات</option>
+        <option value="snack">تسالي</option>
+      </select>
+      <select id="menuItemSnackType" class="w-full border-2 border-gray-100 rounded-2xl p-3 text-sm outline-none focus:border-[#2E3468] bg-white hidden">
+        <option value="chocolate">شوكولاتة</option>
+        <option value="biscuit">بسكوت</option>
+        <option value="chips">شبسي</option>
+        <option value="cake">كيك</option>
+        <option value="nuts">مكسرات</option>
+        <option value="sweet">حلو</option>
+      </select>
+    </div>
+    <div class="grid grid-cols-2 gap-3 mt-5">
+      <button onclick="submitMenuItem()" class="bg-[#2E3468] text-white py-3 rounded-2xl font-bold flex items-center justify-center gap-2">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span>حفظ</span>
+      </button>
+      <button onclick="closeMenuItemModal()" class="bg-gray-100 text-gray-600 py-3 rounded-2xl font-bold">إلغاء</button>
+    </div>
+  </div>
+</div>
 <script>
 const API_URL = "https://web-app-lego-food-court.onrender.com/api";
 const ICON_CHECK = '<svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
@@ -246,6 +295,7 @@ let announcedOrders = new Set();
 let expenseReceiptBase64 = null;
 let currentDebtOffice = null;
 let latestDebts = [];
+let latestMenuItems = [];
 let currentDebtTotal = 0;
 const ADMIN_PASSWORD = '444555666';
 
@@ -272,7 +322,7 @@ function ensureAdminAuth() {
 }
 
 function switchTab(tab) {
-    ['active','ledger','guests','reviews','expenses','offices'].forEach(t => {
+    ['active','guests','offices','ledger','expenses','menu','reviews'].forEach(t => {
         document.getElementById(`view_${t}`).classList.add('hidden');
         document.getElementById(`tab_${t}`).className = 'font-bold px-4 py-2 rounded-lg text-gray-300 hover:bg-white/10 text-sm whitespace-nowrap transition-colors';
     });
@@ -328,6 +378,7 @@ async function fetchData() {
         renderReviews(data.reviews || []);
         renderExpenses(data.expenses || []);
         renderOffices(data.offices || []);
+        renderAdminMenu(data.menu_items || []);
     } catch (e) {
         console.error(e);
         alert(e.message || 'تعذر تحميل بيانات لوحة الكاشير');
@@ -619,6 +670,95 @@ async function rejectVisitorPayment(id) {
     const cleanNote = note.trim();
     if (!cleanNote) { alert('سبب الرفض مطلوب'); return; }
     await action('reject_visitor_payment', id, null, cleanNote);
+}
+
+const MENU_CATEGORY_LABELS = { hot: 'ساخن', cold: 'بارد', snack: 'سندويشات', candy: 'تسالي' };
+const CANDY_TYPE_LABELS = { chocolate: 'شوكولاتة', biscuit: 'بسكوت', chips: 'شبسي', cake: 'كيك', nuts: 'مكسرات', sweet: 'حلو' };
+
+function renderAdminMenu(items) {
+    latestMenuItems = items || [];
+    const list = document.getElementById('menuAdminList');
+    if (!list) return;
+    if (!latestMenuItems.length) {
+        list.innerHTML = `<div class="col-span-full text-center py-16 text-gray-400"><p class="font-bold">لا توجد أصناف في المنيو</p></div>`;
+        return;
+    }
+    list.innerHTML = latestMenuItems.map(item => {
+        const active = Number(item.is_active || 0) === 1;
+        const categoryLabel = MENU_CATEGORY_LABELS[item.cat] || item.cat || '-';
+        const typeLabel = item.cat === 'candy' ? (CANDY_TYPE_LABELS[item.snack_type] || item.snack_type_label || 'حلو') : '';
+        return `
+        <div class="bg-white p-4 rounded-2xl border shadow-sm slide-up ${active ? 'border-gray-100' : 'border-gray-200 opacity-70'}">
+            <div class="flex justify-between items-start gap-3 mb-3">
+                <div class="min-w-0">
+                    <div class="text-3xl mb-2">${item.emoji || '☕'}</div>
+                    <h3 class="font-black text-[#2E3468] text-sm break-words">${item.name}</h3>
+                    <p class="text-xs text-gray-400 font-bold mt-1">${categoryLabel}${typeLabel ? ' · ' + typeLabel : ''}</p>
+                </div>
+                <span class="font-black text-lg text-[#2E3468] shrink-0">${item.price} ₪</span>
+            </div>
+            <div class="grid grid-cols-3 gap-2">
+                <button onclick="toggleMenuItem(${item.db_id}, ${active ? 0 : 1})" class="${active ? 'bg-yellow-50 text-yellow-700 border-yellow-100' : 'bg-green-50 text-green-700 border-green-100'} border py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1">${active ? ICON_X : ICON_CHECK}<span>${active ? 'إخفاء' : 'تفعيل'}</span></button>
+                <button onclick="openMenuItemModal(${item.db_id})" class="bg-blue-50 text-blue-700 border border-blue-100 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1">${ICON_EDIT}<span>تعديل</span></button>
+                <button onclick="deleteMenuItem(${item.db_id})" class="bg-red-50 text-red-600 border border-red-100 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1">${ICON_TRASH}<span>حذف</span></button>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function handleMenuCategoryChange() {
+    const category = document.getElementById('menuItemCategory').value;
+    document.getElementById('menuItemSnackType').classList.toggle('hidden', category !== 'candy');
+}
+
+function openMenuItemModal(id=null) {
+    const item = id ? latestMenuItems.find(i => Number(i.db_id) === Number(id)) : null;
+    document.getElementById('menuItemModalTitle').innerText = item ? 'تعديل صنف' : 'إضافة صنف';
+    document.getElementById('menuItemId').value = item ? item.db_id : '';
+    document.getElementById('menuItemName').value = item ? item.name : '';
+    document.getElementById('menuItemPrice').value = item ? item.price : '';
+    document.getElementById('menuItemCategory').value = item ? item.cat : 'hot';
+    document.getElementById('menuItemSnackType').value = item && item.snack_type ? item.snack_type : 'sweet';
+    handleMenuCategoryChange();
+    document.getElementById('menuItemModal').classList.remove('hidden');
+}
+
+function closeMenuItemModal() {
+    document.getElementById('menuItemModal').classList.add('hidden');
+}
+
+async function submitMenuItem() {
+    const itemId = document.getElementById('menuItemId').value;
+    const name = document.getElementById('menuItemName').value.trim();
+    const price = Number(document.getElementById('menuItemPrice').value || 0);
+    const category = document.getElementById('menuItemCategory').value;
+    const snackType = document.getElementById('menuItemSnackType').value;
+    if (!name || price < 0) { alert('اسم الصنف والسعر مطلوبان'); return; }
+    const res = await fetch(`${API_URL}/admin/action`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: itemId ? 'update_menu_item' : 'add_menu_item', item_id: itemId || null, name, price, category, snack_type: snackType })
+    });
+    const data = await res.json();
+    if (data.status !== 'success') { alert(data.message || 'تعذر حفظ الصنف'); return; }
+    closeMenuItemModal();
+    fetchData();
+}
+
+async function toggleMenuItem(id, isActive) {
+    const res = await fetch(`${API_URL}/admin/action`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle_menu_item', item_id: id, is_active: isActive }) });
+    const data = await res.json();
+    if (data.status !== 'success') { alert(data.message || 'تعذر تحديث الصنف'); return; }
+    fetchData();
+}
+
+async function deleteMenuItem(id) {
+    const item = latestMenuItems.find(i => Number(i.db_id) === Number(id));
+    if (!confirm(`سيتم حذف الصنف من المنيو فقط ولن يتأثر سجل الطلبات القديم.\n\n${item ? item.name : ''}\n\nهل أنت متأكد؟`)) return;
+    const res = await fetch(`${API_URL}/admin/action`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'delete_menu_item', item_id: id }) });
+    const data = await res.json();
+    if (data.status !== 'success') { alert(data.message || 'تعذر حذف الصنف'); return; }
+    fetchData();
 }
 function renderReviews(reviews) {
     const ratingEmojis = { 5: '😍', 4: '😊', 3: '😐', 2: '😕', 1: '😡' };
