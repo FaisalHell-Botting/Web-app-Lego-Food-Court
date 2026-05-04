@@ -1315,6 +1315,39 @@ async def admin_dashboard():
 
         c.execute(
             """
+            SELECT timestamp, approved_at
+            FROM orders
+            WHERE timestamp IS NOT NULL
+              AND approved_at IS NOT NULL
+              AND status IN ('مقبول','صنف_ناقص','فاتورة_زائر_مرفوضة')
+              AND COALESCE(order_type, '') NOT IN ('تسوية دين يدوية', 'إضافة يدوية', 'حذف صنف من الدين', 'رفض سداد الدين')
+            ORDER BY id DESC
+            LIMIT 100
+            """
+        )
+        response_minutes = []
+        for started_at, handled_at in c.fetchall():
+            started = parse_time(started_at)
+            handled = parse_time(handled_at)
+            if started and handled and handled >= started:
+                response_minutes.append((handled - started).total_seconds() / 60)
+        avg_response_minutes = round(sum(response_minutes) / len(response_minutes), 1) if response_minutes else 0
+        if not response_minutes:
+            response_level = "none"
+        elif avg_response_minutes < 5:
+            response_level = "good"
+        elif avg_response_minutes < 10:
+            response_level = "warn"
+        else:
+            response_level = "bad"
+
+        c.execute("SELECT COALESCE(AVG(rating), 0), COUNT(*) FROM orders WHERE is_reviewed=1 AND rating > 0")
+        rating_avg, rating_count = c.fetchone()
+        rating_avg = round(float(rating_avg or 0), 1)
+        rating_count = int(rating_count or 0)
+
+        c.execute(
+            """
             SELECT location, rating, details, review_text, timestamp
             FROM orders
             WHERE is_reviewed=1 AND rating > 0
@@ -1403,6 +1436,11 @@ async def admin_dashboard():
                 "total_debts": total_debts,
                 "total_expenses": total_expenses,
                 "total_profit": total_profit,
+                "avg_response_minutes": avg_response_minutes,
+                "response_count": len(response_minutes),
+                "response_level": response_level,
+                "rating_average": rating_avg,
+                "rating_count": rating_count,
             },
             "active_orders": active_orders,
             "debts": debts,
@@ -1490,7 +1528,7 @@ async def admin_action(request: Request):
         if action == "approve":
             c.execute("UPDATE orders SET status='مقبول', approved_at=%s WHERE id=%s", (get_pal_time(), order_id))
         elif action == "missing":
-            c.execute("UPDATE orders SET status='صنف_ناقص', missing_note=%s WHERE id=%s", (data.get("note"), order_id))
+            c.execute("UPDATE orders SET status='صنف_ناقص', missing_note=%s, approved_at=%s WHERE id=%s", (data.get("note"), get_pal_time(), order_id))
         elif action == "confirm_visitor_payment":
             c.execute("UPDATE orders SET status='مقبول', is_paid=1, approved_at=%s, missing_note=NULL WHERE id=%s AND location LIKE 'زائر%%'", (get_pal_time(), order_id))
         elif action == "reject_visitor_payment":
@@ -1499,7 +1537,7 @@ async def admin_action(request: Request):
                 c.close()
                 conn.close()
                 return {"status": "error", "message": "سبب الرفض مطلوب"}
-            c.execute("UPDATE orders SET status='فاتورة_زائر_مرفوضة', is_paid=0, missing_note=%s WHERE id=%s AND location LIKE 'زائر%%'", (note, order_id))
+            c.execute("UPDATE orders SET status='فاتورة_زائر_مرفوضة', is_paid=0, missing_note=%s, approved_at=%s WHERE id=%s AND location LIKE 'زائر%%'", (note, get_pal_time(), order_id))
         elif action == "remind":
             if not office:
                 c.close()
