@@ -1413,7 +1413,7 @@ async def admin_dashboard():
             """
         )
         offices = [
-            {"office": row[0], "has_pin": True, "updated_at": row[1], "help_requested": False, "help_created_at": None}
+            {"office": row[0], "has_pin": True, "updated_at": row[1], "help_requested": False, "help_created_at": None, "accepted_orders_count": 0, "total_purchases": 0}
             for row in c.fetchall()
         ]
         office_map = {item["office"]: item for item in offices}
@@ -1428,15 +1428,31 @@ async def admin_dashboard():
         )
         for row in c.fetchall():
             if row[0] not in office_map:
-                office_map[row[0]] = {"office": row[0], "has_pin": False, "updated_at": None, "help_requested": False, "help_created_at": None}
+                office_map[row[0]] = {"office": row[0], "has_pin": False, "updated_at": None, "help_requested": False, "help_created_at": None, "accepted_orders_count": 0, "total_purchases": 0}
 
         c.execute("SELECT office, created_at FROM office_pin_help WHERE status='pending' ORDER BY id DESC")
         for office_name, created_at in c.fetchall():
             if office_name not in office_map:
-                office_map[office_name] = {"office": office_name, "has_pin": False, "updated_at": None, "help_requested": True, "help_created_at": created_at}
+                office_map[office_name] = {"office": office_name, "has_pin": False, "updated_at": None, "help_requested": True, "help_created_at": created_at, "accepted_orders_count": 0, "total_purchases": 0}
             else:
                 office_map[office_name]["help_requested"] = True
                 office_map[office_name]["help_created_at"] = created_at
+
+        c.execute(
+            """
+            SELECT location, COUNT(*), COALESCE(SUM(total_price), 0)
+            FROM orders
+            WHERE status='مقبول'
+              AND location NOT LIKE 'زائر%%'
+              AND COALESCE(order_type, '') NOT IN ('تسوية دين يدوية', 'إضافة يدوية', 'حذف صنف من الدين', 'رفض سداد الدين')
+            GROUP BY location
+            """
+        )
+        for office_name, order_count, total_purchase in c.fetchall():
+            if office_name not in office_map:
+                office_map[office_name] = {"office": office_name, "has_pin": False, "updated_at": None, "help_requested": False, "help_created_at": None, "accepted_orders_count": 0, "total_purchases": 0}
+            office_map[office_name]["accepted_orders_count"] = int(order_count or 0)
+            office_map[office_name]["total_purchases"] = int(total_purchase or 0)
         offices = sorted(office_map.values(), key=lambda item: item["office"])
 
         menu_items = fetch_menu_items(c, include_hidden=True)
@@ -1607,6 +1623,15 @@ async def admin_action(request: Request):
                 VALUES (%s,%s,0,%s,%s,'مقبول',1,'رفض سداد الدين',%s)
                 """,
                 (0, f"رفض سداد الدين: {note}", pay_office, get_pal_time(), get_pal_time()),
+            )
+        elif action == "resolve_office_pin_help":
+            if not office:
+                c.close()
+                conn.close()
+                return {"status": "error", "message": "office is required"}
+            c.execute(
+                "UPDATE office_pin_help SET status='resolved', resolved_at=%s WHERE office=%s AND status='pending'",
+                (get_pal_time(), office),
             )
         elif action == "reset_office_pin":
             if not office:
