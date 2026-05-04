@@ -102,6 +102,80 @@
             justify-content: center;
         }
         @keyframes helpBorderSpin { to { transform: rotate(360deg); } }
+        .app-splash {
+            position: fixed;
+            inset: 0;
+            z-index: 140;
+            background: #2E3468;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.45s ease, visibility 0.45s ease;
+        }
+        .app-splash.hide { opacity: 0; visibility: hidden; pointer-events: none; }
+        .splash-logo-wrap {
+            position: relative;
+            width: 152px;
+            height: 152px;
+            border-radius: 38px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: splashLogoRise 1.45s ease both;
+        }
+        .splash-logo-wrap::before {
+            content: '';
+            position: absolute;
+            inset: -10px;
+            border-radius: 44px;
+            background: conic-gradient(from 210deg, transparent 0 18%, rgba(247,204,70,0.95) 32%, rgba(255,234,145,0.95) 42%, transparent 58% 100%);
+            animation: splashRing 1.75s ease-in-out infinite;
+        }
+        .splash-logo-wrap::after {
+            content: '';
+            position: absolute;
+            inset: 8px;
+            border-radius: 32px;
+            background: rgba(255,255,255,0.08);
+            box-shadow: 0 24px 70px rgba(0,0,0,0.2);
+            backdrop-filter: blur(2px);
+        }
+        .splash-logo {
+            position: relative;
+            z-index: 2;
+            width: 112px;
+            height: 112px;
+            object-fit: contain;
+            animation: splashLogoPulse 1.6s ease-in-out infinite;
+        }
+        .splash-title {
+            position: absolute;
+            top: calc(50% + 98px);
+            left: 50%;
+            transform: translateX(-50%);
+            color: #F7CC46;
+            font-weight: 900;
+            letter-spacing: 0;
+            font-size: 15px;
+            animation: splashTextFade 1.4s ease both;
+        }
+        @keyframes splashLogoRise {
+            0% { opacity: 0; transform: translateY(16px) scale(0.88); }
+            55% { opacity: 1; transform: translateY(0) scale(1.04); }
+            100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes splashLogoPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.04); }
+        }
+        @keyframes splashRing {
+            0% { transform: rotate(0deg); opacity: 0.85; }
+            100% { transform: rotate(360deg); opacity: 0.85; }
+        }
+        @keyframes splashTextFade {
+            from { opacity: 0; transform: translate(-50%, 8px); }
+            to { opacity: 1; transform: translate(-50%, 0); }
+        }
         @keyframes sparkFlash {
             0%, 100% { opacity: 0.15; transform: scale(0.7) rotate(0deg); }
             50% { opacity: 1; transform: scale(1.15) rotate(18deg); }
@@ -109,6 +183,13 @@
     </style>
 </head>
 <body class="pb-32 bg-[#F8F9FA]">
+
+<div id="appSplash" class="app-splash" aria-hidden="true">
+    <div class="splash-logo-wrap">
+        <img src="/logo.png" alt="LE Coffee" class="splash-logo">
+    </div>
+    <div class="splash-title">LE Coffee</div>
+</div>
 
 <div id="authScreen" class="fixed inset-0 bg-navy z-[100] flex flex-col items-center justify-center p-6 text-white text-center">
     <div class="mb-8">
@@ -519,6 +600,16 @@ const debtTransferDefaults = {
     wallet: '0597489605'
 };
 const STORAGE_KEY = 'lecoffee_user_state_v1';
+
+function finishSplash() {
+    const splash = document.getElementById('appSplash');
+    if (!splash) return;
+    splash.classList.add('hide');
+    setTimeout(() => splash.remove(), 520);
+}
+
+window.addEventListener('load', () => setTimeout(finishSplash, 1250));
+setTimeout(finishSplash, 2400);
 
 function normalizeDigits(value) {
     return String(value || '').replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
