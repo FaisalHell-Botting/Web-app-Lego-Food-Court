@@ -170,7 +170,7 @@
             white-space: nowrap;
             overflow: hidden;
             direction: rtl;
-            animation: splashTextWrite 1.15s steps(14, end) 0.35s both;
+            animation: splashTextWrite 0.55s steps(14, end) 0.12s both;
         }
         @property --splash-angle {
             syntax: '<angle>';
@@ -194,7 +194,7 @@
             to { --splash-angle: 360deg; }
         }
         @keyframes splashTextWrite {
-            from { clip-path: inset(0 100% 0 0); opacity: 1; }
+            from { clip-path: inset(0 0 0 100%); opacity: 1; }
             to { clip-path: inset(0 0 0 0); opacity: 1; }
         }
         @keyframes sparkFlash {
