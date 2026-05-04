@@ -69,45 +69,8 @@ PRICES = {
     "كيك فراولة": 7,
 }
 
-MENU_ITEMS = [
-    {"id": "h1", "name": "شاي", "price": 1, "cat": "hot", "emoji": "🍵"},
-    {"id": "h2", "name": "قهوة مزاج وسط", "price": 2, "cat": "hot", "emoji": "☕"},
-    {"id": "h3", "name": "قهوة مزاج كبير", "price": 3, "cat": "hot", "emoji": "☕"},
-    {"id": "h4", "name": "نسكافيه مكس", "price": 2, "cat": "hot", "emoji": "☕"},
-    {"id": "h5", "name": "كفي مكس", "price": 2, "cat": "hot", "emoji": "☕"},
-    {"id": "h6", "name": "كابتشينو جوداي", "price": 3, "cat": "hot", "emoji": "☕"},
-    {"id": "c1", "name": "كوكاكولا 330ملم", "price": 4, "cat": "cold", "emoji": "🥤"},
-    {"id": "c2", "name": "فانتا برتقال 330ملم", "price": 4, "cat": "cold", "emoji": "🥤"},
-    {"id": "c3", "name": "عصير راني 250ملم", "price": 4, "cat": "cold", "emoji": "🥤"},
-    {"id": "c4", "name": "بلو أزرق 250ملم", "price": 4, "cat": "cold", "emoji": "🥤"},
-    {"id": "c5", "name": "بلو أزرق 150ملم", "price": 2, "cat": "cold", "emoji": "🥤"},
-    {"id": "c6", "name": "بلو أخضر 150ملم", "price": 2, "cat": "cold", "emoji": "🥤"},
-    {"id": "c7", "name": "مراعي حليب شوكولاتة", "price": 2, "cat": "cold", "emoji": "🥛"},
-    {"id": "c8", "name": "عصير كوكتيل فواكه", "price": 2, "cat": "cold", "emoji": "🍹"},
-    {"id": "c9", "name": "لتر عصير برتقال", "price": 7, "cat": "cold", "emoji": "🍊"},
-    {"id": "c10", "name": "لتر عصير مانجا", "price": 7, "cat": "cold", "emoji": "🥭"},
-    {"id": "s1", "name": "سندويش فينو فيتا", "price": 4, "cat": "snack", "emoji": "🥪"},
-    {"id": "s2", "name": "سندويش فينو مرتديلا", "price": 4, "cat": "snack", "emoji": "🥪"},
-    {"id": "s3", "name": "سندويش فينو نوتيلا", "price": 3, "cat": "snack", "emoji": "🥪"},
-    {"id": "t1", "name": "سنيكرز", "price": 3, "cat": "candy", "emoji": "🍫"},
-    {"id": "t2", "name": "تويكس", "price": 3, "cat": "candy", "emoji": "🍫"},
-    {"id": "t3", "name": "مارس", "price": 3, "cat": "candy", "emoji": "🍫"},
-    {"id": "t4", "name": "مستر بايت", "price": 3, "cat": "candy", "emoji": "🍬"},
-    {"id": "t5", "name": "قسماط حجم وسط", "price": 4, "cat": "candy", "emoji": "🍪"},
-    {"id": "t6", "name": "بسكويت مالح", "price": 2, "cat": "candy", "emoji": "🍪"},
-    {"id": "t7", "name": "بسكويت ديمة فانيلا", "price": 2, "cat": "candy", "emoji": "🍪"},
-    {"id": "t8", "name": "مولتو ميني", "price": 2, "cat": "candy", "emoji": "🧁"},
-    {"id": "t9", "name": "لفيفا", "price": 2, "cat": "candy", "emoji": "🍫"},
-    {"id": "t11", "name": "حلو نعنع سكوتش", "price": 1, "cat": "candy", "emoji": "🍬"},
-    {"id": "t12", "name": "برنجلز أحمر صغير", "price": 6, "cat": "candy", "emoji": "🥔"},
-    {"id": "t13", "name": "برنجلز أحمر كبير", "price": 11, "cat": "candy", "emoji": "🥔"},
-    {"id": "t14", "name": "مكسرات مشكل وزن 100جم", "price": 11, "cat": "candy", "emoji": "🥜"},
-    {"id": "t15", "name": "برنجلز أحمر كبير شطة", "price": 11, "cat": "candy", "emoji": "🌶️"},
-    {"id": "t16", "name": "كيك فراولة", "price": 7, "cat": "candy", "emoji": "🍰"},
-]
+MENU_ITEMS = []
 
-MENU_BY_NAME = {item["name"]: item for item in MENU_ITEMS}
-SNACK_ITEM_NAMES = {item["name"] for item in MENU_ITEMS if item["cat"] == "snack"}
 AR_NUMBERS = str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789")
 ITEM_ALIASES = {
     "قهوة": "قهوة مزاج وسط",
@@ -380,7 +343,7 @@ def get_latest_payment_request(cursor, office):
 
 
 def build_local_ai_order(message, menu_items=None):
-    menu_items = menu_items or MENU_ITEMS
+    menu_items = menu_items or []
     menu_by_name = {item["name"]: item for item in menu_items}
     text = normalize_digits(message).lower()
     counts = {}
@@ -417,7 +380,7 @@ def build_local_ai_order(message, menu_items=None):
 
 
 def parse_gemini_json(text, menu_items=None):
-    menu_items = menu_items or MENU_ITEMS
+    menu_items = menu_items or []
     menu_by_name = {item["name"]: item for item in menu_items}
     raw = (text or "").strip()
     if raw.startswith("```"):
@@ -777,7 +740,9 @@ async def chat_with_ai(request: Request):
         c.close()
         conn.close()
     except Exception:
-        menu_items = MENU_ITEMS
+        return {"reply": "تعذر تحميل المنيو حالياً. يرجى المحاولة لاحقاً.", "parsed_order": None}
+    if not menu_items:
+        return {"reply": "تعذر تحميل المنيو حالياً. يرجى المحاولة لاحقاً.", "parsed_order": None}
 
     local_order = build_local_ai_order(user_message, menu_items)
 
@@ -840,9 +805,6 @@ async def create_order(request: Request):
 
     if not office or not items:
         return {"status": "error", "message": "missing order data"}
-
-    if any(item in SNACK_ITEM_NAMES for item in items):
-        order_type = "داخل الكوفي كورنر"
 
 
     is_guest = is_guest_office(office)
@@ -976,9 +938,6 @@ async def update_order(order_id: int, request: Request):
         return {"status": "error", "message": "missing order data"}
     if not is_valid_office_number(office):
         return {"status": "error", "message": "رقم المكتب يجب أن يكون 3 أرقام ويبدأ بـ 2 أو 4"}
-
-    if any(item in SNACK_ITEM_NAMES for item in items):
-        order_type = "داخل الكوفي كورنر"
 
     try:
         conn = get_db()
