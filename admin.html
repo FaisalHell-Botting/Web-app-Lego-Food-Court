@@ -866,8 +866,22 @@ function renderOffices(offices) {
                 <div><p class="font-black text-[#2E3468]">${o.office}</p><p class="text-xs text-gray-400 mt-1">آخر تحديث: ${o.updated_at ? formatDisplayTime(o.updated_at) : 'غير محدد'}</p></div>
                 <span class="text-xs font-bold px-2 py-1 rounded-full ${o.has_pin ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}">${o.has_pin ? 'PIN مفعل' : 'بدون PIN'}</span>
             </div>
+            <div class="grid grid-cols-2 gap-2 mb-3">
+                <div class="bg-gray-50 rounded-xl p-3 border border-gray-100">
+                    <p class="text-[11px] text-gray-400 font-bold mb-1">إجمالي الطلبات</p>
+                    <p class="font-black text-[#2E3468]">${Number(o.accepted_orders_count || 0)}</p>
+                </div>
+                <div class="bg-gray-50 rounded-xl p-3 border border-gray-100">
+                    <p class="text-[11px] text-gray-400 font-bold mb-1">إجمالي المشتريات</p>
+                    <p class="font-black text-[#2E3468]">${Number(o.total_purchases || 0)} شيكل</p>
+                </div>
+            </div>
             ${o.help_requested ? `<p class="text-xs font-bold bg-yellow-50 text-yellow-700 p-2 rounded-xl mb-3">يوجد طلب مساعدة ${formatDisplayTime(o.help_created_at)}</p>` : ''}
-            <button onclick="resetOfficePin('${String(o.office).replace(/'/g, "\\'")}')" class="w-full bg-[#2E3468] text-white py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-1.5">${ICON_KEY}<span>تغيير الرقم</span></button>
+            ${o.help_requested ? `
+            <div class="grid grid-cols-2 gap-2">
+                <button onclick="resetOfficePin('${String(o.office).replace(/'/g, "\\'")}')" class="bg-[#2E3468] text-white py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-1.5">${ICON_KEY}<span>تغيير الرقم</span></button>
+                <button onclick="resolveOfficePinHelp('${String(o.office).replace(/'/g, "\\'")}')" class="bg-gray-100 text-gray-600 border border-gray-200 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-1.5">${ICON_X}<span>إلغاء الطلب</span></button>
+            </div>` : `<button onclick="resetOfficePin('${String(o.office).replace(/'/g, "\\'")}')" class="w-full bg-[#2E3468] text-white py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-1.5">${ICON_KEY}<span>تغيير الرقم</span></button>`}
         </div>
     `).join('');
 }
@@ -919,6 +933,13 @@ async function action(act, id, office=null, note=null) {
     }
 }
 
+async function resolveOfficePinHelp(office) {
+    if (!confirm(`إلغاء طلب مساعدة الرقم السري للمكتب ${office} بدون تغيير الرقم؟`)) return;
+    const res = await fetch(`${API_URL}/admin/action`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'resolve_office_pin_help', office }) });
+    const data = await res.json();
+    if (data.status !== 'success') { alert(data.message || 'تعذر إلغاء الطلب'); return; }
+    fetchData();
+}
 async function resetOfficePin(office) {
     const res = await fetch(`${API_URL}/admin/action`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'reset_office_pin', office }) });
     const data = await res.json();
