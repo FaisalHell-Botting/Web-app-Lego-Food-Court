@@ -78,12 +78,13 @@
             </div>
         </div>
 
-        <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4 text-center">
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-4 text-center">
             <div class="bg-white/10 p-3 rounded-xl"><p class="text-xs text-gray-300 mb-1">المبيعات الإجمالية</p><p id="s_sales" class="font-black text-lg">0 ₪</p></div>
             <div class="bg-white/10 p-3 rounded-xl"><p class="text-xs text-gray-300 mb-1">إجمالي الطلبات</p><p id="s_count" class="font-black text-lg">0</p></div>
             <div class="bg-white/10 p-3 rounded-xl"><p class="text-xs text-green-300 mb-1">مدفوع</p><p id="s_paid" class="font-black text-lg text-green-400">0 ₪</p></div>
             <div class="bg-white/10 p-3 rounded-xl"><p class="text-xs text-red-300 mb-1">ديون عالقة</p><p id="s_debt" class="font-black text-lg text-red-400">0 ₪</p></div>
             <div class="bg-white/10 p-3 rounded-xl"><p class="text-xs text-cyan-200 mb-1">إجمالي الأرباح</p><p id="s_profit" class="font-black text-lg text-cyan-300">0 ₪</p></div>
+            <div id="responseAvgCard" class="bg-white/10 p-3 rounded-xl transition-colors"><p class="text-xs text-gray-300 mb-1">معدل الزمن للرد على الطلبات</p><p id="s_response_avg" class="font-black text-lg">0 دقيقة</p></div>
         </div>
 
         <div class="flex gap-1 overflow-x-auto">
@@ -147,6 +148,7 @@
     </div>
 
     <div id="view_reviews" class="hidden">
+        <div id="reviewSummary" class="bg-white border border-gray-100 rounded-2xl p-5 mb-4 shadow-sm text-[#2E3468]"></div>
         <div id="reviewsList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
     </div>
 
@@ -346,6 +348,7 @@ async function fetchData() {
         document.getElementById('s_paid').innerText = `${data.stats.paid_invoices || 0} ₪`;
         document.getElementById('s_debt').innerText = `${data.stats.total_debts || 0} ₪`;
         document.getElementById('s_profit').innerText = `${data.stats.total_profit || 0} ₪`;
+        updateResponseAverage(data.stats || {});
 
         const activeCount = (data.active_orders || []).length;
         const badge = document.getElementById('activeCount');
@@ -377,7 +380,7 @@ async function fetchData() {
         renderActiveOrders(data.active_orders || []);
         renderLedger(data.debts || []);
         renderGuests(data.guest_orders || []);
-        renderReviews(data.reviews || []);
+        renderReviews(data.reviews || [], data.stats || {});
         renderExpenses(data.expenses || []);
         renderOffices(data.offices || []);
         renderAdminMenu(data.menu_items || []);
@@ -784,9 +787,33 @@ async function deleteMenuItem(id) {
     if (data.status !== 'success') { alert(data.message || 'تعذر حذف الصنف'); return; }
     fetchData();
 }
-function renderReviews(reviews) {
+function updateResponseAverage(stats) {
+    const value = Number(stats.avg_response_minutes || 0);
+    const card = document.getElementById('responseAvgCard');
+    const text = document.getElementById('s_response_avg');
+    if (!card || !text) return;
+    text.innerText = value ? `${value} دقيقة` : '0 دقيقة';
+    card.className = 'p-3 rounded-xl transition-colors ' + (
+        stats.response_level === 'good' ? 'bg-green-500/20 text-green-200' :
+        stats.response_level === 'warn' ? 'bg-orange-500/20 text-orange-200' :
+        stats.response_level === 'bad' ? 'bg-red-500/20 text-red-200' :
+        'bg-white/10 text-gray-200'
+    );
+}
+
+function renderStars(avg) {
+    const rounded = Math.round(Number(avg || 0));
+    return Array.from({ length: 5 }, (_, i) => i < rounded ? '★' : '☆').join('');
+}
+function renderReviews(reviews, stats={}) {
     const ratingEmojis = { 5: '😍', 4: '😊', 3: '😐', 2: '😕', 1: '😡' };
     const list = document.getElementById('reviewsList');
+    const summary = document.getElementById('reviewSummary');
+    const avg = Number(stats.rating_average || 0);
+    const count = Number(stats.rating_count || 0);
+    if (summary) {
+        summary.innerHTML = `<div class="flex items-center justify-between gap-3"><div><p class="text-xs font-bold text-gray-400 mb-1">التقييم العام</p><p class="text-3xl font-black tracking-normal text-[#2E3468]">${renderStars(avg)} ${avg.toFixed(1)} <span class="text-base text-gray-400">(${count} تقييم)</span></p></div></div>`;
+    }
     if (!reviews.length) {
         list.innerHTML = `<div class="col-span-full text-center py-16 text-gray-400">
             <div class="text-5xl mb-3">⭐</div>
