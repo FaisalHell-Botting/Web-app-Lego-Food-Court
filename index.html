@@ -167,7 +167,10 @@
             font-weight: 900;
             letter-spacing: 0;
             font-size: 15px;
-            animation: splashTextFade 1.4s ease both;
+            white-space: nowrap;
+            overflow: hidden;
+            direction: rtl;
+            animation: splashTextWrite 1.15s steps(14, end) 0.35s both;
         }
         @property --splash-angle {
             syntax: '<angle>';
@@ -190,9 +193,9 @@
         @keyframes splashBorderTrace {
             to { --splash-angle: 360deg; }
         }
-        @keyframes splashTextFade {
-            from { opacity: 0; transform: translate(-50%, 8px); }
-            to { opacity: 1; transform: translate(-50%, 0); }
+        @keyframes splashTextWrite {
+            from { clip-path: inset(0 100% 0 0); opacity: 1; }
+            to { clip-path: inset(0 0 0 0); opacity: 1; }
         }
         @keyframes sparkFlash {
             0%, 100% { opacity: 0.15; transform: scale(0.7) rotate(0deg); }
@@ -206,7 +209,7 @@
     <div class="splash-logo-wrap">
         <img src="/logo.png" alt="LE Coffee" class="splash-logo">
     </div>
-    <div class="splash-title">LE Coffee</div>
+    <div class="splash-title">الطلب بين اديك</div>
 </div>
 
 <div id="authScreen" class="fixed inset-0 bg-navy z-[100] flex flex-col items-center justify-center p-6 text-white text-center">
