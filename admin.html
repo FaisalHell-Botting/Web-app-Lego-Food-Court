@@ -158,7 +158,8 @@
     </div>
 
     <div id="view_menu" class="hidden">
-        <div class="flex justify-end mb-4">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
+            <div id="menuAdminFilters" class="grid grid-cols-2 md:flex gap-2"></div>
             <button onclick="openMenuItemModal()" class="bg-[#2E3468] text-white px-4 py-2 rounded-xl text-sm font-bold shadow hover:bg-opacity-90 transition-all flex items-center justify-center gap-1.5">
                 <span class="inline-flex items-center justify-center gap-1.5"><svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg><span>إضافة صنف</span></span>
             </button>
@@ -252,8 +253,8 @@
       <select id="menuItemCategory" onchange="handleMenuCategoryChange()" class="w-full border-2 border-gray-100 rounded-2xl p-3 text-sm outline-none focus:border-[#2E3468] bg-white">
         <option value="hot">ساخن</option>
         <option value="cold">بارد</option>
-        <option value="sandwich">سندويشات</option>
-        <option value="snack">تسالي</option>
+        <option value="snack">سندويشات</option>
+        <option value="candy">تسالي</option>
       </select>
       <select id="menuItemSnackType" class="w-full border-2 border-gray-100 rounded-2xl p-3 text-sm outline-none focus:border-[#2E3468] bg-white hidden">
         <option value="chocolate">شوكولاتة</option>
@@ -296,6 +297,7 @@ let expenseReceiptBase64 = null;
 let currentDebtOffice = null;
 let latestDebts = [];
 let latestMenuItems = [];
+let currentMenuFilter = 'hot';
 let currentDebtTotal = 0;
 const ADMIN_PASSWORD = '444555666';
 
@@ -673,17 +675,39 @@ async function rejectVisitorPayment(id) {
 }
 
 const MENU_CATEGORY_LABELS = { hot: 'ساخن', cold: 'بارد', snack: 'سندويشات', candy: 'تسالي' };
+const MENU_CATEGORY_ORDER = ['hot', 'cold', 'snack', 'candy'];
 const CANDY_TYPE_LABELS = { chocolate: 'شوكولاتة', biscuit: 'بسكوت', chips: 'شبسي', cake: 'كيك', nuts: 'مكسرات', sweet: 'حلو' };
+
+function renderMenuFilterButtons() {
+    const holder = document.getElementById('menuAdminFilters');
+    if (!holder) return;
+    holder.innerHTML = MENU_CATEGORY_ORDER.map(cat => {
+        const count = latestMenuItems.filter(item => item.cat === cat).length;
+        const active = currentMenuFilter === cat;
+        return `<button onclick="setMenuFilter('${cat}')" class="px-4 py-2 rounded-xl text-sm font-bold border transition-all ${active ? 'bg-[#F7CC46] text-[#2E3468] border-[#F7CC46]' : 'bg-white text-gray-500 border-gray-100 hover:border-[#2E3468]'}">${MENU_CATEGORY_LABELS[cat]} <span class="text-xs opacity-70">${count}</span></button>`;
+    }).join('');
+}
+
+function setMenuFilter(category) {
+    currentMenuFilter = category;
+    renderAdminMenu(latestMenuItems);
+}
 
 function renderAdminMenu(items) {
     latestMenuItems = items || [];
     const list = document.getElementById('menuAdminList');
     if (!list) return;
+    renderMenuFilterButtons();
     if (!latestMenuItems.length) {
         list.innerHTML = `<div class="col-span-full text-center py-16 text-gray-400"><p class="font-bold">لا توجد أصناف في المنيو</p></div>`;
         return;
     }
-    list.innerHTML = latestMenuItems.map(item => {
+    const visibleItems = latestMenuItems.filter(item => item.cat === currentMenuFilter);
+    if (!visibleItems.length) {
+        list.innerHTML = `<div class="col-span-full text-center py-16 text-gray-400"><p class="font-bold">لا توجد أصناف ضمن ${MENU_CATEGORY_LABELS[currentMenuFilter]}</p></div>`;
+        return;
+    }
+    list.innerHTML = visibleItems.map(item => {
         const active = Number(item.is_active || 0) === 1;
         const categoryLabel = MENU_CATEGORY_LABELS[item.cat] || item.cat || '-';
         const typeLabel = item.cat === 'candy' ? (CANDY_TYPE_LABELS[item.snack_type] || item.snack_type_label || 'حلو') : '';
@@ -717,7 +741,7 @@ function openMenuItemModal(id=null) {
     document.getElementById('menuItemId').value = item ? item.db_id : '';
     document.getElementById('menuItemName').value = item ? item.name : '';
     document.getElementById('menuItemPrice').value = item ? item.price : '';
-    document.getElementById('menuItemCategory').value = item ? item.cat : 'hot';
+    document.getElementById('menuItemCategory').value = item ? item.cat : currentMenuFilter;
     document.getElementById('menuItemSnackType').value = item && item.snack_type ? item.snack_type : 'sweet';
     handleMenuCategoryChange();
     document.getElementById('menuItemModal').classList.remove('hidden');
