@@ -127,6 +127,121 @@ ITEM_ALIASES = {
     "مكسرات": "مكسرات مشكل وزن 100جم",
 }
 
+CATEGORY_EMOJIS = {
+    "hot": "☕",
+    "cold": "🥤",
+    "snack": "🥪",
+    "candy": "🍬",
+}
+CATEGORY_ORDER = {"hot": 1, "cold": 2, "snack": 3, "candy": 4}
+CANDY_TYPE_META = {
+    "chocolate": {"label": "شوكولاتة", "emoji": "🍫", "order": 1},
+    "biscuit": {"label": "بسكوت", "emoji": "🍪", "order": 2},
+    "chips": {"label": "شبسي", "emoji": "🥔", "order": 3},
+    "cake": {"label": "كيك", "emoji": "🍰", "order": 4},
+    "nuts": {"label": "مكسرات", "emoji": "🥜", "order": 5},
+    "sweet": {"label": "حلو", "emoji": "🍬", "order": 6},
+}
+VALID_MENU_CATEGORIES = set(CATEGORY_ORDER.keys())
+VALID_CANDY_TYPES = set(CANDY_TYPE_META.keys())
+
+
+def infer_candy_type(item):
+    name = str(item.get("name") or "")
+    emoji = str(item.get("emoji") or "")
+    if item.get("cat") != "candy":
+        return ""
+    if "🍫" in emoji or any(word in name for word in ["سنيكرز", "تويكس", "مارس", "لفيفا", "شوكولاتة"]):
+        return "chocolate"
+    if "🍪" in emoji or "بسك" in name or "قسماط" in name:
+        return "biscuit"
+    if "🥔" in emoji or "برنجلز" in name or "شيب" in name or "شبسي" in name:
+        return "chips"
+    if "🍰" in emoji or "🧁" in emoji or "كيك" in name or "مولتو" in name:
+        return "cake"
+    if "🥜" in emoji or "مكسرات" in name:
+        return "nuts"
+    return "sweet"
+
+
+def get_menu_emoji(category, candy_type=""):
+    if category == "candy":
+        return CANDY_TYPE_META.get(candy_type, CANDY_TYPE_META["sweet"])["emoji"]
+    return CATEGORY_EMOJIS.get(category, "☕")
+
+
+def menu_sort_key(item):
+    cat = item.get("cat") or ""
+    candy_type = item.get("snack_type") or ""
+    return (
+        CATEGORY_ORDER.get(cat, 99),
+        CANDY_TYPE_META.get(candy_type, {"order": 99})["order"] if cat == "candy" else 0,
+        int(item.get("sort_order") or 0),
+        str(item.get("name") or ""),
+    )
+
+
+def normalize_menu_row(row):
+    item = {
+        "db_id": row[0],
+        "id": row[1],
+        "name": row[2],
+        "price": int(row[3] or 0),
+        "cat": row[4],
+        "emoji": row[5] or get_menu_emoji(row[4], row[6] or ""),
+        "snack_type": row[6] or "",
+        "is_active": int(row[7] or 0),
+        "is_deleted": int(row[8] or 0),
+        "sort_order": int(row[9] or 0),
+    }
+    if item["cat"] == "candy":
+        item["snack_type_label"] = CANDY_TYPE_META.get(item["snack_type"], CANDY_TYPE_META["sweet"])["label"]
+    return item
+
+
+def fetch_menu_items(cursor, include_hidden=False):
+    where = "COALESCE(is_deleted,0)=0"
+    if not include_hidden:
+        where += " AND COALESCE(is_active,1)=1"
+    cursor.execute(
+        f"""
+        SELECT id, item_key, name, price, category, emoji, snack_type, is_active, is_deleted, sort_order
+        FROM menu_items
+        WHERE {where}
+        ORDER BY category ASC, sort_order ASC, id ASC
+        """
+    )
+    items = [normalize_menu_row(row) for row in cursor.fetchall()]
+    return sorted(items, key=menu_sort_key)
+
+
+def get_menu_by_name(cursor):
+    return {item["name"]: item for item in fetch_menu_items(cursor, include_hidden=False)}
+
+
+def build_order_snapshot(raw_items, menu_by_name):
+    snapshot = []
+    for raw_name in raw_items:
+        name = clean_office_name(raw_name)
+        if not name:
+            continue
+        item = menu_by_name.get(name)
+        if not item:
+            return None, name
+        snapshot.append({"name": item["name"], "price": int(item["price"] or 0), "cat": item.get("cat") or ""})
+    return snapshot, None
+
+
+def parse_item_snapshot(value):
+    if not value:
+        return []
+    try:
+        data = json.loads(value)
+        if isinstance(data, list):
+            return [item for item in data if isinstance(item, dict) and item.get("name")]
+    except Exception:
+        return []
+    return []
 
 def get_pal_time():
     return get_pal_datetime().strftime("%Y-%m-%d %H:%M:%S")
@@ -264,10 +379,12 @@ def get_latest_payment_request(cursor, office):
     }
 
 
-def build_local_ai_order(message):
+def build_local_ai_order(message, menu_items=None):
+    menu_items = menu_items or MENU_ITEMS
+    menu_by_name = {item["name"]: item for item in menu_items}
     text = normalize_digits(message).lower()
     counts = {}
-    for name in MENU_BY_NAME:
+    for name in menu_by_name:
         if name.lower() in text:
             qty = 1
             before_match = re.search(r"(\d+)\s+" + re.escape(name.lower()), text)
@@ -279,16 +396,17 @@ def build_local_ai_order(message):
             counts[name] = counts.get(name, 0) + max(qty, 1)
 
     for alias, real_name in ITEM_ALIASES.items():
-        if alias.lower() in text and real_name not in counts:
+        if alias.lower() in text and real_name in menu_by_name and real_name not in counts:
             counts[real_name] = 1
 
     items = []
     total = 0
     for name, qty in counts.items():
-        if name not in MENU_BY_NAME:
+        if name not in menu_by_name:
             continue
-        items.append({"name": name, "qty": qty, "price": MENU_BY_NAME[name]["price"]})
-        total += MENU_BY_NAME[name]["price"] * qty
+        price = int(menu_by_name[name].get("price", 0) or 0)
+        items.append({"name": name, "qty": qty, "price": price})
+        total += price * qty
 
     if not items:
         return None
@@ -298,7 +416,9 @@ def build_local_ai_order(message):
     return {"reply": reply, "items": items, "total": total}
 
 
-def parse_gemini_json(text):
+def parse_gemini_json(text, menu_items=None):
+    menu_items = menu_items or MENU_ITEMS
+    menu_by_name = {item["name"]: item for item in menu_items}
     raw = (text or "").strip()
     if raw.startswith("```"):
         raw = raw.split("```", 2)[1] if raw.count("```") >= 2 else raw
@@ -319,17 +439,16 @@ def parse_gemini_json(text):
     for entry in payload.get("items", []):
         name = clean_office_name(entry.get("name"))
         qty = int(entry.get("qty", 1) or 1)
-        if name not in MENU_BY_NAME:
+        if name not in menu_by_name:
             continue
-        items.append({"name": name, "qty": max(qty, 1), "price": MENU_BY_NAME[name]["price"]})
-        total += MENU_BY_NAME[name]["price"] * max(qty, 1)
+        price = int(menu_by_name[name].get("price", 0) or 0)
+        items.append({"name": name, "qty": max(qty, 1), "price": price})
+        total += price * max(qty, 1)
 
     reply = payload.get("reply") or "تم تجهيز اقتراح الطلب."
     if items and not payload.get("total"):
         payload["total"] = total
     return {"reply": reply, "items": items, "total": payload.get("total", total)}
-
-
 def init_db():
     conn = get_db()
     conn.autocommit = True
@@ -353,7 +472,8 @@ def init_db():
             review_text TEXT,
             is_reviewed INTEGER DEFAULT 0,
             approved_at TEXT,
-            guest_phone TEXT
+            guest_phone TEXT,
+            item_snapshot TEXT
         )
         """
     )
@@ -367,6 +487,7 @@ def init_db():
         ("is_reviewed", "INTEGER DEFAULT 0"),
         ("approved_at", "TEXT"),
         ("guest_phone", "TEXT"),
+        ("item_snapshot", "TEXT"),
     ]:
         try:
             c.execute(f"ALTER TABLE orders ADD COLUMN {col} {definition}")
@@ -447,6 +568,58 @@ def init_db():
         """
     )
     c.execute("ALTER TABLE office_pin_help ADD COLUMN IF NOT EXISTS new_pin TEXT")
+
+    c.execute(
+        """
+        CREATE TABLE IF NOT EXISTS menu_items (
+            id SERIAL PRIMARY KEY,
+            item_key TEXT UNIQUE,
+            name TEXT UNIQUE,
+            price INTEGER NOT NULL DEFAULT 0,
+            category TEXT NOT NULL,
+            emoji TEXT,
+            snack_type TEXT,
+            is_active INTEGER DEFAULT 1,
+            is_deleted INTEGER DEFAULT 0,
+            sort_order INTEGER DEFAULT 0,
+            created_at TEXT,
+            updated_at TEXT
+        )
+        """
+    )
+    for col, definition in [
+        ("item_key", "TEXT UNIQUE"),
+        ("name", "TEXT UNIQUE"),
+        ("price", "INTEGER NOT NULL DEFAULT 0"),
+        ("category", "TEXT NOT NULL DEFAULT 'hot'"),
+        ("emoji", "TEXT"),
+        ("snack_type", "TEXT"),
+        ("is_active", "INTEGER DEFAULT 1"),
+        ("is_deleted", "INTEGER DEFAULT 0"),
+        ("sort_order", "INTEGER DEFAULT 0"),
+        ("created_at", "TEXT"),
+        ("updated_at", "TEXT"),
+    ]:
+        try:
+            c.execute(f"ALTER TABLE menu_items ADD COLUMN {col} {definition}")
+        except Exception:
+            pass
+
+    c.execute("SELECT COUNT(*) FROM menu_items")
+    if (c.fetchone()[0] or 0) == 0:
+        now = get_pal_time()
+        for idx, item in enumerate(MENU_ITEMS, start=1):
+            category = item.get("cat") or "hot"
+            snack_type = infer_candy_type(item)
+            emoji = get_menu_emoji(category, snack_type) if category == "candy" else item.get("emoji") or get_menu_emoji(category)
+            c.execute(
+                """
+                INSERT INTO menu_items (item_key, name, price, category, emoji, snack_type, is_active, is_deleted, sort_order, created_at, updated_at)
+                VALUES (%s,%s,%s,%s,%s,%s,1,0,%s,%s,%s)
+                ON CONFLICT (item_key) DO NOTHING
+                """,
+                (item.get("id"), item.get("name"), int(item.get("price", 0) or 0), category, emoji, snack_type, idx, now, now),
+            )
     c.execute("ALTER TABLE office_pin_help ADD COLUMN IF NOT EXISTS pin_seen INTEGER DEFAULT 0")
     c.close()
     conn.close()
@@ -581,7 +754,15 @@ async def request_office_pin_help(request: Request):
 
 @app.get("/api/menu")
 async def get_menu():
-    return {"items": MENU_ITEMS}
+    try:
+        conn = get_db()
+        c = conn.cursor()
+        items = fetch_menu_items(c, include_hidden=False)
+        c.close()
+        conn.close()
+        return {"items": items}
+    except Exception as exc:
+        return {"items": [], "status": "error", "message": str(exc)}
 
 
 @app.post("/api/chat")
@@ -589,10 +770,18 @@ async def chat_with_ai(request: Request):
     data = await request.json()
     user_message = data.get("message", "")
     history = data.get("history", [])
+    try:
+        conn = get_db()
+        c = conn.cursor()
+        menu_items = fetch_menu_items(c, include_hidden=False)
+        c.close()
+        conn.close()
+    except Exception:
+        menu_items = MENU_ITEMS
 
-    local_order = build_local_ai_order(user_message)
+    local_order = build_local_ai_order(user_message, menu_items)
 
-    menu_text = "\n".join([f"- {item['name']}: {item['price']} شيكل" for item in MENU_ITEMS])
+    menu_text = "\n".join([f"- {item['name']}: {item['price']} شيكل" for item in menu_items])
     system_prompt = f"""
 أنت مساعد طلبات ذكي في LE Coffee.
 اعتمد فقط على هذه القائمة:
@@ -623,7 +812,7 @@ async def chat_with_ai(request: Request):
 
         chat = model.start_chat(history=chat_history)
         response = chat.send_message(user_message)
-        parsed = parse_gemini_json(getattr(response, "text", ""))
+        parsed = parse_gemini_json(getattr(response, "text", ""), menu_items)
         if parsed and parsed.get("items"):
             return {"reply": parsed["reply"], "parsed_order": parsed}
         if local_order:
@@ -635,7 +824,6 @@ async def chat_with_ai(request: Request):
             return {"reply": local_order["reply"], "parsed_order": local_order}
 
     return {"reply": "ما فهمت الطلب بالكامل. اكتب الأصناف كما هي في المنيو وسأرتبها لك.", "parsed_order": None}
-
 
 @app.post("/api/order")
 async def create_order(request: Request):
@@ -695,7 +883,17 @@ async def create_order(request: Request):
     try:
         conn = get_db()
         c = conn.cursor()
-        details_text = ", ".join(items)
+        menu_by_name = get_menu_by_name(c)
+        snapshot, missing_item = build_order_snapshot(items, menu_by_name)
+        if missing_item or not snapshot:
+            c.close()
+            conn.close()
+            return {"status": "error", "message": f"الصنف غير متاح في المنيو: {missing_item or ''}"}
+        total_price = sum(int(item.get("price", 0) or 0) for item in snapshot)
+        details_text = ", ".join(item["name"] for item in snapshot)
+        item_snapshot = json.dumps(snapshot, ensure_ascii=False)
+        if any(item.get("cat") == "snack" for item in snapshot):
+            order_type = "داخل الكوفي كورنر"
         if not is_guest:
             c.execute(
                 """
@@ -734,10 +932,10 @@ async def create_order(request: Request):
         c.execute(
             """
             INSERT INTO orders
-            (user_id, details, total_price, location, timestamp, status, is_paid, receipt, order_type, approved_at, guest_phone)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            (user_id, details, total_price, location, timestamp, status, is_paid, receipt, order_type, approved_at, guest_phone, item_snapshot)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             """,
-            (0, details_text, total_price, office, get_pal_time(), status, is_paid, receipt, order_type, approved_at, guest_phone),
+            (0, details_text, total_price, office, get_pal_time(), status, is_paid, receipt, order_type, approved_at, guest_phone, item_snapshot),
         )
         conn.commit()
         c.close()
@@ -791,13 +989,24 @@ async def update_order(order_id: int, request: Request):
             c.close()
             conn.close()
             return {"status": "error", "message": "الرقم السري للمكتب غير صحيح"}
+        menu_by_name = get_menu_by_name(c)
+        snapshot, missing_item = build_order_snapshot(items, menu_by_name)
+        if missing_item or not snapshot:
+            c.close()
+            conn.close()
+            return {"status": "error", "message": f"الصنف غير متاح في المنيو: {missing_item or ''}"}
+        total_price = sum(int(item.get("price", 0) or 0) for item in snapshot)
+        details_text = ", ".join(item["name"] for item in snapshot)
+        item_snapshot = json.dumps(snapshot, ensure_ascii=False)
+        if any(item.get("cat") == "snack" for item in snapshot):
+            order_type = "داخل الكوفي كورنر"
         c.execute(
             """
             UPDATE orders
-            SET details=%s, total_price=%s, order_type=%s, missing_note=NULL, status='انتظار'
+            SET details=%s, total_price=%s, order_type=%s, item_snapshot=%s, missing_note=NULL, status='انتظار'
             WHERE id=%s AND location=%s AND status IN ('انتظار','صنف_ناقص')
             """,
-            (", ".join(items), total_price, order_type, order_id, office),
+            (details_text, total_price, order_type, item_snapshot, order_id, office),
         )
         updated = c.rowcount
         conn.commit()
@@ -1224,6 +1433,7 @@ async def admin_dashboard():
                 office_map[office_name]["help_created_at"] = created_at
         offices = sorted(office_map.values(), key=lambda item: item["office"])
 
+        menu_items = fetch_menu_items(c, include_hidden=True)
         c.close()
         conn.close()
         return {
@@ -1241,6 +1451,7 @@ async def admin_dashboard():
             "guest_orders": guest_orders,
             "expenses": expenses,
             "offices": offices,
+        "menu_items": menu_items,
         }
     except Exception as exc:
         return {"error": str(exc)}
@@ -1255,7 +1466,7 @@ async def admin_debt_details(office: str):
         c = conn.cursor()
         c.execute(
             """
-            SELECT id, details, total_price, timestamp, order_type
+            SELECT id, details, total_price, timestamp, order_type, item_snapshot
             FROM orders
             WHERE location=%s AND status='مقبول' AND is_paid=0
                           AND COALESCE(order_type, '') NOT IN ('تسوية دين يدوية', 'إضافة يدوية', 'حذف صنف من الدين')
@@ -1266,8 +1477,13 @@ async def admin_debt_details(office: str):
         rows = c.fetchall()
         orders = []
         for row in rows:
-            items = [] if (row[1] or "").strip() == "تم حذف جميع الأصناف من هذا الطلب" else [item.strip() for item in (row[1] or "").split(",") if item.strip()]
-            item_details = [{"name": item, "price": int(PRICES.get(item, 0) or 0)} for item in items]
+            snapshot = parse_item_snapshot(row[5] if len(row) > 5 else None)
+            if snapshot:
+                item_details = [{"name": item.get("name"), "price": int(item.get("price", 0) or 0)} for item in snapshot]
+                items = [item["name"] for item in item_details if item.get("name")]
+            else:
+                items = [] if (row[1] or "").strip() == "تم حذف جميع الأصناف من هذا الطلب" else [item.strip() for item in (row[1] or "").split(",") if item.strip()]
+                item_details = [{"name": item, "price": int(PRICES.get(item, 0) or 0)} for item in items]
             orders.append({"id": row[0], "details": row[1], "items": items, "item_details": item_details, "total_price": row[2], "timestamp": row[3], "order_type": row[4]})
         total_debt = fetch_current_debt(c, office)
         c.close()
@@ -1420,25 +1636,42 @@ async def admin_action(request: Request):
                 c.close()
                 conn.close()
                 return {"status": "error", "message": "order and item are required"}
-            c.execute("SELECT details, total_price, location, timestamp FROM orders WHERE id=%s AND status='مقبول' AND is_paid=0", (order_id,))
+            c.execute("SELECT details, total_price, location, timestamp, item_snapshot FROM orders WHERE id=%s AND status='مقبول' AND is_paid=0", (order_id,))
             order_row = c.fetchone()
             if not order_row:
                 c.close()
                 conn.close()
                 return {"status": "error", "message": "order not found"}
-            items = [item.strip() for item in (order_row[0] or "").split(",") if item.strip()]
-            if item_name not in items:
-                c.close()
-                conn.close()
-                return {"status": "error", "message": "item not found"}
-            item_price = int(PRICES.get(item_name, 0) or 0)
+            snapshot = parse_item_snapshot(order_row[4])
+            removed_from_snapshot = False
+            item_price = 0
+            if snapshot:
+                for idx, item in enumerate(snapshot):
+                    if item.get("name") == item_name:
+                        item_price = int(item.get("price", 0) or 0)
+                        snapshot.pop(idx)
+                        removed_from_snapshot = True
+                        break
+                if not removed_from_snapshot:
+                    c.close()
+                    conn.close()
+                    return {"status": "error", "message": "item not found"}
+                items = [item.get("name") for item in snapshot if item.get("name")]
+            else:
+                items = [item.strip() for item in (order_row[0] or "").split(",") if item.strip()]
+                if item_name not in items:
+                    c.close()
+                    conn.close()
+                    return {"status": "error", "message": "item not found"}
+                item_price = int(PRICES.get(item_name, 0) or 0)
+                items.remove(item_name)
             if item_price <= 0:
                 c.close()
                 conn.close()
                 return {"status": "error", "message": "item price not found"}
-            items.remove(item_name)
             new_details = ", ".join(items) if items else "تم حذف جميع الأصناف من هذا الطلب"
-            c.execute("UPDATE orders SET details=%s WHERE id=%s", (new_details, order_id))
+            new_snapshot = json.dumps(snapshot, ensure_ascii=False) if removed_from_snapshot else order_row[4]
+            c.execute("UPDATE orders SET details=%s, item_snapshot=%s WHERE id=%s", (new_details, new_snapshot, order_id))
             c.execute(
                 """
                 INSERT INTO orders (user_id, details, total_price, location, timestamp, status, is_paid, order_type, approved_at)
@@ -1446,6 +1679,57 @@ async def admin_action(request: Request):
                 """,
                 (0, f"تسوية دين: تم حذف الصنف {item_name} من الدين من قبل الإدارة", -item_price, order_row[2], get_pal_time(), get_pal_time()),
             )
+        elif action in ("add_menu_item", "update_menu_item"):
+            item_id = data.get("item_id")
+            name = clean_office_name(data.get("name"))
+            category = clean_office_name(data.get("category"))
+            snack_type = clean_office_name(data.get("snack_type"))
+            price = int(data.get("price", 0) or 0)
+            if category not in VALID_MENU_CATEGORIES:
+                return {"status": "error", "message": "تصنيف المنيو غير صحيح"}
+            if category == "candy":
+                snack_type = snack_type if snack_type in VALID_CANDY_TYPES else "sweet"
+            else:
+                snack_type = ""
+            if not name or price < 0:
+                return {"status": "error", "message": "اسم الصنف والسعر مطلوبان"}
+            emoji = get_menu_emoji(category, snack_type)
+            now = get_pal_time()
+            if action == "add_menu_item":
+                c.execute("SELECT COALESCE(MAX(sort_order), 0) + 1 FROM menu_items WHERE category=%s", (category,))
+                sort_order = c.fetchone()[0] or 1
+                item_key = f"db{int(datetime.utcnow().timestamp() * 1000)}{random.randint(100,999)}"
+                c.execute(
+                    """
+                    INSERT INTO menu_items (item_key, name, price, category, emoji, snack_type, is_active, is_deleted, sort_order, created_at, updated_at)
+                    VALUES (%s,%s,%s,%s,%s,%s,1,0,%s,%s,%s)
+                    """,
+                    (item_key, name, price, category, emoji, snack_type, sort_order, now, now),
+                )
+            else:
+                if not item_id:
+                    return {"status": "error", "message": "item_id is required"}
+                c.execute(
+                    """
+                    UPDATE menu_items
+                    SET name=%s, price=%s, category=%s, emoji=%s, snack_type=%s, updated_at=%s
+                    WHERE id=%s AND COALESCE(is_deleted,0)=0
+                    """,
+                    (name, price, category, emoji, snack_type, now, item_id),
+                )
+                if c.rowcount == 0:
+                    return {"status": "error", "message": "الصنف غير موجود"}
+        elif action == "toggle_menu_item":
+            item_id = data.get("item_id")
+            is_active = 1 if int(data.get("is_active", 0) or 0) else 0
+            if not item_id:
+                return {"status": "error", "message": "item_id is required"}
+            c.execute("UPDATE menu_items SET is_active=%s, updated_at=%s WHERE id=%s AND COALESCE(is_deleted,0)=0", (is_active, get_pal_time(), item_id))
+        elif action == "delete_menu_item":
+            item_id = data.get("item_id")
+            if not item_id:
+                return {"status": "error", "message": "item_id is required"}
+            c.execute("UPDATE menu_items SET is_deleted=1, is_active=0, updated_at=%s WHERE id=%s", (get_pal_time(), item_id))
         elif action == "add_expense":
             amount = int(data.get("amount", 0) or 0)
             receipt = data.get("receipt")
