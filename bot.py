@@ -1334,7 +1334,7 @@ async def admin_dashboard():
             WHERE timestamp IS NOT NULL
               AND approved_at IS NOT NULL
               AND status IN ('مقبول','صنف_ناقص','فاتورة_زائر_مرفوضة')
-              AND COALESCE(order_type, '') NOT IN ('تسوية دين يدوية', 'إضافة يدوية', 'حذف صنف من الدين', 'رفض سداد الدين')
+              AND COALESCE(order_type, '') NOT IN ('تسوية دين يدوية', 'إضافة يدوية', 'حذف صنف من الدين', 'رفض سداد الدين', 'سداد دين')
             ORDER BY id DESC
             LIMIT 100
             """
@@ -1444,7 +1444,7 @@ async def admin_dashboard():
             FROM orders
             WHERE status='مقبول'
               AND location NOT LIKE 'زائر%%'
-              AND COALESCE(order_type, '') NOT IN ('تسوية دين يدوية', 'إضافة يدوية', 'حذف صنف من الدين', 'رفض سداد الدين')
+              AND COALESCE(order_type, '') NOT IN ('تسوية دين يدوية', 'إضافة يدوية', 'حذف صنف من الدين', 'رفض سداد الدين', 'سداد دين')
             GROUP BY location
             """
         )
@@ -1496,7 +1496,7 @@ async def admin_debt_details(office: str):
             SELECT id, details, total_price, timestamp, order_type, item_snapshot
             FROM orders
             WHERE location=%s AND status='مقبول' AND is_paid=0
-                          AND COALESCE(order_type, '') NOT IN ('تسوية دين يدوية', 'إضافة يدوية', 'حذف صنف من الدين')
+                          AND COALESCE(order_type, '') NOT IN ('تسوية دين يدوية', 'إضافة يدوية', 'حذف صنف من الدين', 'سداد دين')
             ORDER BY id DESC
             """,
             (office,),
@@ -1517,7 +1517,7 @@ async def admin_debt_details(office: str):
             SELECT id, details, total_price, timestamp, order_type
             FROM orders
             WHERE location=%s AND status='مقبول' AND is_paid=0
-              AND COALESCE(order_type, '') IN ('تسوية دين يدوية', 'إضافة يدوية', 'حذف صنف من الدين')
+              AND COALESCE(order_type, '') IN ('تسوية دين يدوية', 'إضافة يدوية', 'حذف صنف من الدين', 'سداد دين')
             ORDER BY id DESC
             """,
             (office,),
@@ -1588,7 +1588,7 @@ async def admin_action(request: Request):
             c.execute("UPDATE debt_payment_requests SET status='paid' WHERE office=%s AND status='pending'", (office,))
         elif action == "confirm_debt_payment":
             c.execute(
-                "SELECT office FROM debt_payment_requests WHERE id=%s AND status='pending'",
+                "SELECT office, amount FROM debt_payment_requests WHERE id=%s AND status='pending'",
                 (order_id,),
             )
             payment_row = c.fetchone()
@@ -1596,9 +1596,20 @@ async def admin_action(request: Request):
                 c.close()
                 conn.close()
                 return {"status": "error", "message": "payment request not found"}
-            pay_office = payment_row[0]
+            pay_office, pay_amount = payment_row
+            pay_amount = int(pay_amount or 0)
+            if pay_amount <= 0:
+                c.close()
+                conn.close()
+                return {"status": "error", "message": "invalid payment amount"}
             c.execute("UPDATE debt_payment_requests SET status='paid' WHERE id=%s", (order_id,))
-            c.execute("UPDATE orders SET is_paid=1 WHERE location=%s AND status='مقبول' AND is_paid=0", (pay_office,))
+            c.execute(
+                """
+                INSERT INTO orders (user_id, details, total_price, location, timestamp, status, is_paid, order_type, approved_at)
+                VALUES (%s,%s,%s,%s,%s,'مقبول',0,'سداد دين',%s)
+                """,
+                (0, "سداد دين بناء على تذكير الكاشير", -pay_amount, pay_office, get_pal_time(), get_pal_time()),
+            )
             c.execute("UPDATE reminders SET is_active=0 WHERE office=%s", (pay_office,))
         elif action == "reject_debt_payment":
             note = clean_office_name(data.get("note"))
