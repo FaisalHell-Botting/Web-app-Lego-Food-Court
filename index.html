@@ -289,13 +289,13 @@
 </div>
 
 <main id="mainScreen" class="max-w-md mx-auto px-4 hidden">
-    <div id="debtMiniCard" onclick="toggleLedger()" role="button" tabindex="0" onkeyup="if(event.key==='Enter'||event.key===' ') toggleLedger()" class="bg-white border border-red-100 rounded-2xl p-4 mt-4 hidden cursor-pointer hover:border-blue-200 hover:shadow-md transition-all">
+    <div id="debtMiniCard" class="bg-white border border-red-100 rounded-2xl p-4 mt-4 hidden transition-all">
         <div class="flex justify-between items-start gap-3">
             <div>
                 <p class="text-xs text-gray-400 font-bold">رصيد الدين الحالي</p>
                 <p id="miniDebtValue" class="text-2xl font-black text-red-500">0 ₪</p>
             </div>
-            <div class="text-left"><div id="miniDebtHint" class="text-[11px] text-gray-500 font-bold leading-5"></div><p class="text-[11px] text-gray-400 font-black mt-1">عرض التفاصيل ←</p></div>
+            <div class="text-left"><div id="miniDebtHint" class="text-[11px] text-gray-500 font-bold leading-5"></div><p id="miniDebtDetailsHint" class="text-[11px] text-gray-400 font-black mt-1 hidden">عرض التفاصيل ←</p></div>
         </div>
     </div>
 
@@ -1338,15 +1338,27 @@ async function poll() {
 function renderDebtSummary(data) {
     if (user.isGuest) return;
     const totalDebt = Number(data.total_debt || 0);
+    const canPayDebt = totalDebt > 0 && !!data.can_pay_debt;
+    const debtMiniCard = document.getElementById('debtMiniCard');
     document.getElementById('ledgerTotalDebt').innerText = `${totalDebt} ₪`;
     document.getElementById('miniDebtValue').innerText = `${totalDebt} ₪`;
-    document.getElementById('debtMiniCard').classList.toggle('hidden', totalDebt <= 0);
+    debtMiniCard.classList.toggle('hidden', totalDebt <= 0);
     document.getElementById('ledgerDebtSubtext').innerText = totalDebt > 0
-        ? (data.can_pay_debt ? 'تم إرسال تذكير دفع لك ويمكنك رفع إثبات السداد' : 'لن تتمكن من رفع السداد حتى يصلك تذكير من الإدارة')
+        ? (canPayDebt ? 'تم إرسال تذكير دفع لك ويمكنك رفع إثبات السداد' : 'لن تتمكن من رفع السداد حتى يصلك تذكير من الإدارة')
         : 'لا يوجد عليك ديون حالياً';
     document.getElementById('miniDebtHint').innerText = totalDebt > 0
-        ? (data.can_pay_debt ? 'يمكنك الآن رفع إثبات السداد من صفحة ديوني' : 'بانتظار تذكير الدفع من الإدارة')
+        ? (canPayDebt ? 'يمكنك الآن رفع إثبات السداد من صفحة ديوني' : 'بانتظار تذكير الدفع من الإدارة')
         : '';
+    document.getElementById('miniDebtDetailsHint').classList.toggle('hidden', !canPayDebt);
+    debtMiniCard.onclick = canPayDebt ? toggleLedger : null;
+    debtMiniCard.setAttribute('role', canPayDebt ? 'button' : 'status');
+    debtMiniCard.tabIndex = canPayDebt ? 0 : -1;
+    debtMiniCard.onkeyup = canPayDebt
+        ? (event) => { if (event.key === 'Enter' || event.key === ' ') toggleLedger(); }
+        : null;
+    debtMiniCard.classList.toggle('cursor-pointer', canPayDebt);
+    debtMiniCard.classList.toggle('hover:border-blue-200', canPayDebt);
+    debtMiniCard.classList.toggle('hover:shadow-md', canPayDebt);
 }
 
 function parsePaymentInfo(info) {
