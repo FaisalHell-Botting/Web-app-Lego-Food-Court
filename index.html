@@ -232,10 +232,11 @@
             <span class="text-xs text-gray-400 font-bold">أو</span>
             <div class="flex-1 h-px bg-gray-200"></div>
         </div>
+        <p class="text-xs text-gray-400 font-bold mb-2">ما عندك مكتب مسجل؟</p>
         <button onclick="login('guest')" class="w-full border-2 border-gold text-gold font-bold py-3.5 rounded-xl hover:bg-yellow-50 transition-all text-base">
-            دخول كزائر
+            الدخول كزائر
         </button>
-        <p class="text-xs text-gray-400 mt-4 leading-relaxed">الزائر يحتاج إرفاق فاتورة دفع مع كل طلب</p>
+        <p class="text-xs text-gray-400 mt-4 leading-relaxed">الزائر يقدر يدفع سريعاً أو يختار من المنيو</p>
     </div>
 </div>
 
@@ -310,6 +311,9 @@
     </div>
 
     <div class="flex gap-2 mt-4 mb-4">
+        <button id="tabQuick" onclick="switchOrderMode('quick')" class="hidden flex-1 py-2.5 rounded-xl text-sm font-bold transition-all border text-gray-500 bg-white border-gray-200">
+            الدفع السريع
+        </button>
         <button id="tabMenu" onclick="switchOrderMode('menu')" class="tab-active flex-1 py-2.5 rounded-xl text-sm font-bold transition-all border">
             المنيو
         </button>
@@ -318,9 +322,23 @@
                 <span class="ai-spark-wrap">
                     <span class="ai-bolt ai-spark-icon">✦</span>
                 </span>
-                <span>اطلب بالكتابة</span>
+                <span>المساعد الذكي</span>
             </span>
         </button>
+    </div>
+
+    <div id="quickPaymentMode" class="hidden">
+        <div class="bg-white rounded-2xl border shadow-sm p-4 mb-4">
+            <h3 class="text-2xl font-black text-navy mb-2">بتعرف قيمة مشترياتك؟</h3>
+            <p class="text-sm text-gray-500 font-bold mb-4">أدخل المبلغ، حوّل، ثم أرفق إشعار الدفع</p>
+            <label class="block text-xs text-gray-400 font-bold mb-2">أدخل قيمة مشترياتك بالشيكل</label>
+            <input type="number" id="quickPaymentAmount" min="1" inputmode="numeric" placeholder="مثلاً 12"
+                   class="w-full border-2 border-gray-200 p-4 rounded-2xl text-center text-2xl font-black text-navy focus:outline-none focus:border-navy mb-4">
+            <div id="quickPaymentInfo" class="space-y-3 mb-4"></div>
+            <button onclick="openQuickGuestPaymentModal()" class="w-full bg-navy text-white py-3.5 rounded-xl font-bold shadow hover:bg-opacity-90 transition-all">
+                دفعت؟ أرفق الفاتورة هنا
+            </button>
+        </div>
     </div>
 
     <div id="menuMode">
@@ -418,11 +436,11 @@
 </div>
 <div id="receiptModal" class="fixed inset-0 bg-black/70 z-[80] flex items-center justify-center p-4 hidden">
     <div id="receiptModalBox" class="bg-white rounded-3xl w-full max-w-sm max-h-[90vh] overflow-y-auto p-6 slide-up">
-        <h3 class="font-bold text-lg text-navy mb-2">تأكيد طلب الزائر</h3>
-        <p class="text-sm text-gray-500 mb-3 leading-relaxed">أدخل رقم جوالك وأرفق فاتورة الدفع. سيراجع الكاشير الفاتورة لاحقاً ويتواصل معك عند الحاجة.</p>
+        <h3 id="receiptModalTitle" class="font-bold text-lg text-navy mb-2">تأكيد طلب الزائر</h3>
+        <p id="receiptModalDesc" class="text-sm text-gray-500 mb-3 leading-relaxed">أدخل رقم جوالك وأرفق فاتورة الدفع. سيراجع الكاشير الفاتورة لاحقاً ويتواصل معك عند الحاجة.</p>
         <div class="bg-gray-50 rounded-2xl p-3 mb-3 border">
             <div class="flex justify-between items-center mb-2">
-                <span class="text-xs text-gray-400 font-bold">إجمالي الطلب</span>
+                <span id="guestPaymentTotalLabel" class="text-xs text-gray-400 font-bold">إجمالي الطلب</span>
                 <span id="guestPaymentTotal" class="font-black text-navy">0 ₪</span>
             </div>
             <div id="guestPaymentInfo" class="space-y-2"></div>
@@ -440,8 +458,8 @@
         <input type="file" id="receiptInput" accept="image/*" class="hidden" onchange="handleReceiptUpload(this)">
         <div id="guestOrderSuccessStatus" class="hidden bg-yellow-50 border border-yellow-200 rounded-2xl p-4 text-center mb-3">
             <div class="w-12 h-12 mx-auto mb-3 rounded-full bg-white border border-yellow-200 flex items-center justify-center text-2xl font-black text-yellow-600">✓</div>
-            <p class="font-black text-navy text-sm mb-1">تم إرسال طلبك للكاشير</p>
-            <p class="text-xs text-gray-500 font-bold leading-relaxed">سيتم مراجعة الفاتورة والتواصل معك عند الحاجة</p>
+            <p id="guestOrderSuccessTitle" class="font-black text-navy text-sm mb-1">تم إرسال طلبك للكاشير</p>
+            <p id="guestOrderSuccessText" class="text-xs text-gray-500 font-bold leading-relaxed">سيتم مراجعة الفاتورة والتواصل معك عند الحاجة</p>
         </div>
         <button id="guestSubmitBtn" onclick="submitGuestOrder()" class="w-full bg-navy text-white py-3 rounded-xl font-bold mb-2 hover:bg-opacity-90 transition-all">إرسال الطلب مع الفاتورة</button>
         <button onclick="closeModal('receiptModal')" class="w-full bg-gray-100 text-gray-600 py-3 rounded-xl font-bold">إلغاء</button>
@@ -599,6 +617,8 @@ let pendingOrderTotal = 0;
 let receiptBase64 = null;
 let pendingGuestPhone = '';
 let isGuestOrderSubmitting = false;
+let currentOrderMode = 'menu';
+let pendingGuestQuickPayment = false;
 let pendingOfficePin = '';
 let debtReceiptBase64 = null;
 let selectedRating = 0;
@@ -674,8 +694,11 @@ async function login(type) {
     document.getElementById('orderTypeCard').classList.toggle('hidden', user.isGuest);
     document.getElementById('debtSummaryCard').classList.toggle('hidden', user.isGuest);
     document.getElementById('ledgerHeaderBtn').classList.toggle('hidden', user.isGuest);
+    document.getElementById('tabQuick').classList.toggle('hidden', !user.isGuest);
     await loadMenu();
     setOrderType('داخل الكوفي كورنر');
+    document.getElementById('quickPaymentInfo').innerHTML = renderQuickPaymentInfo();
+    switchOrderMode(user.isGuest ? 'quick' : 'menu');
     renderMenu('hot');
     updateDraftOrderCard();
     persistState();
@@ -695,7 +718,8 @@ function persistState() {
             selectedOrderType,
             currentCat,
             chatHistory,
-            editingOrderId
+            editingOrderId,
+            currentOrderMode
         }));
     } catch (e) {}
 }
@@ -712,6 +736,7 @@ async function restoreState() {
         currentCat = state.currentCat && state.currentCat !== 'all' ? state.currentCat : 'hot';
         chatHistory = state.chatHistory || [];
         editingOrderId = state.editingOrderId || null;
+        currentOrderMode = state.currentOrderMode || (user.isGuest ? 'quick' : 'menu');
         document.getElementById('headerIdentityLabel').innerText = user.id;
         document.getElementById('authScreen').classList.add('hidden');
         document.getElementById('mainHeader').classList.remove('hidden');
@@ -719,7 +744,10 @@ async function restoreState() {
         document.getElementById('orderTypeCard').classList.toggle('hidden', user.isGuest);
         document.getElementById('debtSummaryCard').classList.toggle('hidden', user.isGuest);
     document.getElementById('ledgerHeaderBtn').classList.toggle('hidden', user.isGuest);
+        document.getElementById('tabQuick').classList.toggle('hidden', !user.isGuest);
         await loadMenu();
+        document.getElementById('quickPaymentInfo').innerHTML = renderQuickPaymentInfo();
+        switchOrderMode(user.isGuest ? currentOrderMode : (currentOrderMode === 'quick' ? 'menu' : currentOrderMode));
         renderMenu(currentCat);
         enforceOrderTypeRules();
         setOrderType(selectedOrderType);
@@ -730,11 +758,17 @@ async function restoreState() {
 }
 
 function switchOrderMode(mode) {
+    if (mode === 'quick' && !user.isGuest) mode = 'menu';
+    currentOrderMode = mode;
+    const isQuick = mode === 'quick';
     const isMenu = mode === 'menu';
+    const isAI = mode === 'ai';
+    document.getElementById('quickPaymentMode').classList.toggle('hidden', !isQuick);
     document.getElementById('menuMode').classList.toggle('hidden', !isMenu);
-    document.getElementById('aiMode').classList.toggle('hidden', isMenu);
-    document.getElementById('tabMenu').className = `${isMenu ? 'tab-active' : 'text-gray-500 border'} flex-1 py-2.5 rounded-xl text-sm font-bold transition-all border`;
-    document.getElementById('tabAI').className = `${!isMenu ? 'bg-white text-navy border-navy shadow-sm' : 'ai-tab-glow text-gray-600 bg-white border-gray-200'} flex-1 py-2.5 rounded-xl text-sm font-bold transition-all border`;
+    document.getElementById('aiMode').classList.toggle('hidden', !isAI);
+    document.getElementById('tabQuick').className = `${isQuick ? 'tab-active' : 'text-gray-500 bg-white border-gray-200'} ${user.isGuest ? '' : 'hidden'} flex-1 py-2.5 rounded-xl text-sm font-bold transition-all border`;
+    document.getElementById('tabMenu').className = `${isMenu ? 'tab-active' : 'text-gray-500 bg-white border-gray-200'} flex-1 py-2.5 rounded-xl text-sm font-bold transition-all border`;
+    document.getElementById('tabAI').className = `${isAI ? 'bg-white text-navy border-navy shadow-sm' : 'ai-tab-glow text-gray-600 bg-white border-gray-200'} flex-1 py-2.5 rounded-xl text-sm font-bold transition-all border`;
     updateCartBar();
     persistState();
 }
@@ -904,6 +938,41 @@ function enforceOrderTypeRules() {
     setOrderType('داخل الكوفي كورنر');
 }
 
+function prepareGuestReceiptModal({ amount, quick=false }) {
+    pendingOrderTotal = amount;
+    pendingGuestQuickPayment = quick;
+    receiptBase64 = null;
+    pendingGuestPhone = '';
+    document.getElementById('guestPhoneInput').value = '';
+    document.getElementById('receiptModalTitle').innerText = quick ? 'أرفق الإشعار لتأكيد الحسابات' : 'تأكيد طلب الزائر';
+    document.getElementById('receiptModalDesc').innerText = quick
+        ? 'أرفق الإشعار حتى يساعد الكاشير في توثيق العملية ومراجعة الحسابات.'
+        : 'أدخل رقم جوالك وأرفق فاتورة الدفع. سيراجع الكاشير الفاتورة لاحقاً ويتواصل معك عند الحاجة.';
+    document.getElementById('guestPaymentTotalLabel').innerText = quick ? 'قيمة المبلغ' : 'إجمالي الطلب';
+    const guestTotalEl = document.getElementById('guestPaymentTotal');
+    guestTotalEl.innerText = `${amount} ₪`;
+    guestTotalEl.className = quick ? 'font-black text-blue-600 text-xl' : 'font-black text-navy';
+    document.getElementById('guestPaymentInfo').innerHTML = quick ? '' : renderGuestPaymentInfo();
+    document.getElementById('guestOrderSuccessTitle').innerText = quick ? 'شكراً لك على توثيق العملية' : 'تم إرسال طلبك للكاشير';
+    document.getElementById('guestOrderSuccessText').innerText = quick
+        ? 'شكراً لك على توثيق العملية لمساعدة الكاشير في الحسابات. سيقوم الكاشير بالمراجعة والتواصل معك عند الحاجة'
+        : 'سيتم مراجعة الفاتورة والتواصل معك عند الحاجة';
+    document.getElementById('guestSubmitBtn').innerText = quick ? 'تأكيد العملية' : 'إرسال الطلب مع الفاتورة';
+    document.getElementById('receiptPreview').classList.add('hidden');
+    document.getElementById('receiptPlaceholder').classList.remove('hidden');
+    resetInlineSuccessStatus('guestOrderSuccessStatus');
+    document.getElementById('receiptModal').classList.remove('hidden');
+}
+
+function openQuickGuestPaymentModal() {
+    const amount = Number(document.getElementById('quickPaymentAmount').value || 0);
+    if (!amount || amount <= 0) {
+        showToast('أدخل قيمة مشترياتك أولاً');
+        return;
+    }
+    prepareGuestReceiptModal({ amount: Math.round(amount), quick: true });
+}
+
 async function processOrder() {
     const stats = getCartStats();
     if (!stats.qty) return;
@@ -918,15 +987,7 @@ async function processOrder() {
     });
     pendingOrderTotal = stats.total;
     if (user.isGuest) {
-        receiptBase64 = null;
-        pendingGuestPhone = '';
-        document.getElementById('guestPhoneInput').value = '';
-        document.getElementById('guestPaymentTotal').innerText = `${pendingOrderTotal} ₪`;
-        document.getElementById('guestPaymentInfo').innerHTML = renderGuestPaymentInfo();
-        document.getElementById('receiptPreview').classList.add('hidden');
-        document.getElementById('receiptPlaceholder').classList.remove('hidden');
-        resetInlineSuccessStatus('guestOrderSuccessStatus');
-        document.getElementById('receiptModal').classList.remove('hidden');
+        prepareGuestReceiptModal({ amount: pendingOrderTotal, quick: false });
         return;
     }
     openOfficePinModal();
@@ -1012,7 +1073,7 @@ function resetGuestSubmitButton() {
     const guestSubmitBtn = document.getElementById('guestSubmitBtn');
     if (guestSubmitBtn) {
         guestSubmitBtn.disabled = false;
-        guestSubmitBtn.innerText = 'إرسال الطلب مع الفاتورة';
+        guestSubmitBtn.innerText = pendingGuestQuickPayment ? 'تأكيد العملية' : 'إرسال الطلب مع الفاتورة';
         guestSubmitBtn.classList.remove('opacity-60', 'cursor-not-allowed');
     }
     isGuestOrderSubmitting = false;
@@ -1027,7 +1088,8 @@ async function sendOrder(items, total, receipt, orderId=null, guestPhone='') {
                 office: user.id,
                 items,
                 total_price: total,
-                order_type: user.isGuest ? 'داخل الكوفي كورنر' : selectedOrderType,
+                order_type: user.isGuest ? (pendingGuestQuickPayment ? 'دفع سريع للزائر' : 'داخل الكوفي كورنر') : selectedOrderType,
+                quick_payment: Boolean(user.isGuest && pendingGuestQuickPayment),
                 receipt,
                 guest_phone: guestPhone,
                 office_pin: user.isGuest ? null : pendingOfficePin
@@ -1036,7 +1098,7 @@ async function sendOrder(items, total, receipt, orderId=null, guestPhone='') {
         const data = await res.json();
         if (data.status === 'success') {
             if (user.isGuest && !isEdit) {
-                clearCart();
+                if (!pendingGuestQuickPayment) clearCart();
                 showInlineSuccessStatus('guestOrderSuccessStatus', 'receiptModal', () => {
                     resetGuestSubmitButton();
                     poll();
@@ -1074,7 +1136,8 @@ function handleReceiptUpload(input) {
 function submitGuestOrder() {
     if (isGuestOrderSubmitting) return;
     const phone = document.getElementById('guestPhoneInput').value.trim();
-    if (!/^05\d{8}$/.test(phone.replace(/\s+/g, ''))) {
+    const normalizedPhone = phone.replace(/\s+/g, '');
+    if (!/^05\d{8}$/.test(normalizedPhone)) {
         showToast('الرجاء إدخال رقم جوال صحيح');
         return;
     }
@@ -1082,7 +1145,7 @@ function submitGuestOrder() {
         showToast('الرجاء رفع فاتورة الدفع أولاً');
         return;
     }
-    pendingGuestPhone = phone;
+    pendingGuestPhone = normalizedPhone;
     const submitBtn = document.getElementById('guestSubmitBtn');
     isGuestOrderSubmitting = true;
     if (submitBtn) {
@@ -1090,7 +1153,7 @@ function submitGuestOrder() {
         submitBtn.innerText = 'جاري الإرسال...';
         submitBtn.classList.add('opacity-60', 'cursor-not-allowed');
     }
-    sendOrder(pendingOrderItems, pendingOrderTotal, receiptBase64, editingOrderId, pendingGuestPhone);
+    sendOrder(pendingGuestQuickPayment ? [] : pendingOrderItems, pendingOrderTotal, receiptBase64, pendingGuestQuickPayment ? null : editingOrderId, pendingGuestPhone);
 }
 
 function cancelActiveOrder() {
@@ -1297,6 +1360,22 @@ function paymentInfoCard(label, value, copyValue) {
                 <p class="text-sm text-navy font-bold break-all">${value}</p>
             </div>
             ${copyButton}
+        </div>
+    `;
+}
+function renderQuickPaymentInfo() {
+    return `
+        <div class="bg-gray-50 rounded-2xl border p-3">
+            <p class="text-xs text-gray-400 font-black mb-2">معلومات الدفع - بنك فلسطين</p>
+            <div class="space-y-2">
+                ${paymentInfoCard('البنك', debtTransferDefaults.bank)}
+                ${paymentInfoCard('ID', debtTransferDefaults.id, debtTransferDefaults.id)}
+                ${paymentInfoCard('IBAN', debtTransferDefaults.iban, debtTransferDefaults.iban)}
+            </div>
+        </div>
+        <div class="bg-blue-50 rounded-2xl border border-blue-100 p-3">
+            <p class="text-xs text-gray-400 font-black mb-2">معلومات الدفع - محفظة بال باي</p>
+            ${paymentInfoCard('Mobile Number', debtTransferDefaults.wallet, debtTransferDefaults.wallet)}
         </div>
     `;
 }
