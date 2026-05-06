@@ -317,14 +317,6 @@
         <button id="tabMenu" onclick="switchOrderMode('menu')" class="tab-active flex-1 py-2.5 rounded-xl text-sm font-bold transition-all border">
             المنيو
         </button>
-        <button id="tabAI" onclick="switchOrderMode('ai')" class="ai-tab-glow flex-1 py-2.5 rounded-xl text-sm font-bold text-gray-600 bg-white transition-all border border-gray-200 hover:border-gray-300">
-            <span class="inline-flex items-center gap-1.5">
-                <span class="ai-spark-wrap">
-                    <span class="ai-bolt ai-spark-icon">✦</span>
-                </span>
-                <span>المساعد الذكي</span>
-            </span>
-        </button>
     </div>
 
     <div id="quickPaymentMode" class="hidden">
@@ -351,12 +343,21 @@
         <div id="menuContainer" class="grid grid-cols-2 gap-3 mb-4"></div>
     </div>
 
-    <div id="aiMode" class="hidden">
-        <div class="bg-white rounded-2xl border shadow-sm overflow-hidden mb-4">
-            <div class="bg-navy text-white p-3 text-sm font-bold flex items-center gap-2">
+
+</main>
+
+
+<button id="aiAssistantFab" onclick="toggleAiAssistant(true)" class="fixed bottom-5 right-5 z-[60] w-14 h-14 rounded-full bg-navy text-white shadow-2xl border-2 border-gold flex items-center justify-center transition-all hover:scale-105 hidden" aria-label="المساعد الذكي">
+    <span class="ai-spark-wrap text-xl"><span class="ai-bolt ai-spark-icon">✦</span></span>
+</button>
+<div id="aiAssistantPanel" class="fixed inset-0 bg-black/40 z-[78] hidden p-4 flex items-end justify-center">
+    <div id="aiAssistantBox" class="bg-white rounded-3xl w-full max-w-md max-h-[82vh] overflow-hidden shadow-2xl slide-up flex flex-col">
+        <div class="flex-1 min-h-0 flex flex-col">
+            <div class="bg-navy text-white p-3 text-sm font-bold flex items-center justify-between gap-2">
                 <span>المساعد الذكي</span>
+                <button onclick="toggleAiAssistant(false)" class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-lg leading-none">×</button>
             </div>
-            <div id="chatMessages" class="p-4 space-y-3 min-h-[200px] max-h-[350px] overflow-y-auto">
+            <div id="chatMessages" class="p-4 space-y-3 min-h-[220px] max-h-[46vh] overflow-y-auto">
                 <div class="flex gap-2">
                     <div class="bg-gray-100 rounded-2xl rounded-tr-sm p-3 text-sm text-navy max-w-[85%]">
                         اكتب طلبك بكلامك، مثل: بدي قهوة مزاج وسط وسنيكرز.
@@ -372,7 +373,7 @@
                 </button>
             </div>
         </div>
-        <div id="aiOrderSummary" class="hidden bg-white rounded-2xl border shadow-sm p-4 mb-4">
+        <div id="aiOrderSummary" class="hidden bg-white rounded-2xl border shadow-sm p-4 m-3 mt-0">
             <h4 class="font-bold text-navy mb-3">الطلب المقترح</h4>
             <div id="aiOrderItems" class="space-y-1 mb-3"></div>
             <div class="flex justify-between items-center border-t pt-3">
@@ -384,7 +385,7 @@
             </button>
         </div>
     </div>
-</main>
+</div>
 
 <div id="cartBar" class="fixed bottom-0 left-0 w-full bg-white border-t shadow-2xl p-4 hidden z-40 max-h-[52vh] overflow-y-auto">
     <div class="max-w-md mx-auto">
@@ -695,6 +696,7 @@ async function login(type) {
     document.getElementById('debtSummaryCard').classList.toggle('hidden', user.isGuest);
     document.getElementById('ledgerHeaderBtn').classList.toggle('hidden', user.isGuest);
     document.getElementById('tabQuick').classList.toggle('hidden', !user.isGuest);
+    document.getElementById('aiAssistantFab').classList.remove('hidden');
     await loadMenu();
     setOrderType('داخل الكوفي كورنر');
     document.getElementById('quickPaymentInfo').innerHTML = renderQuickPaymentInfo();
@@ -737,6 +739,7 @@ async function restoreState() {
         chatHistory = state.chatHistory || [];
         editingOrderId = state.editingOrderId || null;
         currentOrderMode = state.currentOrderMode || (user.isGuest ? 'quick' : 'menu');
+        if (currentOrderMode === 'ai') currentOrderMode = user.isGuest ? 'quick' : 'menu';
         document.getElementById('headerIdentityLabel').innerText = user.id;
         document.getElementById('authScreen').classList.add('hidden');
         document.getElementById('mainHeader').classList.remove('hidden');
@@ -745,6 +748,7 @@ async function restoreState() {
         document.getElementById('debtSummaryCard').classList.toggle('hidden', user.isGuest);
     document.getElementById('ledgerHeaderBtn').classList.toggle('hidden', user.isGuest);
         document.getElementById('tabQuick').classList.toggle('hidden', !user.isGuest);
+        document.getElementById('aiAssistantFab').classList.remove('hidden');
         await loadMenu();
         document.getElementById('quickPaymentInfo').innerHTML = renderQuickPaymentInfo();
         switchOrderMode(user.isGuest ? currentOrderMode : (currentOrderMode === 'quick' ? 'menu' : currentOrderMode));
@@ -759,18 +763,24 @@ async function restoreState() {
 
 function switchOrderMode(mode) {
     if (mode === 'quick' && !user.isGuest) mode = 'menu';
+    if (mode === 'ai') mode = user.isGuest ? 'quick' : 'menu';
     currentOrderMode = mode;
     const isQuick = mode === 'quick';
     const isMenu = mode === 'menu';
-    const isAI = mode === 'ai';
     document.getElementById('quickPaymentMode').classList.toggle('hidden', !isQuick);
     document.getElementById('menuMode').classList.toggle('hidden', !isMenu);
-    document.getElementById('aiMode').classList.toggle('hidden', !isAI);
     document.getElementById('tabQuick').className = `${isQuick ? 'tab-active' : 'text-gray-500 bg-white border-gray-200'} ${user.isGuest ? '' : 'hidden'} flex-1 py-2.5 rounded-xl text-sm font-bold transition-all border`;
     document.getElementById('tabMenu').className = `${isMenu ? 'tab-active' : 'text-gray-500 bg-white border-gray-200'} flex-1 py-2.5 rounded-xl text-sm font-bold transition-all border`;
-    document.getElementById('tabAI').className = `${isAI ? 'bg-white text-navy border-navy shadow-sm' : 'ai-tab-glow text-gray-600 bg-white border-gray-200'} flex-1 py-2.5 rounded-xl text-sm font-bold transition-all border`;
     updateCartBar();
     persistState();
+}
+
+function toggleAiAssistant(show) {
+    const panel = document.getElementById('aiAssistantPanel');
+    panel.classList.toggle('hidden', !show);
+    if (show) {
+        setTimeout(() => document.getElementById('chatInput')?.focus(), 120);
+    }
 }
 
 function renderMenu(cat) {
@@ -894,12 +904,15 @@ function updateCartBar() {
     const mainScreen = document.getElementById('mainScreen');
     const showBar = stats.qty > 0 && (!activeOrderId || editingOrderId === activeOrderId);
     bar.classList.toggle('hidden', !showBar);
+    const aiFab = document.getElementById('aiAssistantFab');
     if (showBar) {
         requestAnimationFrame(() => {
             mainScreen.style.paddingBottom = `${bar.offsetHeight + 24}px`;
+            if (aiFab) aiFab.style.bottom = `${bar.offsetHeight + 20}px`;
         });
     } else {
         mainScreen.style.paddingBottom = '';
+        if (aiFab) aiFab.style.bottom = '';
     }
 }
 
@@ -1244,6 +1257,7 @@ function confirmAIOrder() {
     updateDraftOrderCard();
     updateCartBar();
     document.getElementById('aiOrderSummary').classList.add('hidden');
+    toggleAiAssistant(false);
     showToast('تمت إضافة الطلب لطلبك الحالي');
     persistState();
 }
