@@ -3,6 +3,7 @@ import json
 import os
 import random
 import re
+from difflib import SequenceMatcher
 from datetime import datetime, timedelta
 
 import google.generativeai as genai
@@ -342,42 +343,144 @@ def get_latest_payment_request(cursor, office):
     }
 
 
+AI_QTY_WORDS = {
+    "واحد": 1, "واحدة": 1, "وحدة": 1, "حبة": 1, "حبه": 1,
+    "اثنين": 2, "اتنين": 2, "ثنين": 2, "تنين": 2, "زوج": 2,
+    "ثلاثة": 3, "ثلاث": 3, "تلاتة": 3, "تلات": 3,
+    "اربعة": 4, "اربع": 4, "خمسة": 5, "خمس": 5,
+    "ستة": 6, "ست": 6, "سبعة": 7, "سبع": 7,
+    "ثمانية": 8, "ثمان": 8, "تمنية": 8, "تمن": 8,
+    "تسعة": 9, "تسع": 9, "عشرة": 10, "عشر": 10,
+}
+AI_STOP_WORDS = {
+    "بدي", "بدى", "اريد", "عايز", "عاوز", "ممكن", "لو", "سمحت", "هات", "جيب", "اعطيني", "اعطنى",
+    "طلب", "واحد", "واحدة", "وحدة", "حبة", "حبه", "من", "مع", "على", "الى", "الي", "لوسمحت",
+    "كبير", "وسط", "صغير", "بارد", "ساخن", "لتر", "مل", "ملم", "جم", "وزن",
+}
+
+
+def normalize_ai_text(value):
+    text = normalize_digits(str(value or "")).lower()
+    text = re.sub(r"[ًٌٍَُِّْـ]", "", text)
+    replacements = {
+        "أ": "ا", "إ": "ا", "آ": "ا", "ى": "ي", "ئ": "ي", "ؤ": "و", "ة": "ه",
+        "گ": "ك", "پ": "ب", "چ": "ج", "ڤ": "ف",
+    }
+    for old, new in replacements.items():
+        text = text.replace(old, new)
+    text = re.sub(r"[^\w\s\u0600-\u06ff]", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
+
+
+def ai_quantity_near(text, start, end):
+    before = text[max(0, start - 28):start].strip()
+    after = text[end:end + 18].strip()
+    patterns = [
+        r"(?:^|\s)و?(\d{1,2})\s*$",
+        r"(?:^|\s)و?(واحده?|وحده|حبه|اثنين|اتنين|ثنين|تنين|ثلاثه|ثلاث|تلاته|تلات|اربعه|اربع|خمسه|خمس|سته|ست|سبعه|سبع|ثمانيه|ثمان|تمنيه|تمن|تسعه|تسع|عشره|عشر)\s*$",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, before)
+        if match:
+            value = match.group(1)
+            return int(value) if value.isdigit() else AI_QTY_WORDS.get(value, 1)
+    after_match = re.match(r"^\s*(\d{1,2}|واحده?|وحده|حبه|اثنين|اتنين|ثنين|تنين|ثلاثه|ثلاث|تلاته|تلات|اربعه|اربع|خمسه|خمس|سته|ست|سبعه|سبع|ثمانيه|ثمان|تمنيه|تمن|تسعه|تسع|عشره|عشر)(?:\s|$)", after)
+    if after_match:
+        value = after_match.group(1)
+        return int(value) if value.isdigit() else AI_QTY_WORDS.get(value, 1)
+    return 1
+
+
+def ai_item_terms(item):
+    name = item["name"]
+    normalized = normalize_ai_text(name)
+    terms = {normalized}
+    without_units = re.sub(r"\b\d+\s*(ملم|مل|جم|g)\b", " ", normalized)
+    without_units = re.sub(r"\s+", " ", without_units).strip()
+    if without_units:
+        terms.add(without_units)
+    words = [w for w in without_units.split() if w not in AI_STOP_WORDS and not w.isdigit()]
+    if len(words) >= 2:
+        terms.add(" ".join(words[-2:]))
+    if len(words) == 1 and len(words[0]) >= 4:
+        terms.add(words[0])
+    for alias, real_name in ITEM_ALIASES.items():
+        if real_name == name:
+            terms.add(normalize_ai_text(alias))
+    return sorted([term for term in terms if term], key=len, reverse=True)
+
+
 def build_local_ai_order(message, menu_items=None):
     menu_items = menu_items or []
-    menu_by_name = {item["name"]: item for item in menu_items}
-    text = normalize_digits(message).lower()
+    text = normalize_ai_text(message)
+    if not text:
+        return None
+
+    matches = []
+    occupied = []
+    candidates = []
+    for item in menu_items:
+        for term in ai_item_terms(item):
+            candidates.append((term, item))
+    candidates.sort(key=lambda pair: len(pair[0]), reverse=True)
+
+    for term, item in candidates:
+        if len(term) < 3:
+            continue
+        for match in re.finditer(r"(?:^|\s|و)" + re.escape(term) + r"(?!\w)", text):
+            start_pos, end_pos = match.span()
+            if match.group(0).startswith((" ", "و")):
+                start_pos += 1
+            if any(not (end_pos <= a or start_pos >= b) for a, b in occupied):
+                continue
+            qty = max(ai_quantity_near(text, start_pos, end_pos), 1)
+            matches.append((start_pos, item["name"], qty))
+            occupied.append((start_pos, end_pos))
+            break
+
+    if not matches:
+        words = [w for w in text.split() if w not in AI_STOP_WORDS and len(w) >= 3]
+        for word in words:
+            best_item = None
+            best_score = 0
+            for item in menu_items:
+                for term in ai_item_terms(item):
+                    score = SequenceMatcher(None, word, term).ratio()
+                    if word in term:
+                        score = max(score, 0.88)
+                    if score > best_score:
+                        best_score = score
+                        best_item = item
+            if best_item and best_score >= 0.86:
+                matches.append((text.find(word), best_item["name"], 1))
+
+    if not matches:
+        return None
+
     counts = {}
-    for name in menu_by_name:
-        if name.lower() in text:
-            qty = 1
-            before_match = re.search(r"(\d+)\s+" + re.escape(name.lower()), text)
-            after_match = re.search(re.escape(name.lower()) + r"\s*(\d+)", text)
-            if before_match:
-                qty = int(before_match.group(1))
-            elif after_match:
-                qty = int(after_match.group(1))
-            counts[name] = counts.get(name, 0) + max(qty, 1)
+    order_index = {}
+    for idx, (pos, name, qty) in enumerate(sorted(matches, key=lambda row: row[0])):
+        counts[name] = counts.get(name, 0) + qty
+        order_index.setdefault(name, idx)
 
-    for alias, real_name in ITEM_ALIASES.items():
-        if alias.lower() in text and real_name in menu_by_name and real_name not in counts:
-            counts[real_name] = 1
-
+    menu_by_name = {item["name"]: item for item in menu_items}
     items = []
     total = 0
-    for name, qty in counts.items():
-        if name not in menu_by_name:
+    for name in sorted(counts, key=lambda item_name: order_index[item_name]):
+        item = menu_by_name.get(name)
+        if not item:
             continue
-        price = int(menu_by_name[name].get("price", 0) or 0)
+        qty = min(max(int(counts[name] or 1), 1), 20)
+        price = int(item.get("price", 0) or 0)
         items.append({"name": name, "qty": qty, "price": price})
         total += price * qty
 
     if not items:
         return None
 
-    summary_parts = [f"{item['name']} x{item['qty']}" for item in items]
-    reply = "جهزت لك الطلب:\n" + "\n".join(f"- {part}" for part in summary_parts) + f"\nالمجموع: {total} شيكل"
+    reply = "جهزت لك الطلب:\n" + "\n".join(f"- {item['name']} x{item['qty']}" for item in items) + f"\nالمجموع: {total} شيكل"
     return {"reply": reply, "items": items, "total": total}
-
 
 def parse_gemini_json(text, menu_items=None):
     menu_items = menu_items or []
@@ -748,18 +851,21 @@ async def chat_with_ai(request: Request):
 
     menu_text = "\n".join([f"- {item['name']}: {item['price']} شيكل" for item in menu_items])
     system_prompt = f"""
-أنت مساعد طلبات ذكي في LE Coffee.
+أنت مساعد طلبات ذكي في LE Coffee. مهمتك فقط فهم طلب المستخدم من المنيو وتحويله إلى JSON.
+لا تسأل عن رقم المكتب، ولا تتكلم عن الدفع، ولا تضف أصنافاً غير موجودة.
+افهم العامية والأخطاء البسيطة والاختصارات، واجمع كل الأصناف والكميات من الرسالة الواحدة.
+إذا ذكر المستخدم صنفاً قريباً من صنف في القائمة، اختر أقرب اسم مطابق من القائمة.
 اعتمد فقط على هذه القائمة:
 {menu_text}
 
 أجب دائماً بصيغة JSON فقط وبدون أي نص خارج JSON:
 {{
-  "reply": "رد لطيف وقصير بالعربية",
-  "items": [{{"name": "اسم مطابق للقائمة", "qty": 1}}],
+  "reply": "رد قصير يؤكد الأصناف والمجموع بالعربية",
+  "items": [{{"name": "اسم مطابق تماماً للقائمة", "qty": 1}}],
   "total": 0
 }}
 
-إذا لم يكن الطلب واضحاً، اجعل items فارغة واطلب التوضيح في reply.
+إذا لم تفهم أي صنف، اجعل items فارغة واطلب توضيح اسم الصنف فقط.
 """.strip()
 
     if not GEMINI_KEYS:
@@ -771,7 +877,7 @@ async def chat_with_ai(request: Request):
         genai.configure(api_key=GEMINI_KEYS[0])
         model = genai.GenerativeModel(GEMINI_MODEL, system_instruction=system_prompt)
         chat_history = []
-        for msg in history:
+        for msg in history[-4:]:
             role = "model" if msg.get("role") == "model" else "user"
             chat_history.append({"role": role, "parts": [msg.get("content", "")]})
 
@@ -803,11 +909,14 @@ async def create_order(request: Request):
     guest_phone = clean_office_name(data.get("guest_phone"))
     office_pin = str(data.get("office_pin", "")).strip()
 
-    if not office or not items:
-        return {"status": "error", "message": "missing order data"}
-
-
     is_guest = is_guest_office(office)
+    quick_guest_payment = is_guest and (bool(data.get("quick_payment")) or order_type == "دفع سريع للزائر")
+
+    if not office or (not items and not quick_guest_payment):
+        return {"status": "error", "message": "missing order data"}
+    if quick_guest_payment and total_price <= 0:
+        return {"status": "error", "message": "قيمة الدفع السريع مطلوبة"}
+
     if not is_guest and not is_valid_office_number(office):
         return {"status": "error", "message": "رقم المكتب يجب أن يكون 3 أرقام ويبدأ بـ 2 أو 4"}
     if is_guest and not re.fullmatch(r"05\d{8}", guest_phone or ""):
@@ -845,17 +954,24 @@ async def create_order(request: Request):
     try:
         conn = get_db()
         c = conn.cursor()
-        menu_by_name = get_menu_by_name(c)
-        snapshot, missing_item = build_order_snapshot(items, menu_by_name)
-        if missing_item or not snapshot:
-            c.close()
-            conn.close()
-            return {"status": "error", "message": f"الصنف غير متاح في المنيو: {missing_item or ''}"}
-        total_price = sum(int(item.get("price", 0) or 0) for item in snapshot)
-        details_text = ", ".join(item["name"] for item in snapshot)
-        item_snapshot = json.dumps(snapshot, ensure_ascii=False)
-        if any(item.get("cat") == "snack" for item in snapshot):
-            order_type = "داخل الكوفي كورنر"
+        if quick_guest_payment:
+            snapshot = []
+            details_text = "دفع سريع للزائر"
+            item_snapshot = json.dumps(snapshot, ensure_ascii=False)
+            order_type = "دفع سريع للزائر"
+            total_price = int(total_price or 0)
+        else:
+            menu_by_name = get_menu_by_name(c)
+            snapshot, missing_item = build_order_snapshot(items, menu_by_name)
+            if missing_item or not snapshot:
+                c.close()
+                conn.close()
+                return {"status": "error", "message": f"الصنف غير متاح في المنيو: {missing_item or ''}"}
+            total_price = sum(int(item.get("price", 0) or 0) for item in snapshot)
+            details_text = ", ".join(item["name"] for item in snapshot)
+            item_snapshot = json.dumps(snapshot, ensure_ascii=False)
+            if any(item.get("cat") == "snack" for item in snapshot):
+                order_type = "داخل الكوفي كورنر"
         if not is_guest:
             c.execute(
                 """
@@ -1376,7 +1492,7 @@ async def admin_dashboard():
 
         c.execute(
             """
-            SELECT id, details, total_price, location, timestamp, (receipt IS NOT NULL AND receipt <> '') AS has_receipt, guest_phone, status, is_paid, missing_note
+            SELECT id, details, total_price, location, timestamp, (receipt IS NOT NULL AND receipt <> '') AS has_receipt, guest_phone, status, is_paid, missing_note, order_type
             FROM orders
             WHERE location LIKE 'زائر%%' AND status<>'ملغي'
             ORDER BY id DESC
@@ -1395,6 +1511,7 @@ async def admin_dashboard():
                 "status": row[7],
                 "is_paid": row[8],
                 "rejection_note": row[9],
+                "order_type": row[10],
             }
             for row in c.fetchall()
         ]
