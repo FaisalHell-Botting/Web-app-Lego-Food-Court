@@ -310,8 +310,11 @@
         <div id="draftOrderItems" class="space-y-2"></div>
     </div>
 
-    <div class="flex gap-2 mt-4 mb-4">
-        <button id="tabQuick" onclick="switchOrderMode('quick')" class="hidden flex-1 py-2.5 rounded-xl text-sm font-bold transition-all border text-gray-500 bg-white border-gray-200">
+    <div id="officeMenuHeading" class="mt-4 mb-3 hidden">
+        <h2 class="text-xl font-black text-navy">أهلاً، تفضل المنيو</h2>
+    </div>
+    <div id="guestModeTabs" class="flex gap-2 mt-4 mb-4 hidden">
+        <button id="tabQuick" onclick="switchOrderMode('quick')" class="flex-1 py-2.5 rounded-xl text-sm font-bold transition-all border text-gray-500 bg-white border-gray-200">
             الدفع السريع
         </button>
         <button id="tabMenu" onclick="switchOrderMode('menu')" class="tab-active flex-1 py-2.5 rounded-xl text-sm font-bold transition-all border">
@@ -695,7 +698,8 @@ async function login(type) {
     document.getElementById('orderTypeCard').classList.toggle('hidden', user.isGuest);
     document.getElementById('debtSummaryCard').classList.toggle('hidden', user.isGuest);
     document.getElementById('ledgerHeaderBtn').classList.toggle('hidden', user.isGuest);
-    document.getElementById('tabQuick').classList.toggle('hidden', !user.isGuest);
+    document.getElementById('guestModeTabs').classList.toggle('hidden', !user.isGuest);
+    document.getElementById('officeMenuHeading').classList.toggle('hidden', user.isGuest);
     document.getElementById('aiAssistantFab').classList.remove('hidden');
     await loadMenu();
     setOrderType('داخل الكوفي كورنر');
@@ -747,7 +751,8 @@ async function restoreState() {
         document.getElementById('orderTypeCard').classList.toggle('hidden', user.isGuest);
         document.getElementById('debtSummaryCard').classList.toggle('hidden', user.isGuest);
     document.getElementById('ledgerHeaderBtn').classList.toggle('hidden', user.isGuest);
-        document.getElementById('tabQuick').classList.toggle('hidden', !user.isGuest);
+        document.getElementById('guestModeTabs').classList.toggle('hidden', !user.isGuest);
+        document.getElementById('officeMenuHeading').classList.toggle('hidden', user.isGuest);
         document.getElementById('aiAssistantFab').classList.remove('hidden');
         await loadMenu();
         document.getElementById('quickPaymentInfo').innerHTML = renderQuickPaymentInfo();
@@ -769,7 +774,7 @@ function switchOrderMode(mode) {
     const isMenu = mode === 'menu';
     document.getElementById('quickPaymentMode').classList.toggle('hidden', !isQuick);
     document.getElementById('menuMode').classList.toggle('hidden', !isMenu);
-    document.getElementById('tabQuick').className = `${isQuick ? 'tab-active' : 'text-gray-500 bg-white border-gray-200'} ${user.isGuest ? '' : 'hidden'} flex-1 py-2.5 rounded-xl text-sm font-bold transition-all border`;
+    document.getElementById('tabQuick').className = `${isQuick ? 'tab-active' : 'text-gray-500 bg-white border-gray-200'} flex-1 py-2.5 rounded-xl text-sm font-bold transition-all border`;
     document.getElementById('tabMenu').className = `${isMenu ? 'tab-active' : 'text-gray-500 bg-white border-gray-200'} flex-1 py-2.5 rounded-xl text-sm font-bold transition-all border`;
     updateCartBar();
     persistState();
