@@ -650,6 +650,7 @@ function renderGuests(orders) {
         const statusClass = isPaid ? 'bg-green-100 text-green-700' : (isRejected ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700');
         const statusText = isPaid ? 'مدفوع' : (isRejected ? 'فاتورة مرفوضة' : 'بانتظار المراجعة');
         const phone = o.guest_phone || '';
+        const isQuickPayment = o.order_type === 'دفع سريع للزائر';
         const phoneEscaped = phone.replace(/'/g, "\\'");
         return `
         <div class="bg-white p-4 rounded-2xl border shadow-sm slide-up ${o.help_requested ? 'border-red-200 bg-red-50/40' : ''}">
@@ -657,7 +658,10 @@ function renderGuests(orders) {
                 <span class="font-bold text-[#2E3468] text-sm">#${o.id} · ${o.location}</span>
                 <span class="text-xs ${statusClass} font-bold px-2 py-1 rounded-full">${statusText}</span>
             </div>
-            <p class="text-sm text-navy font-bold bg-gray-50 p-3 rounded-xl mb-3 leading-relaxed">${o.details}</p>
+            <div class="text-sm text-navy font-bold bg-gray-50 p-3 rounded-xl mb-3 leading-relaxed">
+                ${isQuickPayment ? `<span class="inline-flex mb-2 px-2 py-1 rounded-full bg-blue-100 text-blue-700 text-xs font-black">دفع سريع</span>` : ''}
+                <p>${o.details}</p>
+            </div>
             <div class="bg-blue-50 border border-blue-100 rounded-xl p-3 mb-3">
                 <p class="text-xs text-gray-500 font-bold mb-2">رقم جوال الزائر</p>
                 ${phone ? `<div class="flex gap-2"><a href="tel:${phone}" class="flex-1 bg-[#2E3468] text-white text-center py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-1.5">${ICON_PHONE}<span>اتصال</span></a><button onclick="copyPhone('${phoneEscaped}')" class="flex-1 bg-white border text-[#2E3468] py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-1.5">${ICON_COPY}<span>نسخ الرقم</span></button></div><p dir="ltr" class="text-center text-[#2E3468] font-black mt-2">${phone}</p>` : '<p class="text-xs text-red-400 font-bold">لا يوجد رقم جوال</p>'}
