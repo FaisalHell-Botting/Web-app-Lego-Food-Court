@@ -591,7 +591,9 @@ function renderLedger(debts) {
             </td>
             <td class="p-4">
                 <div class="flex gap-2">
-                    <button onclick="action('remind', null, '${d.office}')" class="bg-[#F7CC46] text-[#2E3468] px-3 py-1.5 text-xs rounded-lg font-bold shadow hover:bg-yellow-300 transition-colors flex items-center justify-center gap-1.5">${ICON_BELL}<span>إرسال تذكير</span></button>
+                    ${d.has_active_reminder
+                        ? `<button disabled class="bg-gray-100 text-gray-400 px-3 py-1.5 text-xs rounded-lg font-bold cursor-not-allowed flex items-center justify-center gap-1.5">${ICON_BELL}<span>تذكير مرسل</span></button>`
+                        : `<button onclick="action('remind', null, '${d.office}')" class="bg-[#F7CC46] text-[#2E3468] px-3 py-1.5 text-xs rounded-lg font-bold shadow hover:bg-yellow-300 transition-colors flex items-center justify-center gap-1.5">${ICON_BELL}<span>إرسال تذكير</span></button>`}
                     <button onclick="action('mark_paid', null, '${d.office}')" class="bg-green-100 text-green-700 px-3 py-1.5 text-xs rounded-lg font-bold hover:bg-green-200 transition-colors flex items-center justify-center gap-1.5">${ICON_WALLET}<span>سداد يدوي</span></button>
                     <button onclick="openDebtEditor('${d.office}')" class="bg-blue-100 text-blue-700 px-3 py-1.5 text-xs rounded-lg font-bold hover:bg-blue-200 transition-colors flex items-center justify-center gap-1.5">${ICON_EDIT}<span>تعديل</span></button>
                 </div>
