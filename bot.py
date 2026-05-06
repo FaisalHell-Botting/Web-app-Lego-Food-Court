@@ -1573,8 +1573,16 @@ async def admin_action(request: Request):
                 c.close()
                 conn.close()
                 return {"status": "error", "message": "office is required"}
+            active_reminder = get_active_reminder(c, office)
+            if active_reminder:
+                c.close()
+                conn.close()
+                return {"status": "error", "message": "يوجد تذكير دفع فعال لهذا المكتب"}
             amount = fetch_current_debt(c, office)
-            c.execute("UPDATE reminders SET is_active=0 WHERE office=%s", (office,))
+            if amount <= 0:
+                c.close()
+                conn.close()
+                return {"status": "error", "message": "لا يوجد دين حالي لهذا المكتب"}
             c.execute(
                 """
                 INSERT INTO reminders (office, amount, payment_info, is_active, is_seen, created_at)
