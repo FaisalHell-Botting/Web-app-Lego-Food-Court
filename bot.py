@@ -157,6 +157,7 @@ def normalize_menu_row(row):
         "is_active": int(row[7] or 0),
         "is_deleted": int(row[8] or 0),
         "sort_order": int(row[9] or 0),
+        "is_today_special": int(row[10] or 0),
     }
     if item["cat"] == "candy":
         item["snack_type_label"] = CANDY_TYPE_META.get(item["snack_type"], CANDY_TYPE_META["sweet"])["label"]
@@ -169,7 +170,7 @@ def fetch_menu_items(cursor, include_hidden=False):
         where += " AND COALESCE(is_active,1)=1"
     cursor.execute(
         f"""
-        SELECT id, item_key, name, price, category, emoji, snack_type, is_active, is_deleted, sort_order
+        SELECT id, item_key, name, price, category, emoji, snack_type, is_active, is_deleted, sort_order, is_today_special
         FROM menu_items
         WHERE {where}
         ORDER BY category ASC, sort_order ASC, id ASC
@@ -648,6 +649,7 @@ def init_db():
             is_active INTEGER DEFAULT 1,
             is_deleted INTEGER DEFAULT 0,
             sort_order INTEGER DEFAULT 0,
+            is_today_special INTEGER DEFAULT 0,
             created_at TEXT,
             updated_at TEXT
         )
@@ -663,6 +665,7 @@ def init_db():
         ("is_active", "INTEGER DEFAULT 1"),
         ("is_deleted", "INTEGER DEFAULT 0"),
         ("sort_order", "INTEGER DEFAULT 0"),
+        ("is_today_special", "INTEGER DEFAULT 0"),
         ("created_at", "TEXT"),
         ("updated_at", "TEXT"),
     ]:
@@ -1882,6 +1885,7 @@ async def admin_action(request: Request):
             category = clean_office_name(data.get("category"))
             snack_type = clean_office_name(data.get("snack_type"))
             price = int(data.get("price", 0) or 0)
+            is_today_special = 1 if int(data.get("is_today_special", 0) or 0) else 0
             if category not in VALID_MENU_CATEGORIES:
                 return {"status": "error", "message": "تصنيف المنيو غير صحيح"}
             if category == "candy":
@@ -1898,10 +1902,10 @@ async def admin_action(request: Request):
                 item_key = f"db{int(datetime.utcnow().timestamp() * 1000)}{random.randint(100,999)}"
                 c.execute(
                     """
-                    INSERT INTO menu_items (item_key, name, price, category, emoji, snack_type, is_active, is_deleted, sort_order, created_at, updated_at)
-                    VALUES (%s,%s,%s,%s,%s,%s,1,0,%s,%s,%s)
+                    INSERT INTO menu_items (item_key, name, price, category, emoji, snack_type, is_active, is_deleted, sort_order, is_today_special, created_at, updated_at)
+                    VALUES (%s,%s,%s,%s,%s,%s,1,0,%s,%s,%s,%s)
                     """,
-                    (item_key, name, price, category, emoji, snack_type, sort_order, now, now),
+                    (item_key, name, price, category, emoji, snack_type, sort_order, is_today_special, now, now),
                 )
             else:
                 if not item_id:
@@ -1909,10 +1913,10 @@ async def admin_action(request: Request):
                 c.execute(
                     """
                     UPDATE menu_items
-                    SET name=%s, price=%s, category=%s, emoji=%s, snack_type=%s, updated_at=%s
+                    SET name=%s, price=%s, category=%s, emoji=%s, snack_type=%s, is_today_special=%s, updated_at=%s
                     WHERE id=%s AND COALESCE(is_deleted,0)=0
                     """,
-                    (name, price, category, emoji, snack_type, now, item_id),
+                    (name, price, category, emoji, snack_type, is_today_special, now, item_id),
                 )
                 if c.rowcount == 0:
                     return {"status": "error", "message": "الصنف غير موجود"}
@@ -1922,6 +1926,12 @@ async def admin_action(request: Request):
             if not item_id:
                 return {"status": "error", "message": "item_id is required"}
             c.execute("UPDATE menu_items SET is_active=%s, updated_at=%s WHERE id=%s AND COALESCE(is_deleted,0)=0", (is_active, get_pal_time(), item_id))
+        elif action == "toggle_menu_today_special":
+            item_id = data.get("item_id")
+            is_today_special = 1 if int(data.get("is_today_special", 0) or 0) else 0
+            if not item_id:
+                return {"status": "error", "message": "item_id is required"}
+            c.execute("UPDATE menu_items SET is_today_special=%s, updated_at=%s WHERE id=%s AND COALESCE(is_deleted,0)=0", (is_today_special, get_pal_time(), item_id))
         elif action == "delete_menu_item":
             item_id = data.get("item_id")
             if not item_id:
