@@ -640,8 +640,12 @@ let officePinMode = 'verify';
 let pendingNewOfficePin = null;
 const debtTransferDefaults = {
     bank: 'بنك فلسطين',
+    bankOwner: 'محمد سلمان ابراهيم جندية',
     id: '1512081',
     iban: 'PS11PALS045115120810993100000',
+    bankMobile: '0599323410',
+    walletTitle: 'محفظة بال باي',
+    walletOwner: 'كمال رفيق كمال عبيد',
     wallet: '0597489605'
 };
 const STORAGE_KEY = 'lecoffee_user_state_v1';
@@ -1365,8 +1369,12 @@ function parsePaymentInfo(info) {
     const lines = (info || '').split('\n').map(line => line.trim()).filter(Boolean);
     const parsed = {
         bank: debtTransferDefaults.bank,
+        bankOwner: debtTransferDefaults.bankOwner,
         id: debtTransferDefaults.id,
         iban: debtTransferDefaults.iban,
+        bankMobile: debtTransferDefaults.bankMobile,
+        walletTitle: debtTransferDefaults.walletTitle,
+        walletOwner: debtTransferDefaults.walletOwner,
         wallet: debtTransferDefaults.wallet,
         raw: info || ''
     };
@@ -1395,17 +1403,20 @@ function paymentInfoCard(label, value, copyValue) {
     `;
 }
 function renderStructuredPaymentInfo(source) {
-    const parsed = typeof source === 'string' ? parsePaymentInfo(source) : (source || debtTransferDefaults);
+    const parsed = typeof source === 'string' ? parsePaymentInfo(source) : { ...debtTransferDefaults, ...(source || {}) };
     return `
         <div class="bg-gray-50 rounded-2xl border p-3">
-            <p class="text-xs text-gray-400 font-black mb-2">معلومات الدفع - بنك فلسطين</p>
+            <p class="text-xs text-gray-400 font-black mb-1">معلومات الدفع - ${parsed.bank || debtTransferDefaults.bank}</p>
+            <p class="text-[11px] text-navy font-bold mb-2">${parsed.bankOwner || debtTransferDefaults.bankOwner}</p>
             <div class="space-y-2">
+                ${paymentInfoCard('Mobile Number', parsed.bankMobile, parsed.bankMobile)}
                 ${paymentInfoCard('ID', parsed.id, parsed.id)}
                 ${paymentInfoCard('IBAN', parsed.iban, parsed.iban)}
             </div>
         </div>
         <div class="bg-blue-50 rounded-2xl border border-blue-100 p-3">
-            <p class="text-xs text-gray-400 font-black mb-2">معلومات الدفع - محفظة بال باي</p>
+            <p class="text-xs text-gray-400 font-black mb-1">معلومات الدفع - ${parsed.walletTitle || debtTransferDefaults.walletTitle}</p>
+            <p class="text-[11px] text-navy font-bold mb-2">${parsed.walletOwner || debtTransferDefaults.walletOwner}</p>
             ${paymentInfoCard('Mobile Number', parsed.wallet, parsed.wallet)}
         </div>
     `;
