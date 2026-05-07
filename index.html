@@ -35,7 +35,7 @@
             width: 60%;
             background: linear-gradient(110deg, transparent, rgba(255,255,255,0.78), transparent);
             transform: rotate(14deg);
-            animation: todayBadgeShine 2.4s ease-in-out infinite;
+            animation: todayBadgeShine 1.65s ease-in-out infinite;
         }
         @keyframes todayBadgeShine {
             0%, 22% { right: -85%; opacity: 0; }
@@ -837,7 +837,7 @@ function renderMenu(cat) {
         const qty = cart[item.id] || 0;
         const todaySpecial = Number(item.is_today_special || 0) === 1;
         return `
-        <div class="relative bg-white p-4 rounded-2xl shadow-sm border ${todaySpecial ? 'border-yellow-200 ring-1 ring-yellow-100' : 'border-gray-100'} flex flex-col justify-between slide-up overflow-hidden">
+        <div class="relative bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between slide-up overflow-hidden">
             ${todaySpecial ? '<div class="today-special-badge absolute top-2 left-2 bg-[#F7CC46] text-white border border-yellow-300 rounded-full px-2.5 py-1 text-[10px] font-black shadow-md"><span class="relative z-10">اليوم فقط</span></div>' : ''}
             <div class="mb-3">
                 <div class="text-2xl mb-1">${item.emoji}</div>
