@@ -818,8 +818,10 @@ function renderMenu(cat) {
     const items = fullMenu.filter(i => i.cat === cat);
     document.getElementById('menuContainer').innerHTML = items.map(item => {
         const qty = cart[item.id] || 0;
+        const todaySpecial = Number(item.is_today_special || 0) === 1;
         return `
-        <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between slide-up">
+        <div class="relative bg-white p-4 rounded-2xl shadow-sm border ${todaySpecial ? 'border-yellow-200 ring-1 ring-yellow-100' : 'border-gray-100'} flex flex-col justify-between slide-up overflow-hidden">
+            ${todaySpecial ? '<div class="absolute top-2 left-2 bg-gradient-to-r from-yellow-200 via-[#F7CC46] to-yellow-100 text-navy border border-yellow-200 rounded-full px-2 py-1 text-[10px] font-black shadow-sm">اليوم فقط</div>' : ''}
             <div class="mb-3">
                 <div class="text-2xl mb-1">${item.emoji}</div>
                 <h3 class="font-bold text-sm text-navy leading-tight">${item.name}</h3>
