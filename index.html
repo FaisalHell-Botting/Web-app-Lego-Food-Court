@@ -641,13 +641,13 @@ let pendingNewOfficePin = null;
 const debtTransferDefaults = {
     bank: 'بنك فلسطين',
     bankOwner: 'محمد سلمان ابراهيم جندية',
-    bankIcon: 'https://commons.wikimedia.org/wiki/Special:Redirect/file/Logo_de_Bank_of_Palestine.jpg?width=96',
+    bankIcon: 'bank-of-palestine.png',
     id: '1512081',
     iban: 'PS11PALS045115120810993100000',
     bankMobile: '0599323410',
     walletTitle: 'محفظة بال باي',
     walletOwner: 'كمال رفيق كمال عبيد',
-    walletIcon: 'https://www.palpay.ps/storage/2025/07/03/Y2cxaGx3eHZ6Mjh4bnptNW5kdXoxNzUxNTM2NjU5.png',
+    walletIcon: 'palpay.png',
     wallet: '0597489605'
 };
 const STORAGE_KEY = 'lecoffee_user_state_v1';
@@ -1411,7 +1411,7 @@ function renderStructuredPaymentInfo(source) {
     return `
         <div class="bg-gray-50 rounded-2xl border p-3">
             <div class="flex items-center gap-3 mb-2">
-                <img src="${parsed.bankIcon || debtTransferDefaults.bankIcon}" alt="بنك فلسطين" onerror="this.style.display='none'" class="w-12 h-12 rounded-xl object-cover border border-pink-100 bg-white shrink-0">
+                <img src="${parsed.bankIcon || debtTransferDefaults.bankIcon}" alt="بنك فلسطين" onerror="this.style.display='none'" class="w-12 h-12 rounded object-cover border border-pink-100 bg-white shrink-0">
                 <div class="text-right min-w-0">
                     <p class="text-xs text-gray-400 font-black mb-1">معلومات الدفع - ${parsed.bank || debtTransferDefaults.bank}</p>
                     <p class="text-[11px] text-navy font-bold">${parsed.bankOwner || debtTransferDefaults.bankOwner}</p>
@@ -1425,7 +1425,7 @@ function renderStructuredPaymentInfo(source) {
         </div>
         <div class="bg-blue-50 rounded-2xl border border-blue-100 p-3">
             <div class="flex items-center gap-3 mb-2">
-                <img src="${parsed.walletIcon || debtTransferDefaults.walletIcon}" alt="محفظة بال باي" onerror="this.style.display='none'" class="w-12 h-12 rounded-xl object-cover border border-blue-100 bg-white shrink-0">
+                <img src="${parsed.walletIcon || debtTransferDefaults.walletIcon}" alt="محفظة بال باي" onerror="this.style.display='none'" class="w-12 h-12 rounded object-cover border border-blue-100 bg-white shrink-0">
                 <div class="text-right min-w-0">
                     <p class="text-xs text-gray-400 font-black mb-1">معلومات الدفع - ${parsed.walletTitle || debtTransferDefaults.walletTitle}</p>
                     <p class="text-[11px] text-navy font-bold">${parsed.walletOwner || debtTransferDefaults.walletOwner}</p>
