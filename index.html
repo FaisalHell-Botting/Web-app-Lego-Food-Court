@@ -25,6 +25,32 @@
         .pulse-dot { animation: pulse 1.5s infinite; }
         @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
         .tab-active { background: #2E3468; color: white !important; }
+        .today-special-card { position: relative; }
+        .today-special-card::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: 1rem;
+            background: linear-gradient(135deg, rgba(247,204,70,0.13), transparent 45%, rgba(255,255,255,0.42));
+            pointer-events: none;
+        }
+        .today-special-badge { position: relative; overflow: hidden; backdrop-filter: blur(7px); }
+        .today-special-badge::after {
+            content: '';
+            position: absolute;
+            top: -35%;
+            bottom: -35%;
+            right: -80%;
+            width: 55%;
+            background: linear-gradient(110deg, transparent, rgba(255,255,255,0.72), transparent);
+            transform: rotate(12deg);
+            animation: todayBadgeShine 2.7s ease-in-out infinite;
+        }
+        @keyframes todayBadgeShine {
+            0%, 25% { right: -80%; opacity: 0; }
+            45% { opacity: 1; }
+            75%, 100% { right: 130%; opacity: 0; }
+        }
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .ai-tab-glow { position: relative; overflow: hidden; }
         .ai-tab-glow::after {
@@ -820,8 +846,8 @@ function renderMenu(cat) {
         const qty = cart[item.id] || 0;
         const todaySpecial = Number(item.is_today_special || 0) === 1;
         return `
-        <div class="relative bg-white p-4 rounded-2xl shadow-sm border ${todaySpecial ? 'border-yellow-200 ring-1 ring-yellow-100' : 'border-gray-100'} flex flex-col justify-between slide-up overflow-hidden">
-            ${todaySpecial ? '<div class="absolute top-2 left-2 bg-gradient-to-r from-yellow-200 via-[#F7CC46] to-yellow-100 text-navy border border-yellow-200 rounded-full px-2 py-1 text-[10px] font-black shadow-sm">اليوم فقط</div>' : ''}
+        <div class="relative bg-white p-4 rounded-2xl shadow-sm border ${todaySpecial ? 'today-special-card border-yellow-200 ring-1 ring-yellow-100' : 'border-gray-100'} flex flex-col justify-between slide-up overflow-hidden">
+            ${todaySpecial ? '<div class="today-special-badge absolute top-2 left-2 bg-white/55 text-navy border border-yellow-200 rounded-full px-2 py-1 text-[10px] font-black shadow-sm"><span class="relative z-10">اليوم فقط</span></div>' : ''}
             <div class="mb-3">
                 <div class="text-2xl mb-1">${item.emoji}</div>
                 <h3 class="font-bold text-sm text-navy leading-tight">${item.name}</h3>
