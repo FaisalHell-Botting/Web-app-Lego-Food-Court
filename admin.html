@@ -266,6 +266,10 @@
         <option value="nuts">مكسرات</option>
         <option value="sweet">حلو</option>
       </select>
+      <label class="flex items-center justify-between gap-3 border-2 border-yellow-100 bg-yellow-50 rounded-2xl p-3 text-sm font-bold text-[#2E3468] cursor-pointer">
+        <span>تمييز الصنف كبند اليوم فقط</span>
+        <input id="menuItemTodaySpecial" type="checkbox" class="w-5 h-5 accent-[#F7CC46]">
+      </label>
     </div>
     <div class="grid grid-cols-2 gap-3 mt-5">
       <button onclick="submitMenuItem()" class="bg-[#2E3468] text-white py-3 rounded-2xl font-bold flex items-center justify-center gap-2">
@@ -289,6 +293,7 @@ const ICON_EDIT = '<svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none"
 const ICON_COPY = '<svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>';
 const ICON_KEY = '<svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></svg>';
 const ICON_TRASH = '<svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>';
+const ICON_SPARK = '<svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.8L20 11l-6.1 2.2L12 19l-1.9-5.8L4 11l6.1-2.2Z"/></svg>';
 let targetMissingOrder = null;
 let currentOrderDetailsArray = [];
 let selectedMissingItems = [];
@@ -730,6 +735,7 @@ function renderAdminMenu(items) {
     }
     list.innerHTML = visibleItems.map(item => {
         const active = Number(item.is_active || 0) === 1;
+        const todaySpecial = Number(item.is_today_special || 0) === 1;
         const categoryLabel = MENU_CATEGORY_LABELS[item.cat] || item.cat || '-';
         const typeLabel = item.cat === 'candy' ? (CANDY_TYPE_LABELS[item.snack_type] || item.snack_type_label || 'حلو') : '';
         return `
@@ -739,11 +745,13 @@ function renderAdminMenu(items) {
                     <div class="text-3xl mb-2">${item.emoji || '☕'}</div>
                     <h3 class="font-black text-[#2E3468] text-sm break-words">${item.name}</h3>
                     <p class="text-xs text-gray-400 font-bold mt-1">${categoryLabel}${typeLabel ? ' · ' + typeLabel : ''}</p>
+                    ${todaySpecial ? `<span class="inline-flex items-center gap-1 mt-2 bg-yellow-100 text-yellow-700 border border-yellow-200 rounded-full px-2 py-1 text-[11px] font-black">${ICON_SPARK}<span>اليوم فقط</span></span>` : ''}
                 </div>
                 <span class="font-black text-lg text-[#2E3468] shrink-0">${item.price} ₪</span>
             </div>
-            <div class="grid grid-cols-3 gap-2">
+            <div class="grid grid-cols-2 gap-2">
                 <button onclick="toggleMenuItem(${item.db_id}, ${active ? 0 : 1})" class="${active ? 'bg-yellow-50 text-yellow-700 border-yellow-100' : 'bg-green-50 text-green-700 border-green-100'} border py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1">${active ? ICON_X : ICON_CHECK}<span>${active ? 'إخفاء' : 'تفعيل'}</span></button>
+                <button onclick="toggleMenuTodaySpecial(${item.db_id}, ${todaySpecial ? 0 : 1})" class="${todaySpecial ? 'bg-yellow-100 text-yellow-700 border-yellow-200' : 'bg-gray-50 text-gray-600 border-gray-100'} border py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1">${ICON_SPARK}<span>${todaySpecial ? 'عادي' : 'اليوم فقط'}</span></button>
                 <button onclick="openMenuItemModal(${item.db_id})" class="bg-blue-50 text-blue-700 border border-blue-100 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1">${ICON_EDIT}<span>تعديل</span></button>
                 <button onclick="deleteMenuItem(${item.db_id})" class="bg-red-50 text-red-600 border border-red-100 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1">${ICON_TRASH}<span>حذف</span></button>
             </div>
@@ -764,6 +772,7 @@ function openMenuItemModal(id=null) {
     document.getElementById('menuItemPrice').value = item ? item.price : '';
     document.getElementById('menuItemCategory').value = item ? item.cat : currentMenuFilter;
     document.getElementById('menuItemSnackType').value = item && item.snack_type ? item.snack_type : 'sweet';
+    document.getElementById('menuItemTodaySpecial').checked = item ? Number(item.is_today_special || 0) === 1 : false;
     handleMenuCategoryChange();
     document.getElementById('menuItemModal').classList.remove('hidden');
 }
@@ -778,11 +787,12 @@ async function submitMenuItem() {
     const price = Number(document.getElementById('menuItemPrice').value || 0);
     const category = document.getElementById('menuItemCategory').value;
     const snackType = document.getElementById('menuItemSnackType').value;
+    const isTodaySpecial = document.getElementById('menuItemTodaySpecial').checked ? 1 : 0;
     if (!name || price < 0) { alert('اسم الصنف والسعر مطلوبان'); return; }
     const res = await fetch(`${API_URL}/admin/action`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: itemId ? 'update_menu_item' : 'add_menu_item', item_id: itemId || null, name, price, category, snack_type: snackType })
+        body: JSON.stringify({ action: itemId ? 'update_menu_item' : 'add_menu_item', item_id: itemId || null, name, price, category, snack_type: snackType, is_today_special: isTodaySpecial })
     });
     const data = await res.json();
     if (data.status !== 'success') { alert(data.message || 'تعذر حفظ الصنف'); return; }
@@ -797,6 +807,12 @@ async function toggleMenuItem(id, isActive) {
     fetchData();
 }
 
+async function toggleMenuTodaySpecial(id, isTodaySpecial) {
+    const res = await fetch(`${API_URL}/admin/action`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle_menu_today_special', item_id: id, is_today_special: isTodaySpecial }) });
+    const data = await res.json();
+    if (data.status !== 'success') { alert(data.message || 'تعذر تحديث تمييز الصنف'); return; }
+    fetchData();
+}
 async function deleteMenuItem(id) {
     const item = latestMenuItems.find(i => Number(i.db_id) === Number(id));
     if (!confirm(`سيتم حذف الصنف من المنيو فقط ولن يتأثر سجل الطلبات القديم.\n\n${item ? item.name : ''}\n\nهل أنت متأكد؟`)) return;
