@@ -42,6 +42,20 @@
             42% { opacity: 1; }
             74%, 100% { right: 132%; opacity: 0; }
         }
+        .gift-ready-pulse { animation: giftPulse 1.35s ease-in-out infinite; }
+        @keyframes giftPulse { 0%,100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(34,197,94,0.38); } 50% { transform: scale(1.04); box-shadow: 0 0 0 8px rgba(34,197,94,0); } }
+        .gift-badge-pulse { animation: giftBadgePulse 1s ease-in-out infinite; }
+        @keyframes giftBadgePulse { 0%,100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.22); opacity: .78; } }
+        .reward-confetti span { position: absolute; width: 7px; height: 12px; border-radius: 3px; animation: rewardFall 1.8s linear infinite; }
+        .reward-confetti span:nth-child(1) { left: 12%; background: #F7CC46; animation-delay: 0s; }
+        .reward-confetti span:nth-child(2) { left: 25%; background: #2E3468; animation-delay: .2s; }
+        .reward-confetti span:nth-child(3) { left: 40%; background: #22c55e; animation-delay: .4s; }
+        .reward-confetti span:nth-child(4) { left: 58%; background: #ef4444; animation-delay: .1s; }
+        .reward-confetti span:nth-child(5) { left: 72%; background: #F7CC46; animation-delay: .35s; }
+        .reward-confetti span:nth-child(6) { left: 86%; background: #60a5fa; animation-delay: .55s; }
+        @keyframes rewardFall { 0% { top: -18px; transform: translateY(0) rotate(0deg); opacity: 0; } 15% { opacity: 1; } 100% { top: 105%; transform: translateY(20px) rotate(220deg); opacity: 0; } }
+        .gift-bounce { animation: giftBounce 1.05s ease-in-out infinite; }
+        @keyframes giftBounce { 0%,100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-8px) rotate(2deg); } }
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .ai-tab-glow { position: relative; overflow: hidden; }
         .ai-tab-glow::after {
@@ -268,6 +282,10 @@
                 </div>
             </div>
             <div class="flex items-center gap-2 shrink-0">
+                <button id="giftsHeaderBtn" onclick="toggleRewards()" class="relative text-xs font-bold text-navy bg-gray-100 px-3 py-1.5 rounded-full hover:bg-gray-200 transition-colors hidden">
+                    🎁 الهدايا
+                    <span id="giftsHeaderBadge" class="absolute -top-1 -left-1 w-3 h-3 bg-gray-300 rounded-full border-2 border-white"></span>
+                </button>
                 <button id="ledgerHeaderBtn" onclick="toggleLedger()" class="text-xs font-bold text-navy bg-gray-100 px-3 py-1.5 rounded-full hover:bg-gray-200 transition-colors">
                     📋 ديوني
                 </button>
@@ -550,6 +568,32 @@
     </div>
 </div>
 
+<div id="rewardsScreen" class="fixed inset-0 bg-[#F8F9FA] z-[91] overflow-y-auto hidden">
+    <div class="max-w-md mx-auto p-4">
+        <div class="flex items-center gap-3 pt-4 mb-5">
+            <button onclick="toggleRewards()" class="bg-white border p-2.5 rounded-xl font-bold text-navy shadow-sm">←</button>
+            <div><h2 class="font-black text-xl text-navy">الهدايا الأسبوعية</h2><p id="rewardsWeekText" class="text-xs text-gray-400 font-bold mt-1"></p></div>
+        </div>
+        <div class="bg-white border border-gray-100 rounded-3xl p-5 shadow-sm mb-4">
+            <div class="relative h-12 mb-2">
+                <div class="absolute top-1/2 left-0 right-0 h-2 bg-gray-100 rounded-full -translate-y-1/2 overflow-hidden"><div id="rewardsProgressBar" class="h-full bg-gradient-to-l from-green-400 to-[#F7CC46] rounded-full transition-all" style="width:0%"></div></div>
+                <div class="absolute top-1/2 right-[33%] -translate-y-1/2 w-10 h-10 rounded-full bg-white border-2 border-gray-100 flex items-center justify-center shadow-sm">🎁</div>
+                <div class="absolute top-1/2 right-[66%] -translate-y-1/2 w-10 h-10 rounded-full bg-white border-2 border-gray-100 flex items-center justify-center shadow-sm">🎁</div>
+                <div class="absolute top-1/2 left-0 -translate-y-1/2 w-10 h-10 rounded-full bg-white border-2 border-gray-100 flex items-center justify-center shadow-sm">🎁</div>
+            </div>
+            <p class="text-xs text-gray-400 font-bold text-center">كل أسبوع يبدأ الثلاثاء 8 صباحاً</p>
+        </div>
+        <div id="rewardsList" class="space-y-3"></div>
+    </div>
+</div>
+
+<div id="rewardWinModal" class="fixed inset-0 bg-black/75 z-[99] flex items-center justify-center p-4 hidden modal-focus-backdrop">
+    <div class="relative bg-white rounded-3xl w-full max-w-sm p-6 slide-up text-center overflow-hidden shadow-2xl">
+        <div class="reward-confetti absolute inset-0 pointer-events-none"><span></span><span></span><span></span><span></span><span></span><span></span></div>
+        <div class="relative z-10"><div class="gift-bounce text-6xl mb-3">🎁</div><h3 class="font-black text-2xl text-navy mb-1">مبروك!</h3><p class="text-sm text-gray-500 font-bold mb-4">لقد حصلت على جائزة</p><div class="bg-[#F7CC46] text-white rounded-2xl py-4 px-3 mb-4 shadow-lg"><p id="rewardPrizeName" class="font-black text-xl leading-relaxed"></p></div><button onclick="redeemCurrentReward()" class="w-full bg-green-600 text-white py-3.5 rounded-xl font-black shadow hover:bg-green-700 transition-colors">استلم هديتك</button><button onclick="closeModal('rewardWinModal')" class="w-full bg-gray-100 text-gray-500 py-2.5 rounded-xl font-bold mt-2">لاحقاً</button></div>
+    </div>
+</div>
+
 <div id="debtReminderModal" class="fixed inset-0 bg-black/70 z-[95] flex items-center justify-center p-4 hidden">
     <div class="bg-white rounded-3xl w-full max-w-sm max-h-[90vh] overflow-y-auto p-6 slide-up">
         <h3 class="font-black text-lg text-navy mb-2">تذكير بتسديد الدين</h3>
@@ -655,6 +699,8 @@ let editingOrderId = null;
 let storeIsOpen = true;
 let officePinMode = 'verify';
 let pendingNewOfficePin = null;
+let latestRewards = null;
+let pendingReward = null;
 const debtTransferDefaults = {
     bank: 'بنك فلسطين',
     bankOwner: 'محمد سلمان ابراهيم جندية',
@@ -721,6 +767,7 @@ async function login(type) {
     document.getElementById('orderTypeCard').classList.toggle('hidden', user.isGuest);
     document.getElementById('debtSummaryCard').classList.toggle('hidden', user.isGuest);
     document.getElementById('ledgerHeaderBtn').classList.toggle('hidden', user.isGuest);
+    document.getElementById('giftsHeaderBtn').classList.toggle('hidden', user.isGuest);
     document.getElementById('guestModeTabs').classList.toggle('hidden', !user.isGuest);
     document.getElementById('officeMenuHeading').classList.toggle('hidden', user.isGuest);
     document.getElementById('aiAssistantFab').classList.remove('hidden');
@@ -774,6 +821,7 @@ async function restoreState() {
         document.getElementById('orderTypeCard').classList.toggle('hidden', user.isGuest);
         document.getElementById('debtSummaryCard').classList.toggle('hidden', user.isGuest);
     document.getElementById('ledgerHeaderBtn').classList.toggle('hidden', user.isGuest);
+    document.getElementById('giftsHeaderBtn').classList.toggle('hidden', user.isGuest);
         document.getElementById('guestModeTabs').classList.toggle('hidden', !user.isGuest);
         document.getElementById('officeMenuHeading').classList.toggle('hidden', user.isGuest);
         document.getElementById('aiAssistantFab').classList.remove('hidden');
@@ -1348,6 +1396,7 @@ async function poll() {
         }
 
         renderDebtSummary(data);
+        renderRewards(data.rewards);
         renderLedger(data.orders || []);
         handleReminder(data.active_reminder, data.latest_payment_request, data.total_debt || 0);
         handleNewOfficePin(data.new_office_pin);
@@ -1358,6 +1407,95 @@ async function poll() {
         updateCartBar();
         persistState();
     } catch (e) {}
+}
+
+function renderRewards(rewards) {
+    if (user.isGuest) return;
+    latestRewards = rewards;
+    const btn = document.getElementById('giftsHeaderBtn');
+    const badge = document.getElementById('giftsHeaderBadge');
+    const hasReady = !!(rewards && rewards.has_ready_reward);
+    btn.className = hasReady ? 'relative text-xs font-bold text-white bg-green-500 px-3 py-1.5 rounded-full hover:bg-green-600 transition-colors gift-ready-pulse' : 'relative text-xs font-bold text-navy bg-gray-100 px-3 py-1.5 rounded-full hover:bg-gray-200 transition-colors';
+    badge.className = hasReady ? 'absolute -top-1 -left-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white gift-badge-pulse' : 'absolute -top-1 -left-1 w-3 h-3 bg-gray-300 rounded-full border-2 border-white';
+    renderRewardsScreen();
+}
+
+function renderRewardsScreen() {
+    const list = document.getElementById('rewardsList');
+    if (!list || !latestRewards) return;
+    document.getElementById('rewardsWeekText').innerText = latestRewards.week_start ? `الأسبوع الحالي بدأ ${formatDisplayTime(latestRewards.week_start)}` : '';
+    const tiers = latestRewards.tiers || [];
+    const doneCount = tiers.filter(t => ['claimed','ordered','approved'].includes(t.status)).length;
+    document.getElementById('rewardsProgressBar').style.width = `${Math.min(100, doneCount * 33.34)}%`;
+    list.innerHTML = tiers.map(tier => {
+        const reward = tier.reward || null;
+        const isDone = ['claimed','ordered','approved'].includes(tier.status);
+        const isApproved = tier.status === 'approved';
+        const isOrdered = tier.status === 'ordered';
+        const progressText = `${tier.raw_progress || 0}/${tier.target}`;
+        const iconClass = isApproved ? 'bg-green-100 text-green-600 border-green-200' : (isDone ? 'bg-green-50 text-green-600 border-green-100' : 'bg-gray-100 text-gray-400 border-gray-200');
+        const textClass = isApproved ? 'text-gray-400' : 'text-navy';
+        const safeName = reward ? String(reward.item_name || '').replace(/'/g, "\\'") : '';
+        const actionButton = tier.can_claim ? `<button onclick="claimReward('${tier.key}')" class="bg-green-600 text-white px-4 py-2 rounded-xl text-sm font-black shadow hover:bg-green-700 transition-colors">حصل</button>` : (tier.can_redeem && reward ? `<button onclick="showRewardModal(${reward.id}, '${safeName}')" class="bg-green-600 text-white px-4 py-2 rounded-xl text-sm font-black shadow hover:bg-green-700 transition-colors">استلم</button>` : `<span class="font-black ${isApproved ? 'text-green-600' : 'text-gray-400'}">${progressText}</span>`);
+        const statusText = isApproved ? 'تم استلام الهدية' : (isOrdered ? 'تم إرسال الهدية للكاشير' : (tier.can_redeem ? 'جائزتك جاهزة للاستلام' : ''));
+        const checkMark = isApproved ? '<span class="absolute -bottom-1 -left-1 w-5 h-5 rounded-full bg-green-500 text-white text-xs flex items-center justify-center border-2 border-white">✓</span>' : '<span class="absolute -bottom-1 -left-1 w-5 h-5 rounded-full bg-gray-200 text-white text-xs flex items-center justify-center border-2 border-white">✓</span>';
+        return `<div class="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm flex items-center justify-between gap-3"><div class="flex items-center gap-3 min-w-0"><div class="relative w-12 h-12 rounded-full border ${iconClass} flex items-center justify-center text-2xl shrink-0">🎁${checkMark}</div><div class="min-w-0"><p class="font-black ${textClass} text-sm">${tier.title}</p>${statusText ? `<p class="text-xs text-gray-400 font-bold mt-1">${statusText}</p>` : ''}</div></div><div class="shrink-0">${actionButton}</div></div>`;
+    }).join('');
+}
+
+function toggleRewards() {
+    if (user.isGuest) return;
+    document.getElementById('rewardsScreen').classList.toggle('hidden');
+    renderRewardsScreen();
+    poll();
+}
+
+function playRewardSound() {
+    try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+        const ctx = new AudioContext();
+        const now = ctx.currentTime;
+        [660, 880, 1175].forEach((freq, index) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, now + index * 0.09);
+            gain.gain.setValueAtTime(0.001, now + index * 0.09);
+            gain.gain.exponentialRampToValueAtTime(0.13, now + index * 0.09 + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + index * 0.09 + 0.18);
+            osc.connect(gain); gain.connect(ctx.destination); osc.start(now + index * 0.09); osc.stop(now + index * 0.09 + 0.2);
+        });
+        setTimeout(() => ctx.close(), 650);
+    } catch (e) {}
+}
+
+async function claimReward(key) {
+    try {
+        const res = await fetch(`${API_URL}/rewards/claim`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ office: user.id, reward_key: key }) });
+        const data = await res.json();
+        if (data.status !== 'success') { showToast(data.message || 'تعذر تحصيل الهدية'); return; }
+        const reward = data.reward;
+        showRewardModal(reward.id, reward.item_name || 'هدية مجانية');
+        playRewardSound();
+        poll();
+    } catch (e) { showToast('تعذر الاتصال بالسيرفر'); }
+}
+
+function showRewardModal(id, itemName) {
+    pendingReward = { id, item_name: itemName };
+    document.getElementById('rewardPrizeName').innerText = itemName;
+    document.getElementById('rewardWinModal').classList.remove('hidden');
+}
+
+async function redeemCurrentReward() {
+    if (!pendingReward) return;
+    try {
+        const res = await fetch(`${API_URL}/rewards/redeem`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ office: user.id, reward_id: pendingReward.id }) });
+        const data = await res.json();
+        if (data.status !== 'success') { showToast(data.message || 'تعذر إرسال الهدية'); return; }
+        closeModal('rewardWinModal'); pendingReward = null; showToast('تم إرسال هديتك للكاشير'); poll();
+    } catch (e) { showToast('تعذر الاتصال بالسيرفر'); }
 }
 
 function renderDebtSummary(data) {
