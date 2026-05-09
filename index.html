@@ -574,15 +574,6 @@
             <button onclick="toggleRewards()" class="bg-white border p-2.5 rounded-xl font-bold text-navy shadow-sm">←</button>
             <div><h2 class="font-black text-xl text-navy">الهدايا الأسبوعية</h2><p id="rewardsWeekText" class="text-xs text-gray-400 font-bold mt-1"></p></div>
         </div>
-        <div class="bg-white border border-gray-100 rounded-3xl p-5 shadow-sm mb-4">
-            <div class="relative h-12 mb-2">
-                <div class="absolute top-1/2 left-0 right-0 h-2 bg-gray-100 rounded-full -translate-y-1/2 overflow-hidden"><div id="rewardsProgressBar" class="h-full bg-gradient-to-l from-green-400 to-[#F7CC46] rounded-full transition-all" style="width:0%"></div></div>
-                <div class="absolute top-1/2 right-[33%] -translate-y-1/2 w-10 h-10 rounded-full bg-white border-2 border-gray-100 flex items-center justify-center shadow-sm">🎁</div>
-                <div class="absolute top-1/2 right-[66%] -translate-y-1/2 w-10 h-10 rounded-full bg-white border-2 border-gray-100 flex items-center justify-center shadow-sm">🎁</div>
-                <div class="absolute top-1/2 left-0 -translate-y-1/2 w-10 h-10 rounded-full bg-white border-2 border-gray-100 flex items-center justify-center shadow-sm">🎁</div>
-            </div>
-            <p class="text-xs text-gray-400 font-bold text-center">كل أسبوع يبدأ الثلاثاء 8 صباحاً</p>
-        </div>
         <div id="rewardsList" class="space-y-3"></div>
     </div>
 </div>
@@ -701,6 +692,7 @@ let officePinMode = 'verify';
 let pendingNewOfficePin = null;
 let latestRewards = null;
 let pendingReward = null;
+let rewardsCountdownTimer = null;
 const debtTransferDefaults = {
     bank: 'بنك فلسطين',
     bankOwner: 'محمد سلمان ابراهيم جندية',
@@ -1420,13 +1412,46 @@ function renderRewards(rewards) {
     renderRewardsScreen();
 }
 
+function parseRewardWeekStart(value) {
+    if (!value) return null;
+    const parts = String(value).trim().replace('T', ' ').split(/[- :]/).map(Number);
+    if (parts.length < 3 || parts.some(Number.isNaN)) return null;
+    return new Date(parts[0], (parts[1] || 1) - 1, parts[2] || 1, parts[3] || 0, parts[4] || 0, parts[5] || 0);
+}
+
+function formatRewardTimeLeft(ms) {
+    const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+    const days = Math.floor(totalSeconds / 86400);
+    const hours = Math.floor((totalSeconds % 86400) / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    return [days, hours, minutes, seconds].map(v => String(v).padStart(2, '0')).join(':');
+}
+
+function updateRewardsCountdown() {
+    const text = document.getElementById('rewardsWeekText');
+    if (!text || !latestRewards || !latestRewards.week_start) return;
+    const weekStart = parseRewardWeekStart(latestRewards.week_start);
+    if (!weekStart) {
+        text.innerText = '';
+        return;
+    }
+    const weekEnd = new Date(weekStart.getTime() + (7 * 24 * 60 * 60 * 1000));
+    text.innerText = `فرصتك للفوز تنتهي خلال ${formatRewardTimeLeft(weekEnd.getTime() - Date.now())}`;
+}
+
+function ensureRewardsCountdown() {
+    updateRewardsCountdown();
+    if (!rewardsCountdownTimer) {
+        rewardsCountdownTimer = setInterval(updateRewardsCountdown, 1000);
+    }
+}
+
 function renderRewardsScreen() {
     const list = document.getElementById('rewardsList');
     if (!list || !latestRewards) return;
-    document.getElementById('rewardsWeekText').innerText = latestRewards.week_start ? `الأسبوع الحالي بدأ ${formatDisplayTime(latestRewards.week_start)}` : '';
+    ensureRewardsCountdown();
     const tiers = latestRewards.tiers || [];
-    const doneCount = tiers.filter(t => ['claimed','ordered','approved'].includes(t.status)).length;
-    document.getElementById('rewardsProgressBar').style.width = `${Math.min(100, doneCount * 33.34)}%`;
     list.innerHTML = tiers.map(tier => {
         const reward = tier.reward || null;
         const isDone = ['claimed','ordered','approved'].includes(tier.status);
