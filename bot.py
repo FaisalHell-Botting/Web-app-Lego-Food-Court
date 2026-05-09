@@ -108,6 +108,20 @@ CANDY_TYPE_META = {
 }
 VALID_MENU_CATEGORIES = set(CATEGORY_ORDER.keys())
 VALID_CANDY_TYPES = set(CANDY_TYPE_META.keys())
+REWARD_ORDER_TYPES = {'هدية مجانية'}
+REWARD_EXCLUDED_ORDER_TYPES = {
+    'تسوية دين يدوية',
+    'إضافة يدوية',
+    'حذف صنف من الدين',
+    'رفض سداد الدين',
+    'سداد دين',
+    'هدية مجانية',
+}
+REWARD_TIERS = [
+    {'key': 'orders_3', 'kind': 'count', 'target': 3, 'prize_max': 2, 'title': 'أكملت 3 طلبات هذا الأسبوع'},
+    {'key': 'amount_30', 'kind': 'amount', 'target': 30, 'prize_max': 3, 'title': 'مجموع طلباتك وصل 30 شيكل'},
+    {'key': 'amount_60', 'kind': 'amount', 'target': 60, 'prize_max': 5, 'title': 'الجائزة الكبرى'},
+]
 
 
 def infer_candy_type(item):
@@ -210,6 +224,107 @@ def parse_item_snapshot(value):
 
 def get_pal_time():
     return get_pal_datetime().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def get_reward_week_start(now=None):
+    now = now or get_pal_datetime()
+    week_start = now.replace(hour=8, minute=0, second=0, microsecond=0)
+    days_since_tuesday = (week_start.weekday() - 1) % 7
+    week_start = week_start - timedelta(days=days_since_tuesday)
+    if now < week_start:
+        week_start = week_start - timedelta(days=7)
+    return week_start
+
+
+def get_reward_week_key(now=None):
+    return get_reward_week_start(now).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def fetch_reward_progress(cursor, office):
+    week_start = get_reward_week_start()
+    week_key = week_start.strftime("%Y-%m-%d %H:%M:%S")
+    cursor.execute(
+        """
+        SELECT COUNT(*), COALESCE(SUM(total_price), 0)
+        FROM orders
+        WHERE location=%s
+          AND status='مقبول'
+          AND location NOT LIKE 'زائر%%'
+          AND COALESCE(order_type, '') NOT IN %s
+          AND COALESCE(approved_at, timestamp) >= %s
+        """,
+        (office, tuple(REWARD_EXCLUDED_ORDER_TYPES), week_key),
+    )
+    order_count, amount_total = cursor.fetchone()
+    order_count = int(order_count or 0)
+    amount_total = int(amount_total or 0)
+    cursor.execute(
+        """
+        SELECT id, reward_key, item_name, item_price, status, order_id
+        FROM office_rewards
+        WHERE office=%s AND week_start=%s
+        """,
+        (office, week_key),
+    )
+    reward_rows = {
+        row[1]: {
+            "id": row[0],
+            "reward_key": row[1],
+            "item_name": row[2],
+            "item_price": int(row[3] or 0),
+            "status": row[4],
+            "order_id": row[5],
+        }
+        for row in cursor.fetchall()
+    }
+    tiers = []
+    has_ready = False
+    for tier in REWARD_TIERS:
+        progress_value = order_count if tier["kind"] == "count" else amount_total
+        eligible = progress_value >= tier["target"]
+        reward = reward_rows.get(tier["key"])
+        reward_status = reward["status"] if reward else "locked"
+        can_claim = eligible and not reward
+        can_redeem = bool(reward and reward_status == "claimed")
+        has_ready = has_ready or can_claim or can_redeem
+        tiers.append({
+            "key": tier["key"],
+            "title": tier["title"],
+            "kind": tier["kind"],
+            "target": tier["target"],
+            "progress": min(progress_value, tier["target"]),
+            "raw_progress": progress_value,
+            "eligible": eligible,
+            "status": reward_status,
+            "can_claim": can_claim,
+            "can_redeem": can_redeem,
+            "reward": reward,
+        })
+    return {
+        "week_start": week_key,
+        "order_count": order_count,
+        "amount_total": amount_total,
+        "has_ready_reward": has_ready,
+        "tiers": tiers,
+    }
+
+
+def select_reward_item(cursor, prize_max):
+    cursor.execute(
+        """
+        SELECT name, price
+        FROM menu_items
+        WHERE COALESCE(is_deleted,0)=0
+          AND COALESCE(is_active,1)=1
+          AND price > 0
+          AND price <= %s
+        """,
+        (prize_max,),
+    )
+    rows = cursor.fetchall()
+    if not rows:
+        return None
+    return random.choice(rows)
 
 
 def get_pal_datetime():
@@ -607,10 +722,13 @@ def init_db():
             id SERIAL PRIMARY KEY,
             amount INTEGER,
             receipt TEXT,
-            created_at TEXT
+            created_at TEXT,
+            description TEXT
         )
         """
     )
+
+    c.execute("ALTER TABLE expenses ADD COLUMN IF NOT EXISTS description TEXT")
 
     c.execute(
         """
@@ -635,6 +753,46 @@ def init_db():
         """
     )
     c.execute("ALTER TABLE office_pin_help ADD COLUMN IF NOT EXISTS new_pin TEXT")
+
+    c.execute(
+        """
+        CREATE TABLE IF NOT EXISTS office_rewards (
+            id SERIAL PRIMARY KEY,
+            office TEXT,
+            week_start TEXT,
+            reward_key TEXT,
+            item_name TEXT,
+            item_price INTEGER DEFAULT 0,
+            status TEXT DEFAULT 'claimed',
+            order_id INTEGER,
+            created_at TEXT,
+            claimed_at TEXT,
+            ordered_at TEXT,
+            approved_at TEXT
+        )
+        """
+    )
+    for col, definition in [
+        ("office", "TEXT"),
+        ("week_start", "TEXT"),
+        ("reward_key", "TEXT"),
+        ("item_name", "TEXT"),
+        ("item_price", "INTEGER DEFAULT 0"),
+        ("status", "TEXT DEFAULT 'claimed'"),
+        ("order_id", "INTEGER"),
+        ("created_at", "TEXT"),
+        ("claimed_at", "TEXT"),
+        ("ordered_at", "TEXT"),
+        ("approved_at", "TEXT"),
+    ]:
+        try:
+            c.execute(f"ALTER TABLE office_rewards ADD COLUMN {col} {definition}")
+        except Exception:
+            pass
+    try:
+        c.execute("CREATE UNIQUE INDEX IF NOT EXISTS office_rewards_unique ON office_rewards (office, week_start, reward_key)")
+    except Exception:
+        pass
 
     c.execute(
         """
@@ -1248,6 +1406,7 @@ async def sync_user(office: str):
                 WHERE location=%s
                   AND status='مقبول'
                   AND is_reviewed=0
+                  AND COALESCE(order_type, '') <> 'هدية مجانية'
                   AND approved_at IS NOT NULL
                 ORDER BY id DESC
                 LIMIT 1
@@ -1265,6 +1424,7 @@ async def sync_user(office: str):
                         "total_price": rev_row[2],
                     }
 
+        rewards = fetch_reward_progress(c, office) if not guest else None
         c.close()
         conn.close()
         return {
@@ -1277,6 +1437,7 @@ async def sync_user(office: str):
             "latest_payment_request": latest_payment_request,
             "new_office_pin": new_office_pin,
             "review_due": review_due,
+            "rewards": rewards,
         }
     except Exception as exc:
         return {"status": "error", "message": str(exc)}
@@ -1300,6 +1461,122 @@ async def mark_new_office_pin_seen(request: Request):
         c.close()
         conn.close()
         return {"status": "success"}
+    except Exception as exc:
+        return {"status": "error", "message": str(exc)}
+
+
+@app.post("/api/rewards/claim")
+async def claim_reward(request: Request):
+    data = await request.json()
+    office = clean_office_name(data.get("office"))
+    reward_key = clean_office_name(data.get("reward_key"))
+    if not office or is_guest_office(office) or not reward_key:
+        return {"status": "error", "message": "بيانات الهدية غير مكتملة"}
+    try:
+        conn = get_db()
+        c = conn.cursor()
+        progress = fetch_reward_progress(c, office)
+        tier = next((item for item in REWARD_TIERS if item["key"] == reward_key), None)
+        tier_progress = next((item for item in progress["tiers"] if item["key"] == reward_key), None)
+        if not tier or not tier_progress or not tier_progress["eligible"]:
+            c.close()
+            conn.close()
+            return {"status": "error", "message": "هذه الهدية غير مستحقة حالياً"}
+        if tier_progress.get("reward"):
+            reward = tier_progress["reward"]
+            c.close()
+            conn.close()
+            return {"status": "success", "reward": reward, "already_claimed": True}
+        prize = select_reward_item(c, tier["prize_max"])
+        if not prize:
+            c.close()
+            conn.close()
+            return {"status": "error", "message": "لا توجد هدية متاحة حالياً"}
+        item_name, item_price = prize
+        now = get_pal_time()
+        c.execute(
+            """
+            INSERT INTO office_rewards (office, week_start, reward_key, item_name, item_price, status, created_at, claimed_at)
+            VALUES (%s,%s,%s,%s,%s,'claimed',%s,%s)
+            RETURNING id
+            """,
+            (office, progress["week_start"], reward_key, item_name, int(item_price or 0), now, now),
+        )
+        reward_id = c.fetchone()[0]
+        conn.commit()
+        reward = {"id": reward_id, "reward_key": reward_key, "item_name": item_name, "item_price": int(item_price or 0), "status": "claimed", "order_id": None}
+        c.close()
+        conn.close()
+        return {"status": "success", "reward": reward}
+    except Exception as exc:
+        return {"status": "error", "message": str(exc)}
+
+
+@app.post("/api/rewards/redeem")
+async def redeem_reward(request: Request):
+    data = await request.json()
+    office = clean_office_name(data.get("office"))
+    reward_id = data.get("reward_id")
+    if not office or is_guest_office(office) or not reward_id:
+        return {"status": "error", "message": "بيانات الهدية غير مكتملة"}
+    try:
+        conn = get_db()
+        c = conn.cursor()
+        c.execute(
+            """
+            SELECT id
+            FROM orders
+            WHERE location=%s AND status IN ('انتظار','صنف_ناقص')
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (office,),
+        )
+        if c.fetchone():
+            c.close()
+            conn.close()
+            return {"status": "error", "message": "لديك طلب قيد الانتظار حالياً"}
+        c.execute(
+            """
+            SELECT item_name, item_price, status
+            FROM office_rewards
+            WHERE id=%s AND office=%s
+            """,
+            (reward_id, office),
+        )
+        row = c.fetchone()
+        if not row:
+            c.close()
+            conn.close()
+            return {"status": "error", "message": "الهدية غير موجودة"}
+        item_name, item_price, reward_status = row
+        if reward_status == "ordered":
+            c.close()
+            conn.close()
+            return {"status": "success", "message": "تم إرسال الهدية للكاشير سابقاً"}
+        if reward_status != "claimed":
+            c.close()
+            conn.close()
+            return {"status": "error", "message": "لا يمكن استلام هذه الهدية حالياً"}
+        now = get_pal_time()
+        snapshot = json.dumps([{"name": item_name, "price": int(item_price or 0), "cat": "gift"}], ensure_ascii=False)
+        c.execute(
+            """
+            INSERT INTO orders (user_id, details, total_price, location, timestamp, status, is_paid, order_type, item_snapshot)
+            VALUES (%s,%s,0,%s,%s,'انتظار',1,'هدية مجانية',%s)
+            RETURNING id
+            """,
+            (0, f"هدية مجانية: {item_name}", office, now, snapshot),
+        )
+        order_id = c.fetchone()[0]
+        c.execute(
+            "UPDATE office_rewards SET status='ordered', order_id=%s, ordered_at=%s WHERE id=%s",
+            (order_id, now, reward_id),
+        )
+        conn.commit()
+        c.close()
+        conn.close()
+        return {"status": "success", "order_id": order_id}
     except Exception as exc:
         return {"status": "error", "message": str(exc)}
 
@@ -1453,7 +1730,7 @@ async def admin_dashboard():
             WHERE timestamp IS NOT NULL
               AND approved_at IS NOT NULL
               AND status IN ('مقبول','صنف_ناقص','فاتورة_زائر_مرفوضة')
-              AND COALESCE(order_type, '') NOT IN ('تسوية دين يدوية', 'إضافة يدوية', 'حذف صنف من الدين', 'رفض سداد الدين', 'سداد دين')
+              AND COALESCE(order_type, '') NOT IN ('تسوية دين يدوية', 'إضافة يدوية', 'حذف صنف من الدين', 'رفض سداد الدين', 'سداد دين', 'هدية مجانية')
             ORDER BY id DESC
             LIMIT 100
             """
@@ -1518,9 +1795,9 @@ async def admin_dashboard():
             }
             for row in c.fetchall()
         ]
-        c.execute("SELECT id, amount, (receipt IS NOT NULL AND receipt <> '') AS has_receipt, created_at FROM expenses ORDER BY id DESC")
+        c.execute("SELECT id, amount, (receipt IS NOT NULL AND receipt <> '') AS has_receipt, created_at, description FROM expenses ORDER BY id DESC")
         expenses = [
-            {"id": row[0], "amount": row[1], "has_receipt": bool(row[2]), "created_at": row[3]}
+            {"id": row[0], "amount": row[1], "has_receipt": bool(row[2]), "created_at": row[3], "description": row[4]}
             for row in c.fetchall()
         ]
 
@@ -1564,7 +1841,7 @@ async def admin_dashboard():
             FROM orders
             WHERE status='مقبول'
               AND location NOT LIKE 'زائر%%'
-              AND COALESCE(order_type, '') NOT IN ('تسوية دين يدوية', 'إضافة يدوية', 'حذف صنف من الدين', 'رفض سداد الدين', 'سداد دين')
+              AND COALESCE(order_type, '') NOT IN ('تسوية دين يدوية', 'إضافة يدوية', 'حذف صنف من الدين', 'رفض سداد الدين', 'سداد دين', 'هدية مجانية')
             GROUP BY location
             """
         )
@@ -1676,7 +1953,23 @@ async def admin_action(request: Request):
         c = conn.cursor()
 
         if action == "approve":
-            c.execute("UPDATE orders SET status='مقبول', approved_at=%s WHERE id=%s", (get_pal_time(), order_id))
+            now = get_pal_time()
+            c.execute("SELECT location, details, order_type FROM orders WHERE id=%s", (order_id,))
+            approve_row = c.fetchone()
+            c.execute("UPDATE orders SET status='مقبول', approved_at=%s WHERE id=%s", (now, order_id))
+            if approve_row and (approve_row[2] or '') == 'هدية مجانية':
+                gift_office = approve_row[0]
+                c.execute("SELECT id, item_name, item_price FROM office_rewards WHERE order_id=%s", (order_id,))
+                gift_row = c.fetchone()
+                if gift_row:
+                    reward_id, item_name, item_price = gift_row
+                    item_price = int(item_price or 0)
+                    c.execute("UPDATE office_rewards SET status='approved', approved_at=%s WHERE id=%s", (now, reward_id))
+                    if item_price > 0:
+                        c.execute(
+                            "INSERT INTO expenses (amount, receipt, created_at, description) VALUES (%s,%s,%s,%s)",
+                            (item_price, None, now, f"هدية مجانية للمكتب {gift_office}: {item_name}"),
+                        )
         elif action == "missing":
             c.execute("UPDATE orders SET status='صنف_ناقص', missing_note=%s, approved_at=%s WHERE id=%s", (data.get("note"), get_pal_time(), order_id))
         elif action == "confirm_visitor_payment":
