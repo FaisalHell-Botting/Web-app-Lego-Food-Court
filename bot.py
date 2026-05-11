@@ -402,7 +402,10 @@ def normalize_digits(text):
 
 
 def clean_office_name(office):
-    return normalize_digits(office or "").strip()
+    value = normalize_digits(office or "").strip()
+    if re.fullmatch(r"\d{3}", value):
+        return f"مكتب {value}"
+    return value
 
 
 def is_guest_office(office):
@@ -2370,6 +2373,7 @@ async def admin_action(request: Request):
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 8000)))
+
 
 
 
