@@ -559,7 +559,7 @@ def get_latest_payment_request(cursor, office):
     row = cursor.fetchone()
     if not row:
         return None
-    if reminder_became_stale(cursor, office, row[6]):
+    if reminder_became_stale(cursor, office, row[5]):
         cursor.execute("UPDATE reminders SET is_active=0 WHERE id=%s", (row[0],))
         cursor.execute("UPDATE debt_payment_requests SET status='cancelled' WHERE reminder_id=%s AND status='pending'", (row[0],))
         return None
