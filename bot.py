@@ -241,6 +241,32 @@ def get_reward_week_key(now=None):
     return get_reward_week_start(now).strftime("%Y-%m-%d %H:%M:%S")
 
 
+def empty_reward_progress():
+    week_key = get_reward_week_key()
+    return {
+        "week_start": week_key,
+        "order_count": 0,
+        "amount_total": 0,
+        "has_ready_reward": False,
+        "tiers": [
+            {
+                "key": tier["key"],
+                "title": tier["title"],
+                "kind": tier["kind"],
+                "target": tier["target"],
+                "progress": 0,
+                "raw_progress": 0,
+                "eligible": False,
+                "status": "locked",
+                "can_claim": False,
+                "can_redeem": False,
+                "reward": None,
+            }
+            for tier in REWARD_TIERS
+        ],
+    }
+
+
 def fetch_reward_progress(cursor, office):
     week_start = get_reward_week_start()
     week_key = week_start.strftime("%Y-%m-%d %H:%M:%S")
@@ -1475,7 +1501,12 @@ async def sync_user(office: str):
                         "total_price": rev_row[2],
                     }
 
-        rewards = fetch_reward_progress(c, office) if not guest else None
+        rewards = None
+        if not guest:
+            try:
+                rewards = fetch_reward_progress(c, office)
+            except Exception:
+                rewards = empty_reward_progress()
         c.close()
         conn.close()
         return {
@@ -2339,6 +2370,7 @@ async def admin_action(request: Request):
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 8000)))
+
 
 
 
