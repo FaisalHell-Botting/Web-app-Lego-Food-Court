@@ -42,6 +42,20 @@
             42% { opacity: 1; }
             74%, 100% { right: 132%; opacity: 0; }
         }
+        .gift-ready-pulse { animation: giftPulse 1.35s ease-in-out infinite; }
+        @keyframes giftPulse { 0%,100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(34,197,94,0.38); } 50% { transform: scale(1.04); box-shadow: 0 0 0 8px rgba(34,197,94,0); } }
+        .gift-badge-pulse { animation: giftBadgePulse 1s ease-in-out infinite; }
+        @keyframes giftBadgePulse { 0%,100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.22); opacity: .78; } }
+        .reward-confetti span { position: absolute; width: 7px; height: 12px; border-radius: 3px; animation: rewardFall 1.8s linear infinite; }
+        .reward-confetti span:nth-child(1) { left: 12%; background: #F7CC46; animation-delay: 0s; }
+        .reward-confetti span:nth-child(2) { left: 25%; background: #2E3468; animation-delay: .2s; }
+        .reward-confetti span:nth-child(3) { left: 40%; background: #22c55e; animation-delay: .4s; }
+        .reward-confetti span:nth-child(4) { left: 58%; background: #ef4444; animation-delay: .1s; }
+        .reward-confetti span:nth-child(5) { left: 72%; background: #F7CC46; animation-delay: .35s; }
+        .reward-confetti span:nth-child(6) { left: 86%; background: #60a5fa; animation-delay: .55s; }
+        @keyframes rewardFall { 0% { top: -18px; transform: translateY(0) rotate(0deg); opacity: 0; } 15% { opacity: 1; } 100% { top: 105%; transform: translateY(20px) rotate(220deg); opacity: 0; } }
+        .gift-bounce { animation: giftBounce 1.05s ease-in-out infinite; }
+        @keyframes giftBounce { 0%,100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-8px) rotate(2deg); } }
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .ai-tab-glow { position: relative; overflow: hidden; }
         .ai-tab-glow::after {
@@ -218,6 +232,17 @@
             0%, 100% { opacity: 0.15; transform: scale(0.7) rotate(0deg); }
             50% { opacity: 1; transform: scale(1.15) rotate(18deg); }
         }
+        .reward-wheel-stage { perspective: 900px; }
+        .reward-wheel {
+            width: 220px; height: 220px; border-radius: 50%; margin: 0 auto; position: relative;
+            background: conic-gradient(from 0deg, #F7CC46 0 45deg, #2E3468 45deg 90deg, #22c55e 90deg 135deg, #ffffff 135deg 180deg, #F7CC46 180deg 225deg, #2E3468 225deg 270deg, #22c55e 270deg 315deg, #ffffff 315deg 360deg);
+            border: 10px solid #ffffff; box-shadow: 0 22px 42px rgba(46,52,104,.22), inset 0 0 0 5px rgba(46,52,104,.12);
+            transform: rotateX(12deg) rotate(0deg); transition: transform 4.7s cubic-bezier(.12,.72,.04,1);
+        }
+        .reward-wheel::before { content: ''; position: absolute; inset: 18px; border-radius: 50%; border: 2px dashed rgba(255,255,255,.72); pointer-events: none; }
+        .reward-wheel::after { content: '🎁'; position: absolute; inset: 50%; width: 58px; height: 58px; margin: -29px 0 0 -29px; border-radius: 50%; background: #ffffff; color: #2E3468; display: flex; align-items: center; justify-content: center; font-size: 30px; box-shadow: 0 8px 20px rgba(0,0,0,.18); }
+        .reward-wheel-pointer { width: 0; height: 0; border-left: 18px solid transparent; border-right: 18px solid transparent; border-top: 34px solid #F7CC46; filter: drop-shadow(0 6px 8px rgba(0,0,0,.2)); margin: 0 auto -18px; position: relative; z-index: 2; }
+        .reward-wheel-shadow { width: 170px; height: 22px; border-radius: 999px; background: rgba(46,52,104,.12); filter: blur(4px); margin: 12px auto 0; }
     </style>
 </head>
 <body class="pb-32 bg-[#F8F9FA]">
@@ -268,6 +293,10 @@
                 </div>
             </div>
             <div class="flex items-center gap-2 shrink-0">
+                <button id="giftsHeaderBtn" onclick="toggleRewards()" class="relative text-xs font-bold text-navy bg-gray-100 px-3 py-1.5 rounded-full hover:bg-gray-200 transition-colors hidden">
+                    🎁 الهدايا
+                    <span id="giftsHeaderBadge" class="absolute -top-1 -left-1 w-3 h-3 bg-gray-300 rounded-full border-2 border-white"></span>
+                </button>
                 <button id="ledgerHeaderBtn" onclick="toggleLedger()" class="text-xs font-bold text-navy bg-gray-100 px-3 py-1.5 rounded-full hover:bg-gray-200 transition-colors">
                     📋 ديوني
                 </button>
@@ -347,6 +376,10 @@
             <input type="number" id="quickPaymentAmount" min="1" inputmode="numeric" placeholder="مثلاً 12"
                    class="w-full border-2 border-gray-200 p-4 rounded-2xl text-center text-2xl font-black text-navy focus:outline-none focus:border-navy mb-4">
             <div id="quickPaymentInfo" class="space-y-3 mb-4"></div>
+            <button onclick="dialQuickPalPay()" class="w-full bg-blue-600 text-white py-3 rounded-xl font-black shadow hover:bg-blue-700 transition-all mb-2">
+                الدفع عبر بال باي بدون إنترنت
+            </button>
+            <p class="text-[11px] text-gray-400 font-bold text-center mb-3">بعد الدفع ارجع وارفق صورة الإشعار لتأكيد الحسابات</p>
             <button onclick="openQuickGuestPaymentModal()" class="w-full bg-navy text-white py-3.5 rounded-xl font-bold shadow hover:bg-opacity-90 transition-all">
                 دفعت؟ أرفق الفاتورة هنا
             </button>
@@ -465,6 +498,10 @@
                 <span id="guestPaymentTotal" class="font-black text-navy">0 ₪</span>
             </div>
             <div id="guestPaymentInfo" class="space-y-2"></div>
+            <button onclick="dialGuestPalPay()" class="w-full bg-blue-600 text-white py-2.5 rounded-xl font-black text-sm mt-3 hover:bg-blue-700 transition-all">
+                الدفع عبر بال باي بدون إنترنت
+            </button>
+            <p class="text-[11px] text-gray-400 font-bold text-center mt-2">بعد الدفع ارفع صورة الإشعار بالأسفل</p>
         </div>
         <input type="tel" id="guestPhoneInput" dir="ltr" placeholder="أدخل رقم الجوال" inputmode="tel"
                class="w-full border-2 border-gray-200 p-3 rounded-xl mb-3 text-center font-bold focus:outline-none focus:border-navy">
@@ -550,6 +587,36 @@
     </div>
 </div>
 
+<div id="rewardsScreen" class="fixed inset-0 bg-[#F8F9FA] z-[91] overflow-y-auto hidden">
+    <div class="max-w-md mx-auto p-4">
+        <div class="flex items-center gap-3 pt-4 mb-5">
+            <button onclick="toggleRewards()" class="bg-white border p-2.5 rounded-xl font-bold text-navy shadow-sm">←</button>
+            <div><h2 class="font-black text-xl text-navy">الهدايا الأسبوعية</h2><p id="rewardsWeekText" class="text-xs text-gray-400 font-bold mt-1"></p></div>
+        </div>
+        <div id="rewardsList" class="space-y-3"></div>
+    </div>
+</div>
+
+
+<div id="rewardWheelModal" class="fixed inset-0 bg-black/75 z-[98] flex items-center justify-center p-4 hidden modal-focus-backdrop">
+    <div class="bg-white rounded-3xl w-full max-w-sm p-6 slide-up text-center shadow-2xl overflow-hidden">
+        <h3 class="font-black text-xl text-navy mb-2">عجلة الحظ</h3>
+        <p class="text-sm text-gray-500 font-bold mb-5">جاري اختيار جائزتك...</p>
+        <div class="reward-wheel-stage">
+            <div class="reward-wheel-pointer"></div>
+            <div id="rewardWheel" class="reward-wheel"></div>
+            <div class="reward-wheel-shadow"></div>
+        </div>
+        <p class="text-xs text-gray-400 font-bold mt-5">خليك جاهز، الجائزة قربت تظهر</p>
+    </div>
+</div>
+<div id="rewardWinModal" class="fixed inset-0 bg-black/75 z-[99] flex items-center justify-center p-4 hidden modal-focus-backdrop">
+    <div class="relative bg-white rounded-3xl w-full max-w-sm p-6 slide-up text-center overflow-hidden shadow-2xl">
+        <div class="reward-confetti absolute inset-0 pointer-events-none"><span></span><span></span><span></span><span></span><span></span><span></span></div>
+        <div class="relative z-10"><div class="gift-bounce text-6xl mb-3">🎁</div><h3 class="font-black text-2xl text-navy mb-1">مبروك!</h3><p class="text-sm text-gray-500 font-bold mb-4">لقد حصلت على جائزة</p><div class="bg-[#F7CC46] text-white rounded-2xl py-4 px-3 mb-4 shadow-lg"><p id="rewardPrizeName" class="font-black text-xl leading-relaxed"></p></div><button onclick="redeemCurrentReward()" class="w-full bg-green-600 text-white py-3.5 rounded-xl font-black shadow hover:bg-green-700 transition-colors">استلم هديتك</button><button onclick="closeModal('rewardWinModal')" class="w-full bg-gray-100 text-gray-500 py-2.5 rounded-xl font-bold mt-2">لاحقاً</button></div>
+    </div>
+</div>
+
 <div id="debtReminderModal" class="fixed inset-0 bg-black/70 z-[95] flex items-center justify-center p-4 hidden">
     <div class="bg-white rounded-3xl w-full max-w-sm max-h-[90vh] overflow-y-auto p-6 slide-up">
         <h3 class="font-black text-lg text-navy mb-2">تذكير بتسديد الدين</h3>
@@ -574,9 +641,13 @@
     <div id="debtPaymentModalBox" class="bg-white rounded-3xl w-full max-w-sm max-h-[90vh] overflow-y-auto p-6 slide-up">
         <h3 class="font-black text-lg text-navy mb-2">إرسال إثبات السداد</h3>
         <p class="text-sm text-gray-500 mb-4">ارفع صورة التحويل حتى تصل للإدارة كطلب تسديد دين</p>
-        <div class="bg-gray-50 p-3 rounded-xl mb-4">
+        <div class="bg-gray-50 p-3 rounded-xl mb-3">
             <p class="text-base font-black text-blue-600">المبلغ المطلوب: <span id="debtPaymentAmount" class="text-xl"></span></p>
         </div>
+        <button onclick="dialDebtPalPay()" class="w-full bg-blue-600 text-white py-3 rounded-xl font-black mb-2 hover:bg-blue-700 transition-all">
+            الدفع عبر بال باي بدون إنترنت
+        </button>
+        <p class="text-[11px] text-gray-400 font-bold text-center mb-4">بعد الدفع ارفع صورة الإشعار لتأكيد السداد</p>
         <div class="border-2 border-dashed border-gray-300 rounded-2xl p-6 text-center mb-4 cursor-pointer hover:border-navy transition-colors" onclick="document.getElementById('debtReceiptInput').click()">
             <div id="debtReceiptPreview" class="hidden"><img id="debtReceiptImg" class="max-h-40 mx-auto rounded-xl object-contain"></div>
             <div id="debtReceiptPlaceholder">
@@ -655,6 +726,11 @@ let editingOrderId = null;
 let storeIsOpen = true;
 let officePinMode = 'verify';
 let pendingNewOfficePin = null;
+let latestRewards = null;
+let pendingReward = null;
+let rewardsCountdownTimer = null;
+let rewardWheelAudioNodes = [];
+let rewardWheelSpinDeg = 0;
 const debtTransferDefaults = {
     bank: 'بنك فلسطين',
     bankOwner: 'محمد سلمان ابراهيم جندية',
@@ -721,6 +797,7 @@ async function login(type) {
     document.getElementById('orderTypeCard').classList.toggle('hidden', user.isGuest);
     document.getElementById('debtSummaryCard').classList.toggle('hidden', user.isGuest);
     document.getElementById('ledgerHeaderBtn').classList.toggle('hidden', user.isGuest);
+    document.getElementById('giftsHeaderBtn').classList.toggle('hidden', user.isGuest);
     document.getElementById('guestModeTabs').classList.toggle('hidden', !user.isGuest);
     document.getElementById('officeMenuHeading').classList.toggle('hidden', user.isGuest);
     document.getElementById('aiAssistantFab').classList.remove('hidden');
@@ -774,6 +851,7 @@ async function restoreState() {
         document.getElementById('orderTypeCard').classList.toggle('hidden', user.isGuest);
         document.getElementById('debtSummaryCard').classList.toggle('hidden', user.isGuest);
     document.getElementById('ledgerHeaderBtn').classList.toggle('hidden', user.isGuest);
+    document.getElementById('giftsHeaderBtn').classList.toggle('hidden', user.isGuest);
         document.getElementById('guestModeTabs').classList.toggle('hidden', !user.isGuest);
         document.getElementById('officeMenuHeading').classList.toggle('hidden', user.isGuest);
         document.getElementById('aiAssistantFab').classList.remove('hidden');
@@ -1348,6 +1426,7 @@ async function poll() {
         }
 
         renderDebtSummary(data);
+        renderRewards(data.rewards);
         renderLedger(data.orders || []);
         handleReminder(data.active_reminder, data.latest_payment_request, data.total_debt || 0);
         handleNewOfficePin(data.new_office_pin);
@@ -1358,6 +1437,193 @@ async function poll() {
         updateCartBar();
         persistState();
     } catch (e) {}
+}
+
+function renderRewards(rewards) {
+    if (user.isGuest) return;
+    latestRewards = rewards;
+    const btn = document.getElementById('giftsHeaderBtn');
+    const badge = document.getElementById('giftsHeaderBadge');
+    const hasReady = !!(rewards && rewards.has_ready_reward);
+    btn.className = hasReady ? 'relative text-xs font-bold text-white bg-green-500 px-3 py-1.5 rounded-full hover:bg-green-600 transition-colors gift-ready-pulse' : 'relative text-xs font-bold text-navy bg-gray-100 px-3 py-1.5 rounded-full hover:bg-gray-200 transition-colors';
+    badge.className = hasReady ? 'absolute -top-1 -left-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white gift-badge-pulse' : 'absolute -top-1 -left-1 w-3 h-3 bg-gray-300 rounded-full border-2 border-white';
+    renderRewardsScreen();
+}
+
+function parseRewardWeekStart(value) {
+    if (!value) return null;
+    const parts = String(value).trim().replace('T', ' ').split(/[- :]/).map(Number);
+    if (parts.length < 3 || parts.some(Number.isNaN)) return null;
+    return new Date(parts[0], (parts[1] || 1) - 1, parts[2] || 1, parts[3] || 0, parts[4] || 0, parts[5] || 0);
+}
+
+function formatRewardTimeLeft(ms) {
+    const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+    const days = Math.floor(totalSeconds / 86400);
+    const hours = Math.floor((totalSeconds % 86400) / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    return `${days} يوم ${String(hours).padStart(2, '0')} ساعة ${String(minutes).padStart(2, '0')} دقيقة ${String(seconds).padStart(2, '0')} ثانية`;
+}
+
+function updateRewardsCountdown() {
+    const text = document.getElementById('rewardsWeekText');
+    if (!text || !latestRewards || !latestRewards.week_start) return;
+    const weekStart = parseRewardWeekStart(latestRewards.week_start);
+    if (!weekStart) {
+        text.innerText = '';
+        return;
+    }
+    const weekEnd = new Date(weekStart.getTime() + (7 * 24 * 60 * 60 * 1000));
+    text.innerText = `فرصتك للفوز تنتهي خلال ${formatRewardTimeLeft(weekEnd.getTime() - Date.now())}`;
+}
+
+function ensureRewardsCountdown() {
+    updateRewardsCountdown();
+    if (!rewardsCountdownTimer) {
+        rewardsCountdownTimer = setInterval(updateRewardsCountdown, 1000);
+    }
+}
+
+function renderRewardsScreen() {
+    const list = document.getElementById('rewardsList');
+    if (!list || !latestRewards) return;
+    ensureRewardsCountdown();
+    const tiers = latestRewards.tiers || [];
+    list.innerHTML = tiers.map(tier => {
+        const reward = tier.reward || null;
+        const isDone = ['claimed','ordered','approved'].includes(tier.status);
+        const isApproved = tier.status === 'approved';
+        const isOrdered = tier.status === 'ordered';
+        const progressText = `${tier.raw_progress || 0}/${tier.target}`;
+        const iconClass = isApproved ? 'bg-green-100 text-green-600 border-green-200' : (isDone ? 'bg-green-50 text-green-600 border-green-100' : 'bg-gray-100 text-gray-400 border-gray-200');
+        const textClass = isApproved ? 'text-gray-400' : 'text-navy';
+        const safeName = reward ? String(reward.item_name || '').replace(/'/g, "\\'") : '';
+        const actionButton = tier.can_claim ? `<button onclick="claimReward('${tier.key}')" class="bg-green-600 text-white px-4 py-2 rounded-xl text-sm font-black shadow hover:bg-green-700 transition-colors">حصل</button>` : (tier.can_redeem && reward ? `<button onclick="showRewardModal(${reward.id}, '${safeName}')" class="bg-green-600 text-white px-4 py-2 rounded-xl text-sm font-black shadow hover:bg-green-700 transition-colors">استلم</button>` : `<span class="font-black ${isApproved ? 'text-green-600' : 'text-gray-400'}">${progressText}</span>`);
+        const statusText = isApproved ? 'تم استلام الهدية' : (isOrdered ? 'تم إرسال الهدية للكاشير' : (tier.can_redeem ? 'جائزتك جاهزة للاستلام' : ''));
+        const checkMark = isApproved ? '<span class="absolute -bottom-1 -left-1 w-5 h-5 rounded-full bg-green-500 text-white text-xs flex items-center justify-center border-2 border-white">✓</span>' : '<span class="absolute -bottom-1 -left-1 w-5 h-5 rounded-full bg-gray-200 text-white text-xs flex items-center justify-center border-2 border-white">✓</span>';
+        return `<div class="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm flex items-center justify-between gap-3"><div class="flex items-center gap-3 min-w-0"><div class="relative w-12 h-12 rounded-full border ${iconClass} flex items-center justify-center text-2xl shrink-0">🎁${checkMark}</div><div class="min-w-0"><p class="font-black ${textClass} text-sm">${tier.title}</p>${statusText ? `<p class="text-xs text-gray-400 font-bold mt-1">${statusText}</p>` : ''}</div></div><div class="shrink-0">${actionButton}</div></div>`;
+    }).join('');
+}
+
+function toggleRewards() {
+    if (user.isGuest) return;
+    document.getElementById('rewardsScreen').classList.toggle('hidden');
+    renderRewardsScreen();
+    poll();
+}
+
+function playRewardSound() {
+    try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+        const ctx = new AudioContext();
+        const now = ctx.currentTime;
+        [660, 880, 1175, 1568].forEach((freq, index) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = index === 3 ? 'triangle' : 'sine';
+            osc.frequency.setValueAtTime(freq, now + index * 0.085);
+            gain.gain.setValueAtTime(0.001, now + index * 0.085);
+            gain.gain.exponentialRampToValueAtTime(0.12, now + index * 0.085 + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + index * 0.085 + 0.18);
+            osc.connect(gain); gain.connect(ctx.destination); osc.start(now + index * 0.085); osc.stop(now + index * 0.085 + 0.2);
+        });
+        setTimeout(() => ctx.close(), 850);
+    } catch (e) {}
+}
+
+function playRewardWheelSound() {
+    try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+        const ctx = new AudioContext();
+        const start = ctx.currentTime;
+        rewardWheelAudioNodes = [];
+        let t = 0;
+        for (let i = 0; i < 34; i++) {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(420 + (i % 4) * 28, start + t);
+            gain.gain.setValueAtTime(0.001, start + t);
+            gain.gain.exponentialRampToValueAtTime(0.045, start + t + 0.008);
+            gain.gain.exponentialRampToValueAtTime(0.001, start + t + 0.045);
+            osc.connect(gain); gain.connect(ctx.destination); osc.start(start + t); osc.stop(start + t + 0.055);
+            rewardWheelAudioNodes.push(osc);
+            t += 0.045 + (i / 34) * 0.16;
+            if (t > 4.45) break;
+        }
+        setTimeout(() => ctx.close(), 5200);
+    } catch (e) {}
+}
+
+function stopRewardWheelSound() {
+    rewardWheelAudioNodes.forEach(node => { try { node.stop(); } catch (e) {} });
+    rewardWheelAudioNodes = [];
+}
+
+function wait(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function showRewardWheel() {
+    const modal = document.getElementById('rewardWheelModal');
+    const wheel = document.getElementById('rewardWheel');
+    rewardWheelSpinDeg += 1800 + Math.floor(Math.random() * 720);
+    wheel.style.transition = 'none';
+    wheel.style.transform = 'rotateX(12deg) rotate(0deg)';
+    wheel.offsetHeight;
+    modal.classList.remove('hidden');
+    requestAnimationFrame(() => {
+        wheel.style.transition = 'transform 4.7s cubic-bezier(.12,.72,.04,1)';
+        wheel.style.transform = `rotateX(12deg) rotate(${rewardWheelSpinDeg}deg)`;
+    });
+    playRewardWheelSound();
+}
+
+function hideRewardWheel() {
+    stopRewardWheelSound();
+    document.getElementById('rewardWheelModal').classList.add('hidden');
+}
+
+async function claimReward(key) {
+    showRewardWheel();
+    const startedAt = Date.now();
+    try {
+        const res = await fetch(`${API_URL}/rewards/claim`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ office: user.id, reward_key: key }) });
+        const data = await res.json();
+        if (data.status !== 'success') {
+            hideRewardWheel();
+            showToast(data.message || 'تعذر تحصيل الهدية');
+            return;
+        }
+        const reward = data.reward;
+        await wait(Math.max(0, 4700 - (Date.now() - startedAt)));
+        hideRewardWheel();
+        showRewardModal(reward.id, reward.item_name || 'هدية مجانية');
+        poll();
+    } catch (e) {
+        hideRewardWheel();
+        showToast('تعذر الاتصال بالسيرفر');
+    }
+}
+
+function showRewardModal(id, itemName) {
+    pendingReward = { id, item_name: itemName };
+    document.getElementById('rewardPrizeName').innerText = itemName;
+    document.getElementById('rewardWinModal').classList.remove('hidden');
+    playRewardSound();
+}
+
+async function redeemCurrentReward() {
+    if (!pendingReward) return;
+    try {
+        const res = await fetch(`${API_URL}/rewards/redeem`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ office: user.id, reward_id: pendingReward.id }) });
+        const data = await res.json();
+        if (data.status !== 'success') { showToast(data.message || 'تعذر إرسال الهدية'); return; }
+        closeModal('rewardWinModal'); pendingReward = null; showToast('تم إرسال هديتك للكاشير'); poll();
+    } catch (e) { showToast('تعذر الاتصال بالسيرفر'); }
 }
 
 function renderDebtSummary(data) {
@@ -1479,16 +1745,19 @@ function renderLedger(orders) {
         const orderType = String(o.order_type || '');
         const isAdjustment = orderType.includes('تسوية دين') || details.startsWith('تسوية دين:');
         const isPaymentRejected = orderType.includes('رفض سداد الدين') || details.startsWith('رفض سداد الدين:');
+        const isManualPayment = orderType.includes('سداد يدوي') || details.startsWith('سداد يدوي');
         const adjustmentReason = isAdjustment ? details.replace('تسوية دين:', '').trim() : '';
         const rejectionReason = isPaymentRejected ? details.replace('رفض سداد الدين:', '').trim() : '';
-        const amountText = isAdjustment && amount > 0 ? `+${amount} ₪` : `${amount} ₪`;
-        const amountClass = isPaymentRejected ? 'text-gray-400' : (isAdjustment && amount < 0 ? 'text-green-600' : (isAdjustment && amount > 0 ? 'text-red-600' : 'text-navy'));
-        const title = isPaymentRejected ? 'رفض إثبات السداد' : (isAdjustment ? 'تصحيح الدين' : details);
+        const amountText = (isAdjustment && amount > 0) ? `+${amount} ₪` : `${amount} ₪`;
+        const amountClass = isPaymentRejected ? 'text-gray-400' : (isManualPayment ? 'text-green-600' : (isAdjustment && amount < 0 ? 'text-green-600' : (isAdjustment && amount > 0 ? 'text-red-600' : 'text-navy')));
+        const title = isPaymentRejected ? 'رفض إثبات السداد' : (isManualPayment ? 'سداد يدوي' : (isAdjustment ? 'تصحيح الدين' : details));
         const subtitle = isPaymentRejected
             ? `سبب الرفض: ${rejectionReason || 'لم يتم توضيح السبب'}`
-            : (isAdjustment
-                ? `${amount < 0 ? 'تم خصم قيمة من الدين' : 'تم إضافة قيمة على الدين'}${adjustmentReason ? ` - السبب: ${adjustmentReason}` : ''}`
-                : '');
+            : (isManualPayment
+                ? 'تم تسجيل سداد يدوي من الإدارة'
+                : (isAdjustment
+                    ? `${amount < 0 ? 'تم خصم قيمة من الدين' : 'تم إضافة قيمة على الدين'}${adjustmentReason ? ` - السبب: ${adjustmentReason}` : ''}`
+                    : ''));
         const subtitleClass = isPaymentRejected ? 'text-red-500' : (amount < 0 ? 'text-green-600' : 'text-red-500');
         const badgeText = isPaymentRejected ? 'مرفوض' : (o.is_paid ? 'مسدد' : 'دين');
         const badgeClass = isPaymentRejected ? 'bg-red-100 text-red-600' : (o.is_paid ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600');
@@ -1498,7 +1767,7 @@ function renderLedger(orders) {
                     <p class="font-bold text-navy text-sm">${title}</p>
                     ${subtitle ? `<p class="text-xs ${subtitleClass} mt-1 font-bold leading-relaxed">${subtitle}</p>` : ''}
                     <p class="text-xs text-gray-400 mt-1">${formatDisplayTime(o.timestamp)}</p>
-                    ${o.order_type && !isAdjustment && !isPaymentRejected ? `<p class="text-xs text-gray-400 mt-1">${o.order_type}</p>` : ''}
+                    ${o.order_type && !isAdjustment && !isPaymentRejected && !isManualPayment ? `<p class="text-xs text-gray-400 mt-1">${o.order_type}</p>` : ''}
                 </div>
                 <div class="text-left">
                     <p class="font-black ${amountClass}">${amountText}</p>
@@ -1646,7 +1915,16 @@ async function submitReview() {
     showToast('شكراً على تقييمك');
 }
 
-function skipReview() {
+async function skipReview() {
+    if (reviewOrderId) {
+        try {
+            await fetch(`${API_URL}/review`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ order_id: reviewOrderId, skipped: true })
+            });
+        } catch (e) {}
+    }
     closeModal('reviewModal');
 }
 
@@ -1720,6 +1998,33 @@ function closeModal(id) {
     document.getElementById(id).classList.add('hidden');
 }
 
+function getPalPayDialCode(amount) {
+    const paymentAmount = Math.round(Number(amount || 0));
+    if (!paymentAmount || paymentAmount <= 0) {
+        showToast('أدخل قيمة الدفع أولاً');
+        return null;
+    }
+    return `*370*1*1*${debtTransferDefaults.wallet}*${paymentAmount}#`;
+}
+
+function dialPalPayAmount(amount) {
+    const code = getPalPayDialCode(amount);
+    if (!code) return;
+    showToast('بعد إتمام الدفع، ارجع وارفق صورة الإشعار');
+    window.location.href = `tel:${code.replace('#', '%23')}`;
+}
+
+function dialQuickPalPay() {
+    dialPalPayAmount(document.getElementById('quickPaymentAmount').value);
+}
+
+function dialGuestPalPay() {
+    dialPalPayAmount(pendingOrderTotal);
+}
+
+function dialDebtPalPay() {
+    dialPalPayAmount(latestReminder ? latestReminder.amount : 0);
+}
 async function copyText(value) {
     try {
         await navigator.clipboard.writeText(value);
@@ -1761,3 +2066,5 @@ restoreState();
 </script>
 </body>
 </html>
+
+
