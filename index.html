@@ -763,6 +763,12 @@ function isValidOfficeNumber(value) {
     return /^[24]\d{2}$/.test(normalizeDigits(value).trim());
 }
 
+function normalizeOfficeIdentity(value) {
+    const normalized = normalizeDigits(value || '').trim();
+    if (/^\d{3}$/.test(normalized)) return `مكتب ${normalized}`;
+    return normalized;
+}
+
 let fullMenu = [];
 
 async function loadMenu() {
@@ -837,6 +843,7 @@ async function restoreState() {
         const state = JSON.parse(raw);
         if (!state.user || !state.user.id) return;
         user = state.user;
+        if (!user.isGuest) user.id = normalizeOfficeIdentity(user.id);
         cart = state.cart || {};
         selectedOrderType = state.selectedOrderType || 'داخل الكوفي كورنر';
         currentCat = state.currentCat && state.currentCat !== 'all' ? state.currentCat : 'hot';
@@ -1439,9 +1446,23 @@ async function poll() {
     } catch (e) {}
 }
 
+function defaultRewardsProgress() {
+    return {
+        week_start: '',
+        order_count: 0,
+        amount_total: 0,
+        has_ready_reward: false,
+        tiers: [
+            { key: 'orders_3', title: 'أكملت 10 طلبات هذا الأسبوع', kind: 'count', target: 10, progress: 0, raw_progress: 0, eligible: false, status: 'locked', can_claim: false, can_redeem: false, reward: null },
+            { key: 'amount_30', title: 'مجموع طلباتك وصل 60 شيكل', kind: 'amount', target: 60, progress: 0, raw_progress: 0, eligible: false, status: 'locked', can_claim: false, can_redeem: false, reward: null },
+            { key: 'amount_60', title: 'مجموع طلباتك وصل 100 شيكل', kind: 'amount', target: 100, progress: 0, raw_progress: 0, eligible: false, status: 'locked', can_claim: false, can_redeem: false, reward: null }
+        ]
+    };
+}
+
 function renderRewards(rewards) {
     if (user.isGuest) return;
-    latestRewards = rewards || null;
+    latestRewards = rewards || defaultRewardsProgress();
     const btn = document.getElementById('giftsHeaderBtn');
     const badge = document.getElementById('giftsHeaderBadge');
     if (!btn || !badge) return;
@@ -1489,10 +1510,7 @@ function ensureRewardsCountdown() {
 function renderRewardsScreen() {
     const list = document.getElementById('rewardsList');
     if (!list) return;
-    if (!latestRewards) {
-        list.innerHTML = '<p class="text-center text-gray-400 py-8 font-bold">تعذر تحميل الهدايا حالياً</p>';
-        return;
-    }
+
     ensureRewardsCountdown();
     const tiers = latestRewards.tiers || [];
     if (!tiers.length) {
@@ -2075,6 +2093,9 @@ restoreState();
 </script>
 </body>
 </html>
+
+
+
 
 
 
