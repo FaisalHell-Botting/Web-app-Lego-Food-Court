@@ -1441,9 +1441,10 @@ async function poll() {
 
 function renderRewards(rewards) {
     if (user.isGuest) return;
-    latestRewards = rewards;
+    latestRewards = rewards || null;
     const btn = document.getElementById('giftsHeaderBtn');
     const badge = document.getElementById('giftsHeaderBadge');
+    if (!btn || !badge) return;
     const hasReady = !!(rewards && rewards.has_ready_reward);
     btn.className = hasReady ? 'relative text-xs font-bold text-white bg-green-500 px-3 py-1.5 rounded-full hover:bg-green-600 transition-colors gift-ready-pulse' : 'relative text-xs font-bold text-navy bg-gray-100 px-3 py-1.5 rounded-full hover:bg-gray-200 transition-colors';
     badge.className = hasReady ? 'absolute -top-1 -left-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white gift-badge-pulse' : 'absolute -top-1 -left-1 w-3 h-3 bg-gray-300 rounded-full border-2 border-white';
@@ -1487,9 +1488,17 @@ function ensureRewardsCountdown() {
 
 function renderRewardsScreen() {
     const list = document.getElementById('rewardsList');
-    if (!list || !latestRewards) return;
+    if (!list) return;
+    if (!latestRewards) {
+        list.innerHTML = '<p class="text-center text-gray-400 py-8 font-bold">تعذر تحميل الهدايا حالياً</p>';
+        return;
+    }
     ensureRewardsCountdown();
     const tiers = latestRewards.tiers || [];
+    if (!tiers.length) {
+        list.innerHTML = '<p class="text-center text-gray-400 py-8 font-bold">لا توجد هدايا متاحة حالياً</p>';
+        return;
+    }
     list.innerHTML = tiers.map(tier => {
         const reward = tier.reward || null;
         const isDone = ['claimed','ordered','approved'].includes(tier.status);
@@ -2066,5 +2075,6 @@ restoreState();
 </script>
 </body>
 </html>
+
 
 
