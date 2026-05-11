@@ -270,17 +270,18 @@ def empty_reward_progress():
 def fetch_reward_progress(cursor, office):
     week_start = get_reward_week_start()
     week_key = week_start.strftime("%Y-%m-%d %H:%M:%S")
+    office_variants = office_location_variants(office)
     cursor.execute(
         """
         SELECT COUNT(*), COALESCE(SUM(total_price), 0)
         FROM orders
-        WHERE location=%s
+        WHERE location IN %s
           AND status='مقبول'
           AND location NOT LIKE 'زائر%%'
           AND COALESCE(order_type, '') NOT IN %s
           AND COALESCE(approved_at, timestamp) >= %s
         """,
-        (office, tuple(REWARD_EXCLUDED_ORDER_TYPES), week_key),
+        (office_variants, tuple(REWARD_EXCLUDED_ORDER_TYPES), week_key),
     )
     order_count, amount_total = cursor.fetchone()
     order_count = int(order_count or 0)
@@ -408,6 +409,16 @@ def clean_office_name(office):
     return value
 
 
+def office_location_variants(office):
+    value = clean_office_name(office)
+    variants = [value]
+    match = re.fullmatch(r"مكتب\s*(\d{3})", value)
+    if match:
+        number = match.group(1)
+        variants.extend([number, f"مكتب{number}", f"مكتب {number}"])
+    return tuple(dict.fromkeys(v for v in variants if v))
+
+
 def is_guest_office(office):
     return clean_office_name(office).startswith("زائر")
 
@@ -426,16 +437,17 @@ def get_db():
 
 
 def fetch_current_debt(cursor, office):
+    office_variants = office_location_variants(office)
     cursor.execute(
         """
         SELECT COALESCE(SUM(total_price), 0)
         FROM orders
-        WHERE location=%s
+        WHERE location IN %s
           AND status='مقبول'
           AND is_paid=0
           AND location NOT LIKE 'زائر%%'
         """,
-        (office,),
+        (office_variants,),
     )
     return cursor.fetchone()[0] or 0
 
@@ -444,29 +456,30 @@ def fetch_current_debt(cursor, office):
 def reminder_became_stale(cursor, office, reminder_created_at):
     if not reminder_created_at:
         return False
+    office_variants = office_location_variants(office)
     cursor.execute(
         """
         SELECT COALESCE(SUM(total_price), 0)
         FROM orders
-        WHERE location=%s
+        WHERE location IN %s
           AND status='مقبول'
           AND is_paid=0
           AND COALESCE(approved_at, timestamp) <= %s
         """,
-        (office, reminder_created_at),
+        (office_variants, reminder_created_at),
     )
     running_debt = int(cursor.fetchone()[0] or 0)
     cursor.execute(
         """
         SELECT total_price
         FROM orders
-        WHERE location=%s
+        WHERE location IN %s
           AND status='مقبول'
           AND is_paid=0
           AND COALESCE(approved_at, timestamp) > %s
         ORDER BY COALESCE(approved_at, timestamp) ASC, id ASC
         """,
-        (office, reminder_created_at),
+        (office_variants, reminder_created_at),
     )
     for row in cursor.fetchall():
         running_debt += int(row[0] or 0)
@@ -479,19 +492,21 @@ def deactivate_debt_collection_if_clear(cursor, office):
     if not office:
         return
     if int(fetch_current_debt(cursor, office) or 0) <= 0:
-        cursor.execute("UPDATE reminders SET is_active=0 WHERE office=%s", (office,))
-        cursor.execute("UPDATE debt_payment_requests SET status='cancelled' WHERE office=%s AND status='pending'", (office,))
+        office_variants = office_location_variants(office)
+        cursor.execute("UPDATE reminders SET is_active=0 WHERE office IN %s", (office_variants,))
+        cursor.execute("UPDATE debt_payment_requests SET status='cancelled' WHERE office IN %s AND status='pending'", (office_variants,))
 
 def get_active_reminder(cursor, office):
+    office_variants = office_location_variants(office)
     cursor.execute(
         """
         SELECT id, office, amount, payment_info, is_active, is_seen, created_at
         FROM reminders
-        WHERE office=%s AND is_active=1
+        WHERE office IN %s AND is_active=1
         ORDER BY id DESC
         LIMIT 1
         """,
-        (office,),
+        (office_variants,),
     )
     row = cursor.fetchone()
     if not row:
@@ -512,15 +527,16 @@ def get_active_reminder(cursor, office):
 
 
 def get_latest_payment_request(cursor, office):
+    office_variants = office_location_variants(office)
     cursor.execute(
         """
         SELECT id, office, amount, receipt, status, created_at
         FROM debt_payment_requests
-        WHERE office=%s
+        WHERE office IN %s
         ORDER BY id DESC
         LIMIT 1
         """,
-        (office,),
+        (office_variants,),
     )
     row = cursor.fetchone()
     if not row:
@@ -1214,14 +1230,15 @@ async def create_order(request: Request):
             if any(item.get("cat") == "snack" for item in snapshot):
                 order_type = "داخل الكوفي كورنر"
         if not is_guest:
+            office_variants = office_location_variants(office)
             c.execute(
                 """
                 SELECT id
                 FROM orders
-                WHERE location=%s AND status IN ('انتظار','صنف_ناقص')
+                WHERE location IN %s AND status IN ('انتظار','صنف_ناقص')
                 LIMIT 1
                 """,
-                (office,),
+                (office_variants,),
             )
             if c.fetchone():
                 c.close()
@@ -1363,10 +1380,10 @@ async def submit_debt_payment(request: Request):
             """
             SELECT 1
             FROM debt_payment_requests
-            WHERE office=%s AND status='pending'
+            WHERE office IN %s AND status='pending'
             LIMIT 1
             """,
-            (office,),
+            (office_location_variants(office),),
         )
         if c.fetchone():
             c.close()
@@ -1406,6 +1423,7 @@ async def mark_reminder_seen(reminder_id: int):
 async def sync_user(office: str):
     office = clean_office_name(office)
     guest = is_guest_office(office)
+    office_variants = office_location_variants(office)
     try:
         conn = get_db()
         c = conn.cursor()
@@ -1416,11 +1434,11 @@ async def sync_user(office: str):
                 """
                 SELECT id, details, total_price, status, missing_note, order_type
                 FROM orders
-                WHERE location=%s AND status IN ('انتظار','صنف_ناقص')
+                WHERE location IN %s AND status IN ('انتظار','صنف_ناقص')
                 ORDER BY id DESC
                 LIMIT 1
                 """,
-                (office,),
+                (office_variants,),
             )
             row = c.fetchone()
             if row:
@@ -1437,11 +1455,11 @@ async def sync_user(office: str):
             """
             SELECT id, details, total_price, timestamp, is_paid, status, receipt, order_type
             FROM orders
-            WHERE location=%s AND status NOT IN ('انتظار','صنف_ناقص','ملغي')
+            WHERE location IN %s AND status NOT IN ('انتظار','صنف_ناقص','ملغي')
                           AND COALESCE(details, '') <> 'تم حذف جميع الأصناف من هذا الطلب'
             ORDER BY id DESC
             """,
-            (office,),
+            (office_variants,),
         )
         rows = c.fetchall()
         orders = [
@@ -1467,11 +1485,11 @@ async def sync_user(office: str):
                 """
                 SELECT id, new_pin
                 FROM office_pin_help
-                WHERE office=%s AND new_pin IS NOT NULL AND COALESCE(pin_seen, 0)=0
+                WHERE office IN %s AND new_pin IS NOT NULL AND COALESCE(pin_seen, 0)=0
                 ORDER BY id DESC
                 LIMIT 1
                 """,
-                (office,),
+                (office_variants,),
             )
             pin_row = c.fetchone()
             if pin_row:
@@ -1483,7 +1501,7 @@ async def sync_user(office: str):
                 """
                 SELECT id, details, total_price, approved_at
                 FROM orders
-                WHERE location=%s
+                WHERE location IN %s
                   AND status='مقبول'
                   AND is_reviewed=0
                   AND COALESCE(order_type, 'داخل الكوفي كورنر') IN ('داخل الكوفي كورنر', 'توصيل للمكتب', 'هدية مجانية')
@@ -1491,7 +1509,7 @@ async def sync_user(office: str):
                 ORDER BY id DESC
                 LIMIT 1
                 """,
-                (office,),
+                (office_variants,),
             )
             rev_row = c.fetchone()
             if rev_row:
@@ -1611,11 +1629,11 @@ async def redeem_reward(request: Request):
             """
             SELECT id
             FROM orders
-            WHERE location=%s AND status IN ('انتظار','صنف_ناقص')
+            WHERE location IN %s AND status IN ('انتظار','صنف_ناقص')
             ORDER BY id DESC
             LIMIT 1
             """,
-            (office,),
+            (office_location_variants(office),),
         )
         if c.fetchone():
             c.close()
@@ -1990,6 +2008,7 @@ async def admin_dashboard():
 @app.get("/api/admin/debt-details/{office}")
 async def admin_debt_details(office: str):
     office = clean_office_name(office)
+    office_variants = office_location_variants(office)
     try:
         conn = get_db()
         c = conn.cursor()
@@ -1997,11 +2016,11 @@ async def admin_debt_details(office: str):
             """
             SELECT id, details, total_price, timestamp, order_type, item_snapshot
             FROM orders
-            WHERE location=%s AND status='مقبول' AND is_paid=0
+            WHERE location IN %s AND status='مقبول' AND is_paid=0
                           AND COALESCE(order_type, '') NOT IN ('تسوية دين يدوية', 'إضافة يدوية', 'حذف صنف من الدين', 'سداد دين', 'سداد يدوي')
             ORDER BY id DESC
             """,
-            (office,),
+            (office_variants,),
         )
         rows = c.fetchall()
         orders = []
@@ -2018,11 +2037,11 @@ async def admin_debt_details(office: str):
             """
             SELECT id, details, total_price, timestamp, order_type
             FROM orders
-            WHERE location=%s AND status='مقبول' AND is_paid=0
+            WHERE location IN %s AND status='مقبول' AND is_paid=0
               AND COALESCE(order_type, '') IN ('تسوية دين يدوية', 'إضافة يدوية', 'حذف صنف من الدين', 'سداد دين', 'سداد يدوي')
             ORDER BY id DESC
             """,
-            (office,),
+            (office_variants,),
         )
         adjustment_rows = c.fetchall()
         adjustments = []
@@ -2112,6 +2131,7 @@ async def admin_action(request: Request):
         elif action == "mark_paid":
             current_debt = int(fetch_current_debt(c, office) or 0)
             now = get_pal_time()
+            office_variants = office_location_variants(office)
             if current_debt > 0:
                 c.execute(
                     """
@@ -2120,9 +2140,9 @@ async def admin_action(request: Request):
                     """,
                     (0, "سداد يدوي من الإدارة", -current_debt, office, now, now),
                 )
-            c.execute("UPDATE orders SET is_paid=1 WHERE location=%s AND status='مقبول'", (office,))
-            c.execute("UPDATE reminders SET is_active=0 WHERE office=%s", (office,))
-            c.execute("UPDATE debt_payment_requests SET status='paid' WHERE office=%s AND status='pending'", (office,))
+            c.execute("UPDATE orders SET is_paid=1 WHERE location IN %s AND status='مقبول'", (office_variants,))
+            c.execute("UPDATE reminders SET is_active=0 WHERE office IN %s", (office_variants,))
+            c.execute("UPDATE debt_payment_requests SET status='paid' WHERE office IN %s AND status='pending'", (office_variants,))
         elif action == "confirm_debt_payment":
             c.execute(
                 "SELECT office, amount FROM debt_payment_requests WHERE id=%s AND status='pending'",
@@ -2147,7 +2167,7 @@ async def admin_action(request: Request):
                 """,
                 (0, "سداد دين بناء على تذكير الكاشير", -pay_amount, pay_office, get_pal_time(), get_pal_time()),
             )
-            c.execute("UPDATE reminders SET is_active=0 WHERE office=%s", (pay_office,))
+            c.execute("UPDATE reminders SET is_active=0 WHERE office IN %s", (office_location_variants(pay_office),))
         elif action == "reject_debt_payment":
             note = clean_office_name(data.get("note"))
             if not note:
