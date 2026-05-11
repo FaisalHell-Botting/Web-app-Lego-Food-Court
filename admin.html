@@ -200,6 +200,24 @@
     </div>
 </div>
 
+
+
+<div id="adminToast" class="fixed bottom-5 left-1/2 -translate-x-1/2 z-[90] hidden">
+    <div id="adminToastBox" class="bg-[#2E3468] text-white px-5 py-3 rounded-2xl shadow-2xl text-sm font-black text-center min-w-[220px] border border-white/10"></div>
+</div>
+<div id="adminDialogModal" class="fixed inset-0 bg-black/70 z-[80] flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl w-full max-w-sm p-6 slide-up text-center shadow-2xl">
+        <div id="adminDialogIcon" class="w-14 h-14 mx-auto rounded-2xl bg-yellow-50 text-yellow-600 flex items-center justify-center mb-4 text-3xl font-black">!</div>
+        <h3 id="adminDialogTitle" class="font-black text-xl text-[#2E3468] mb-2">تنبيه</h3>
+        <p id="adminDialogMessage" class="text-sm text-gray-500 font-bold leading-relaxed whitespace-pre-line mb-4"></p>
+        <textarea id="adminDialogInput" class="hidden w-full border-2 border-gray-200 rounded-2xl p-3 text-sm font-bold min-h-[110px] resize-none focus:outline-none focus:border-[#2E3468] mb-4" placeholder="اكتب السبب هنا"></textarea>
+        <div id="adminDialogError" class="hidden text-xs text-red-500 font-bold mb-3"></div>
+        <div id="adminDialogActions" class="grid grid-cols-2 gap-2">
+            <button id="adminDialogCancel" class="bg-gray-100 text-gray-600 py-3 rounded-xl font-black hover:bg-gray-200 transition-colors">إلغاء</button>
+            <button id="adminDialogOk" class="bg-[#2E3468] text-white py-3 rounded-xl font-black hover:bg-opacity-90 transition-colors">تأكيد</button>
+        </div>
+    </div>
+</div>
 <div id="debtEditModal" class="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 hidden">
     <div class="bg-white p-6 rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-y-auto slide-up">
         <div class="flex justify-between items-start gap-3 mb-4">
@@ -306,6 +324,76 @@ let latestDebts = [];
 let latestMenuItems = [];
 let currentMenuFilter = 'hot';
 let currentDebtTotal = 0;
+let adminToastTimer = null;
+
+function showAdminToast(message, type='success') {
+    const toast = document.getElementById('adminToast');
+    const box = document.getElementById('adminToastBox');
+    if (!toast || !box) return;
+    box.innerText = message;
+    box.className = `px-5 py-3 rounded-2xl shadow-2xl text-sm font-black text-center min-w-[220px] border ${type === 'error' ? 'bg-red-600 text-white border-red-200' : 'bg-[#2E3468] text-white border-white/10'}`;
+    toast.classList.remove('hidden');
+    clearTimeout(adminToastTimer);
+    adminToastTimer = setTimeout(() => toast.classList.add('hidden'), 2600);
+}
+let adminDialogResolve = null;
+
+function openAdminDialog({ title='تنبيه', message='', icon='!', mode='alert', confirmText='تمام', cancelText='إلغاء', placeholder='اكتب هنا', required=false } = {}) {
+    return new Promise(resolve => {
+        adminDialogResolve = resolve;
+        const modal = document.getElementById('adminDialogModal');
+        const input = document.getElementById('adminDialogInput');
+        const error = document.getElementById('adminDialogError');
+        const cancel = document.getElementById('adminDialogCancel');
+        const ok = document.getElementById('adminDialogOk');
+        document.getElementById('adminDialogIcon').innerText = icon;
+        document.getElementById('adminDialogTitle').innerText = title;
+        document.getElementById('adminDialogMessage').innerText = message;
+        error.classList.add('hidden');
+        error.innerText = '';
+        input.value = '';
+        input.placeholder = placeholder;
+        input.classList.toggle('hidden', mode !== 'prompt');
+        cancel.classList.toggle('hidden', mode === 'alert');
+        cancel.innerText = cancelText;
+        ok.innerText = confirmText;
+        modal.classList.remove('hidden');
+        setTimeout(() => { if (mode === 'prompt') input.focus(); }, 60);
+        cancel.onclick = () => {
+            modal.classList.add('hidden');
+            resolve(mode === 'prompt' ? null : false);
+        };
+        ok.onclick = () => {
+            if (mode === 'prompt') {
+                const value = input.value.trim();
+                if (required && !value) {
+                    error.innerText = 'هذا الحقل مطلوب';
+                    error.classList.remove('hidden');
+                    return;
+                }
+                modal.classList.add('hidden');
+                resolve(value);
+                return;
+            }
+            modal.classList.add('hidden');
+            resolve(true);
+        };
+    });
+}
+
+function showAdminAlert(message, title='تنبيه', icon='!') {
+    return openAdminDialog({ title, message: String(message || ''), icon, mode: 'alert', confirmText: 'تمام' });
+}
+
+function showAdminConfirm(message, title='تأكيد العملية', icon='!') {
+    return openAdminDialog({ title, message, icon, mode: 'confirm', confirmText: 'نعم، تأكيد', cancelText: 'إلغاء' });
+}
+
+function showAdminPrompt(message, title='إدخال مطلوب', placeholder='اكتب السبب هنا') {
+    return openAdminDialog({ title, message, icon: '؟', mode: 'prompt', confirmText: 'إرسال', cancelText: 'إلغاء', placeholder, required: true });
+}
+
+window.alert = (message) => { showAdminAlert(message); };
 const ADMIN_PASSWORD = '444555666';
 
 function loginAdmin() {
@@ -544,10 +632,11 @@ function renderActiveOrders(orders) {
 
         const isPending = order.status === 'انتظار';
         const isMissing = order.status === 'صنف_ناقص';
+        const isGift = order.order_type === 'هدية مجانية';
         const detailsEscaped = order.details.replace(/'/g, "\\'");
         const locationEscaped = order.location.replace(/'/g, "\\'");
         return `
-        <div class="bg-white p-4 rounded-2xl border-2 ${isPending ? 'border-yellow-300 bg-yellow-50' : 'border-red-300 bg-red-50'} shadow-sm flex flex-col slide-up">
+        <div class="bg-white p-4 rounded-2xl border-2 ${isGift ? 'border-green-300 bg-green-50' : (isPending ? 'border-yellow-300 bg-yellow-50' : 'border-red-300 bg-red-50')} shadow-sm flex flex-col slide-up">
                 <div class="flex justify-between items-start mb-3">
                     <div>
                         <span class="font-black text-[#2E3468] text-base">#${order.id}</span>
@@ -557,8 +646,8 @@ function renderActiveOrders(orders) {
                         <button onclick="speakSingleOrder('${locationEscaped}', '${detailsEscaped}')" class="w-9 h-9 rounded-full bg-white border border-gray-200 text-[#2E3468] font-bold hover:bg-gray-50 transition-colors" title="إعادة سماع الطلب">
                             🔊
                         </button>
-                        <span class="text-xs font-bold px-2 py-1 rounded-full ${isPending ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}">
-                            ${isPending ? 'انتظار' : 'صنف ناقص'}
+                        <span class="text-xs font-bold px-2 py-1 rounded-full ${isGift ? 'bg-green-100 text-green-700' : (isPending ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700')}">
+                            ${isGift ? 'هدية' : (isPending ? 'انتظار' : 'صنف ناقص')}
                         </span>
                     </div>
                 </div>
@@ -568,11 +657,11 @@ function renderActiveOrders(orders) {
             ${order.missing_note ? `<div class="bg-red-50 border border-red-200 p-2 rounded-lg mb-3"><p class="text-xs text-red-600 font-bold">ناقص: ${order.missing_note}</p></div>` : ''}
             <div class="flex justify-between items-center mb-3">
                 <span class="text-xs text-gray-400 font-bold">الإجمالي:</span>
-                <span class="font-black text-xl text-[#2E3468]">${order.total_price} ₪</span>
+                <span class="font-black text-xl text-[#2E3468]">${isGift ? 'مدفوع' : `${order.total_price} ₪`}</span>
             </div>
-            <div class="grid grid-cols-5 gap-2 mt-auto">
-                <button onclick="action('approve', ${order.id})" class="col-span-3 bg-[#2E3468] text-white py-2.5 rounded-xl text-sm font-bold shadow hover:bg-opacity-90 transition-all flex items-center justify-center gap-1.5">${ICON_CHECK}<span>موافقة</span></button>
-                <button onclick="promptMissing(${order.id}, '${detailsEscaped}')" class="col-span-2 border-2 border-red-200 text-red-500 py-2.5 rounded-xl text-sm font-bold hover:bg-red-50 transition-colors flex items-center justify-center gap-1.5">${ICON_WARNING}<span>صنف ناقص</span></button>
+            <div class="grid ${isGift ? 'grid-cols-1' : 'grid-cols-5'} gap-2 mt-auto">
+                <button onclick="action('approve', ${order.id})" class="${isGift ? 'w-full' : 'col-span-3'} bg-[#2E3468] text-white py-2.5 rounded-xl text-sm font-bold shadow hover:bg-opacity-90 transition-all flex items-center justify-center gap-1.5">${ICON_CHECK}<span>موافقة</span></button>
+                ${isGift ? '' : `<button onclick="promptMissing(${order.id}, '${detailsEscaped}')" class="col-span-2 border-2 border-red-200 text-red-500 py-2.5 rounded-xl text-sm font-bold hover:bg-red-50 transition-colors flex items-center justify-center gap-1.5">${ICON_WARNING}<span>صنف ناقص</span></button>`}
             </div>
         </div>`;
     }).join('');
@@ -685,19 +774,15 @@ function renderGuests(orders) {
 }
 
 async function rejectDebtPayment(id) {
-    const note = prompt('اكتب سبب رفض إثبات سداد المكتب');
+    const note = await showAdminPrompt('اكتب سبب رفض إثبات سداد المكتب', 'رفض إثبات السداد', 'سبب الرفض');
     if (note === null) return;
-    const cleanNote = note.trim();
-    if (!cleanNote) { alert('سبب الرفض مطلوب'); return; }
-    await action('reject_debt_payment', id, null, cleanNote);
+    await action('reject_debt_payment', id, null, note);
 }
 
 async function rejectVisitorPayment(id) {
-    const note = prompt('اكتب سبب رفض فاتورة الزائر');
+    const note = await showAdminPrompt('اكتب سبب رفض فاتورة الزائر', 'رفض فاتورة الزائر', 'سبب الرفض');
     if (note === null) return;
-    const cleanNote = note.trim();
-    if (!cleanNote) { alert('سبب الرفض مطلوب'); return; }
-    await action('reject_visitor_payment', id, null, cleanNote);
+    await action('reject_visitor_payment', id, null, note);
 }
 
 const MENU_CATEGORY_LABELS = { hot: 'ساخن', cold: 'بارد', snack: 'سندويشات', candy: 'تسالي' };
@@ -742,10 +827,12 @@ function renderAdminMenu(items) {
         <div class="bg-white p-4 rounded-2xl border shadow-sm slide-up ${active ? 'border-gray-100' : 'border-gray-200 opacity-70'}">
             <div class="flex justify-between items-start gap-3 mb-3">
                 <div class="min-w-0">
-                    <div class="text-3xl mb-2">${item.emoji || '☕'}</div>
+                    <div class="flex items-center gap-2 mb-2">
+                        <div class="text-3xl leading-none">${item.emoji || '☕'}</div>
+                        ${todaySpecial ? `<span class="inline-flex items-center gap-1 bg-yellow-100 text-yellow-700 border border-yellow-200 rounded-full px-2 py-1 text-[11px] font-black">${ICON_SPARK}<span>اليوم فقط</span></span>` : ''}
+                    </div>
                     <h3 class="font-black text-[#2E3468] text-sm break-words">${item.name}</h3>
                     <p class="text-xs text-gray-400 font-bold mt-1">${categoryLabel}${typeLabel ? ' · ' + typeLabel : ''}</p>
-                    ${todaySpecial ? `<span class="inline-flex items-center gap-1 mt-2 bg-yellow-100 text-yellow-700 border border-yellow-200 rounded-full px-2 py-1 text-[11px] font-black">${ICON_SPARK}<span>اليوم فقط</span></span>` : ''}
                 </div>
                 <span class="font-black text-lg text-[#2E3468] shrink-0">${item.price} ₪</span>
             </div>
@@ -797,6 +884,7 @@ async function submitMenuItem() {
     const data = await res.json();
     if (data.status !== 'success') { alert(data.message || 'تعذر حفظ الصنف'); return; }
     closeMenuItemModal();
+    showAdminToast('تم حفظ الصنف');
     fetchData();
 }
 
@@ -804,6 +892,7 @@ async function toggleMenuItem(id, isActive) {
     const res = await fetch(`${API_URL}/admin/action`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle_menu_item', item_id: id, is_active: isActive }) });
     const data = await res.json();
     if (data.status !== 'success') { alert(data.message || 'تعذر تحديث الصنف'); return; }
+    showAdminToast('تم تحديث الصنف');
     fetchData();
 }
 
@@ -811,14 +900,16 @@ async function toggleMenuTodaySpecial(id, isTodaySpecial) {
     const res = await fetch(`${API_URL}/admin/action`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle_menu_today_special', item_id: id, is_today_special: isTodaySpecial }) });
     const data = await res.json();
     if (data.status !== 'success') { alert(data.message || 'تعذر تحديث تمييز الصنف'); return; }
+    showAdminToast('تم تحديث تمييز الصنف');
     fetchData();
 }
 async function deleteMenuItem(id) {
     const item = latestMenuItems.find(i => Number(i.db_id) === Number(id));
-    if (!confirm(`سيتم حذف الصنف من المنيو فقط ولن يتأثر سجل الطلبات القديم.\n\n${item ? item.name : ''}\n\nهل أنت متأكد؟`)) return;
+    if (!await showAdminConfirm(`سيتم حذف الصنف من المنيو فقط ولن يتأثر سجل الطلبات القديم.\n\n${item ? item.name : ''}\n\nهل أنت متأكد؟`, 'تأكيد حذف الصنف', '!')) return;
     const res = await fetch(`${API_URL}/admin/action`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'delete_menu_item', item_id: id }) });
     const data = await res.json();
     if (data.status !== 'success') { alert(data.message || 'تعذر حذف الصنف'); return; }
+    showAdminToast('تم حذف الصنف');
     fetchData();
 }
 function updateResponseAverage(stats) {
@@ -891,11 +982,13 @@ function renderOffices(offices) {
             <div class="grid grid-cols-2 gap-2 mb-3">
                 <div class="bg-gray-50 rounded-xl p-3 border border-gray-100">
                     <p class="text-[11px] text-gray-400 font-bold mb-1">إجمالي الطلبات</p>
-                    <p class="font-black text-[#2E3468]">${Number(o.accepted_orders_count || 0)}</p>
+                    <p class="font-black text-[#2E3468] text-xl leading-tight">${Number(o.accepted_orders_count || 0)}</p>
+                    <p class="text-[11px] text-green-600 font-extrabold mt-1">+ ${Number(o.weekly_orders_count || 0)} طلبات هذا الأسبوع</p>
                 </div>
                 <div class="bg-gray-50 rounded-xl p-3 border border-gray-100">
                     <p class="text-[11px] text-gray-400 font-bold mb-1">إجمالي المشتريات</p>
-                    <p class="font-black text-[#2E3468]">${Number(o.total_purchases || 0)} شيكل</p>
+                    <p class="font-black text-[#2E3468] text-xl leading-tight">${Number(o.total_purchases || 0)} شيكل</p>
+                    <p class="text-[11px] text-green-600 font-extrabold mt-1">+ ${Number(o.weekly_purchases || 0)} شيكل هذا الأسبوع</p>
                 </div>
             </div>
             ${o.help_requested ? `<p class="text-xs font-bold bg-yellow-50 text-yellow-700 p-2 rounded-xl mb-3">يوجد طلب مساعدة ${formatDisplayTime(o.help_created_at)}</p>` : ''}
@@ -922,6 +1015,7 @@ function renderExpenses(expenses) {
                 <div>
                     <p class="text-xs text-gray-400 font-bold">تاريخ الإضافة</p>
                     <p class="text-sm font-bold text-[#2E3468] mt-1">${formatDisplayTime(expense.created_at)}</p>
+                    ${expense.description ? `<p class="text-xs text-green-700 font-bold mt-2 bg-green-50 border border-green-100 rounded-lg px-2 py-1">${expense.description}</p>` : ''}
                 </div>
                 <button onclick="deleteExpense(${expense.id})" class="text-xs font-bold text-red-500 bg-red-50 px-3 py-1.5 rounded-lg hover:bg-red-100 transition-colors flex items-center justify-center gap-1.5">${ICON_TRASH}<span>حذف</span></button>
             </div>
@@ -932,6 +1026,10 @@ function renderExpenses(expenses) {
 }
 
 async function action(act, id, office=null, note=null) {
+    if (act === 'mark_paid') {
+        const confirmed = await showAdminConfirm(`سيتم تسجيل سداد يدوي لهذا المكتب وتصفير الدين الحالي:\n\n${office || ''}\n\nهل أنت متأكد؟`, 'تأكيد السداد اليدوي', '!');
+        if (!confirmed) return;
+    }
     try {
         const res = await fetch(`${API_URL}/admin/action`, {
             method: 'POST',
@@ -943,12 +1041,12 @@ async function action(act, id, office=null, note=null) {
             alert(data.message || 'حدث خطأ، حاول مجدداً');
             return;
         }
-        if (act === 'remind') alert(`تم إرسال تذكير الدفع لـ ${office}`);
-        if (act === 'mark_paid') alert(`تم تسجيل سداد ${office}`);
-        if (act === 'confirm_debt_payment') alert('تم تأكيد طلب تسديد الدين وتحويله إلى مدفوع');
-        if (act === 'reject_debt_payment') alert('تم رفض إثبات السداد وإرسال السبب للمكتب');
-        if (act === 'confirm_visitor_payment') alert('تم تأكيد فاتورة الزائر');
-        if (act === 'reject_visitor_payment') alert('تم رفض فاتورة الزائر وحفظ السبب للكاشير');
+        if (act === 'remind') showAdminToast(`تم إرسال تذكير الدفع لـ ${office}`);
+        if (act === 'mark_paid') showAdminToast(`تم تسجيل سداد ${office}`);
+        if (act === 'confirm_debt_payment') showAdminToast('تم تأكيد طلب تسديد الدين وتحويله إلى مدفوع');
+        if (act === 'reject_debt_payment') showAdminToast('تم رفض إثبات السداد وإرسال السبب للمكتب');
+        if (act === 'confirm_visitor_payment') showAdminToast('تم تأكيد فاتورة الزائر');
+        if (act === 'reject_visitor_payment') showAdminToast('تم رفض فاتورة الزائر وحفظ السبب للكاشير');
         fetchData();
     } catch (e) {
         alert('حدث خطأ، حاول مجدداً');
@@ -956,16 +1054,18 @@ async function action(act, id, office=null, note=null) {
 }
 
 async function resolveOfficePinHelp(office) {
-    if (!confirm(`إلغاء طلب مساعدة الرقم السري للمكتب ${office} بدون تغيير الرقم؟`)) return;
+    if (!await showAdminConfirm(`إلغاء طلب مساعدة الرقم السري للمكتب ${office} بدون تغيير الرقم؟`, 'إلغاء طلب المساعدة', '!')) return;
     const res = await fetch(`${API_URL}/admin/action`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'resolve_office_pin_help', office }) });
     const data = await res.json();
     if (data.status !== 'success') { alert(data.message || 'تعذر إلغاء الطلب'); return; }
+    showAdminToast('تم إلغاء طلب المساعدة');
     fetchData();
 }
 async function resetOfficePin(office) {
     const res = await fetch(`${API_URL}/admin/action`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'reset_office_pin', office }) });
     const data = await res.json();
     if (data.status !== 'success') { alert(data.message || 'تعذر تغيير الرقم'); return; }
+    showAdminToast('تم إنشاء رقم سري جديد');
     showNewPinModal(office);
     fetchData();
 }
@@ -1048,10 +1148,11 @@ async function loadDebtDetails() {
 async function removeDebtItem(orderId, itemName, orderTimestamp='', itemPrice=0) {
     const priceText = Number(itemPrice || 0) > 0 ? `${itemPrice} ₪` : 'غير محددة';
     const message = `أنت على وشك حذف هذا الصنف من دين المكتب:\n\nرقم الطلب: #${orderId}\nالتاريخ: ${orderTimestamp || '-'}\nالصنف: ${itemName}\nالقيمة: ${priceText}\n\nسيظهر عند المستخدم خصم بقيمة الصنف وأن الإدارة حذفته من الدين.\n\nهل أنت متأكد؟`;
-    if (!confirm(message)) return;
+    if (!await showAdminConfirm(message, 'تأكيد حذف صنف من الدين', '!')) return;
     const res = await fetch(`${API_URL}/admin/action`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'remove_debt_item', order_id: orderId, item_name: itemName }) });
     const data = await res.json();
     if (data.status !== 'success') { alert(data.message || 'تعذر حذف الصنف'); return; }
+    showAdminToast('تم حذف الصنف من الدين');
     await loadDebtDetails();
     fetchData();
 }
@@ -1062,7 +1163,7 @@ async function submitFinalDebtAmount() {
         alert('أدخل قيمة صحيحة');
         return;
     }
-    if (!confirm(`تعديل الدين النهائي من ${currentDebtTotal} ₪ إلى ${amount} ₪؟`)) return;
+    if (!await showAdminConfirm(`تعديل الدين النهائي من ${currentDebtTotal} ₪ إلى ${amount} ₪؟`, 'تأكيد تعديل الدين', '!')) return;
     const res = await fetch(`${API_URL}/admin/action`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1073,6 +1174,7 @@ async function submitFinalDebtAmount() {
         alert(data.message || 'تعذر تصحيح الدين');
         return;
     }
+    showAdminToast('تم تصحيح الدين');
     await loadDebtDetails();
     fetchData();
 }
@@ -1119,14 +1221,15 @@ async function submitExpense() {
             return;
         }
         closeExpenseModal();
-        fetchData();
+            showAdminToast('تم حفظ المصروف');
+            fetchData();
     } catch (e) {
         alert('حدث خطأ أثناء حفظ المصروف');
     }
 }
 
 async function deleteExpense(id) {
-    if (!confirm('هل تريد حذف هذا المصروف؟')) return;
+    if (!await showAdminConfirm('هل تريد حذف هذا المصروف؟', 'تأكيد حذف المصروف', '!')) return;
     try {
         const res = await fetch(`${API_URL}/admin/action`, {
             method: 'POST',
@@ -1184,7 +1287,7 @@ function submitMissing() {
 }
 
 function copyPhone(value) {
-    navigator.clipboard.writeText(value).then(() => alert('تم نسخ رقم الجوال')).catch(() => alert(value));
+    navigator.clipboard.writeText(value).then(() => showAdminToast('تم نسخ رقم الجوال')).catch(() => showAdminAlert(value));
 }
 async function showReceipt(source, id) {
     try {
