@@ -250,7 +250,7 @@
             transform: rotateX(12deg) rotate(0deg); transition: transform 5.7s cubic-bezier(.12,.72,.04,1);
         }
         .reward-wheel::before { content: ''; position: absolute; inset: 17px; border-radius: 50%; border: 2px dashed rgba(255,255,255,.82); pointer-events: none; }
-        .reward-wheel::after { content: ''; position: absolute; inset: 50%; width: 42px; height: 42px; margin: -21px 0 0 -21px; border-radius: 50%; background: radial-gradient(circle, #ffffff 0 45%, #F7CC46 48% 54%, #2E3468 56% 100%); box-shadow: 0 8px 20px rgba(0,0,0,.16); }
+        .reward-wheel::after { content: ''; position: absolute; top: 50%; left: 50%; width: 42px; height: 42px; transform: translate(-50%, -50%); border-radius: 50%; background: radial-gradient(circle, #ffffff 0 45%, #F7CC46 48% 54%, #2E3468 56% 100%); box-shadow: 0 8px 20px rgba(0,0,0,.16); }
         .reward-wheel-lights { position: absolute; inset: -7px; border-radius: 50%; pointer-events: none; }
         .reward-wheel-lights span { position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; margin: -4px; border-radius: 50%; background: #F7CC46; box-shadow: 0 0 9px rgba(247,204,70,.9); animation: wheelLightPulse 1.15s ease-in-out infinite; transform: rotate(var(--angle)) translateY(-119px); }
         .reward-wheel-lights span:nth-child(even) { background: #ffffff; box-shadow: 0 0 10px rgba(255,255,255,.95); animation-delay: .2s; }
