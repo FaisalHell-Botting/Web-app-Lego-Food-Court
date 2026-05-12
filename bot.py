@@ -119,6 +119,7 @@ REWARD_EXCLUDED_ORDER_TYPES = {
     'هدية مجانية',
 }
 ACCOUNTING_EXCLUDED_ORDER_TYPES = tuple(REWARD_EXCLUDED_ORDER_TYPES)
+SALES_EXCLUDED_ORDER_TYPES = ('رفض سداد الدين', 'سداد دين', 'سداد يدوي', 'هدية مجانية')
 REWARD_TIERS = [
     {'key': 'orders_3', 'kind': 'count', 'target': 10, 'prize_max': 2, 'title': 'أكملت 10 طلبات هذا الأسبوع'},
     {'key': 'amount_30', 'kind': 'amount', 'target': 60, 'prize_max': 2, 'title': 'مجموع طلباتك وصل 60 شيكل'},
@@ -1854,11 +1855,11 @@ async def admin_dashboard():
         total_count = c.fetchone()[0] or 0
 
         c.execute(
-            "SELECT COALESCE(SUM(total_price), 0) FROM orders WHERE status='مقبول' AND is_paid=1 AND COALESCE(order_type, '') NOT IN %s",
-            (ACCOUNTING_EXCLUDED_ORDER_TYPES,),
+            "SELECT COALESCE(SUM(total_price), 0) FROM orders WHERE status='مقبول' AND COALESCE(order_type, '') NOT IN %s",
+            (SALES_EXCLUDED_ORDER_TYPES,),
         )
-        paid_invoices = c.fetchone()[0] or 0
-        total_sales = paid_invoices + total_debts
+        total_sales = c.fetchone()[0] or 0
+        paid_invoices = total_sales - total_debts
         c.execute("SELECT COALESCE(SUM(amount), 0) FROM expenses")
         total_expenses = c.fetchone()[0] or 0
         total_profit = total_sales - total_expenses
