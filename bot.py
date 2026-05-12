@@ -1529,7 +1529,8 @@ async def sync_user(office: str):
                 WHERE (location IN %s OR regexp_replace(COALESCE(location, ''), '[^0-9]', '', 'g')=%s)
                   AND status='مقبول'
                   AND is_reviewed=0
-                  AND COALESCE(order_type, 'داخل الكوفي كورنر') IN ('داخل الكوفي كورنر', 'توصيل للمكتب', 'هدية مجانية')
+                  AND total_price > 16
+                  AND COALESCE(order_type, 'داخل الكوفي كورنر') IN ('داخل الكوفي كورنر', 'توصيل للمكتب')
                   AND approved_at IS NOT NULL
                 ORDER BY id DESC
                 LIMIT 1
@@ -1667,7 +1668,7 @@ async def redeem_reward(request: Request):
             return {"status": "error", "message": "لديك طلب قيد الانتظار حالياً"}
         c.execute(
             """
-            SELECT item_name, item_price, status
+            SELECT item_name, item_price, status, week_start
             FROM office_rewards
             WHERE id=%s AND office=%s
             """,
@@ -1678,7 +1679,11 @@ async def redeem_reward(request: Request):
             c.close()
             conn.close()
             return {"status": "error", "message": "الهدية غير موجودة"}
-        item_name, item_price, reward_status = row
+        item_name, item_price, reward_status, reward_week_start = row
+        if str(reward_week_start or "") != get_reward_week_key():
+            c.close()
+            conn.close()
+            return {"status": "error", "message": "انتهت صلاحية هذه الهدية الأسبوعية"}
         if reward_status == "ordered":
             c.close()
             conn.close()
