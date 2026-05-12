@@ -1476,6 +1476,7 @@ async def sync_user(office: str):
                     "order_type": row[5],
                 }
 
+        history_since = (datetime.now(PALESTINE_TZ) - timedelta(days=14)).strftime("%Y-%m-%d %H:%M:%S")
         c.execute(
             """
             SELECT id, details, total_price, timestamp, is_paid, status, receipt, order_type
@@ -1483,9 +1484,10 @@ async def sync_user(office: str):
             WHERE (location IN %s OR regexp_replace(COALESCE(location, ''), '[^0-9]', '', 'g')=%s)
                           AND status NOT IN ('انتظار','صنف_ناقص','ملغي')
                           AND COALESCE(details, '') <> 'تم حذف جميع الأصناف من هذا الطلب'
+                          AND COALESCE(approved_at, timestamp) >= %s
             ORDER BY id DESC
             """,
-            (office_variants, office_number),
+            (office_variants, office_number, history_since),
         )
         rows = c.fetchall()
         orders = [
