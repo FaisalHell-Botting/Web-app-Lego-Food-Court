@@ -1858,8 +1858,6 @@ async def admin_dashboard():
             (ACCOUNTING_EXCLUDED_ORDER_TYPES,),
         )
         paid_invoices = c.fetchone()[0] or 0
-        c.execute("SELECT COALESCE(SUM(ABS(total_price)), 0) FROM orders WHERE status='مقبول' AND order_type='سداد دين'")
-        paid_invoices += c.fetchone()[0] or 0
         total_sales = paid_invoices + total_debts
         c.execute("SELECT COALESCE(SUM(amount), 0) FROM expenses")
         total_expenses = c.fetchone()[0] or 0
