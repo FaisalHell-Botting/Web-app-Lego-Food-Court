@@ -235,12 +235,26 @@
         .reward-wheel-stage { perspective: 900px; }
         .reward-wheel {
             width: 220px; height: 220px; border-radius: 50%; margin: 0 auto; position: relative;
-            background: conic-gradient(from 0deg, #F7CC46 0 45deg, #2E3468 45deg 90deg, #22c55e 90deg 135deg, #ffffff 135deg 180deg, #F7CC46 180deg 225deg, #2E3468 225deg 270deg, #22c55e 270deg 315deg, #ffffff 315deg 360deg);
+            background:
+                radial-gradient(circle at center, #ffffff 0 16%, transparent 17%),
+                conic-gradient(from 0deg,
+                    #F7CC46 0 45deg,
+                    #2E3468 45deg 90deg,
+                    #ef4444 90deg 135deg,
+                    #ffffff 135deg 180deg,
+                    #F7CC46 180deg 225deg,
+                    #2563eb 225deg 270deg,
+                    #dc2626 270deg 315deg,
+                    #ffffff 315deg 360deg);
             border: 10px solid #ffffff; box-shadow: 0 22px 42px rgba(46,52,104,.22), inset 0 0 0 5px rgba(46,52,104,.12);
-            transform: rotateX(12deg) rotate(0deg); transition: transform 4.7s cubic-bezier(.12,.72,.04,1);
+            transform: rotateX(12deg) rotate(0deg); transition: transform 5.7s cubic-bezier(.12,.72,.04,1);
         }
-        .reward-wheel::before { content: ''; position: absolute; inset: 18px; border-radius: 50%; border: 2px dashed rgba(255,255,255,.72); pointer-events: none; }
-        .reward-wheel::after { content: '🎁'; position: absolute; inset: 50%; width: 58px; height: 58px; margin: -29px 0 0 -29px; border-radius: 50%; background: #ffffff; color: #2E3468; display: flex; align-items: center; justify-content: center; font-size: 30px; box-shadow: 0 8px 20px rgba(0,0,0,.18); }
+        .reward-wheel::before { content: ''; position: absolute; inset: 17px; border-radius: 50%; border: 2px dashed rgba(255,255,255,.82); pointer-events: none; }
+        .reward-wheel::after { content: ''; position: absolute; inset: 50%; width: 42px; height: 42px; margin: -21px 0 0 -21px; border-radius: 50%; background: radial-gradient(circle, #ffffff 0 45%, #F7CC46 48% 54%, #2E3468 56% 100%); box-shadow: 0 8px 20px rgba(0,0,0,.16); }
+        .reward-wheel-lights { position: absolute; inset: -7px; border-radius: 50%; pointer-events: none; }
+        .reward-wheel-lights span { position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; margin: -4px; border-radius: 50%; background: #F7CC46; box-shadow: 0 0 9px rgba(247,204,70,.9); animation: wheelLightPulse 1.15s ease-in-out infinite; transform: rotate(var(--angle)) translateY(-119px); }
+        .reward-wheel-lights span:nth-child(even) { background: #ffffff; box-shadow: 0 0 10px rgba(255,255,255,.95); animation-delay: .2s; }
+        @keyframes wheelLightPulse { 0%,100% { opacity: .45; transform: rotate(var(--angle)) translateY(-119px) scale(.78); } 50% { opacity: 1; transform: rotate(var(--angle)) translateY(-119px) scale(1.18); } }
         .reward-wheel-pointer { width: 0; height: 0; border-left: 18px solid transparent; border-right: 18px solid transparent; border-top: 34px solid #F7CC46; filter: drop-shadow(0 6px 8px rgba(0,0,0,.2)); margin: 0 auto -18px; position: relative; z-index: 2; }
         .reward-wheel-shadow { width: 170px; height: 22px; border-radius: 999px; background: rgba(46,52,104,.12); filter: blur(4px); margin: 12px auto 0; }
     </style>
@@ -604,7 +618,12 @@
         <p class="text-sm text-gray-500 font-bold mb-5">جاري اختيار جائزتك...</p>
         <div class="reward-wheel-stage">
             <div class="reward-wheel-pointer"></div>
-            <div id="rewardWheel" class="reward-wheel"></div>
+            <div id="rewardWheel" class="reward-wheel">
+                <div class="reward-wheel-lights">
+                    <span style="--angle: 0deg"></span><span style="--angle: 45deg"></span><span style="--angle: 90deg"></span><span style="--angle: 135deg"></span>
+                    <span style="--angle: 180deg"></span><span style="--angle: 225deg"></span><span style="--angle: 270deg"></span><span style="--angle: 315deg"></span>
+                </div>
+            </div>
             <div class="reward-wheel-shadow"></div>
         </div>
         <p class="text-xs text-gray-400 font-bold mt-5">خليك جاهز، الجائزة قربت تظهر</p>
@@ -670,8 +689,8 @@
     </div>
 </div>
 
-<div id="reviewModal" class="fixed inset-0 bg-black/70 z-[97] flex items-center justify-center p-4 hidden">
-    <div class="bg-white rounded-3xl w-full max-w-sm p-6 slide-up text-center">
+<div id="reviewModal" onclick="dismissReviewFromBackdrop(event)" class="fixed inset-0 bg-black/70 z-[97] flex items-center justify-center p-4 hidden">
+    <div onclick="event.stopPropagation()" class="bg-white rounded-3xl w-full max-w-sm p-6 slide-up text-center">
         <div class="text-5xl mb-3">🎉</div>
         <h3 class="font-black text-xl text-navy mb-2">كيف كانت تجربتك؟</h3>
         <p class="text-sm text-gray-500 mb-2">طلبك وصل، شاركنا رأيك</p>
@@ -691,7 +710,7 @@
             إرسال التقييم
         </button>
         <button onclick="skipReview()" class="w-full text-gray-400 py-2 text-sm font-bold">
-            تخطي حالياً
+            لا شكراً
         </button>
     </div>
 </div>
@@ -1578,10 +1597,10 @@ function playRewardWheelSound() {
             gain.gain.exponentialRampToValueAtTime(0.001, start + t + 0.045);
             osc.connect(gain); gain.connect(ctx.destination); osc.start(start + t); osc.stop(start + t + 0.055);
             rewardWheelAudioNodes.push(osc);
-            t += 0.045 + (i / 34) * 0.16;
-            if (t > 4.45) break;
+            t += 0.045 + (i / 34) * 0.19;
+            if (t > 5.45) break;
         }
-        setTimeout(() => ctx.close(), 5200);
+        setTimeout(() => ctx.close(), 6200);
     } catch (e) {}
 }
 
@@ -1603,7 +1622,7 @@ function showRewardWheel() {
     wheel.offsetHeight;
     modal.classList.remove('hidden');
     requestAnimationFrame(() => {
-        wheel.style.transition = 'transform 4.7s cubic-bezier(.12,.72,.04,1)';
+        wheel.style.transition = 'transform 5.7s cubic-bezier(.12,.72,.04,1)';
         wheel.style.transform = `rotateX(12deg) rotate(${rewardWheelSpinDeg}deg)`;
     });
     playRewardWheelSound();
@@ -1626,7 +1645,7 @@ async function claimReward(key) {
             return;
         }
         const reward = data.reward;
-        await wait(Math.max(0, 4700 - (Date.now() - startedAt)));
+        await wait(Math.max(0, 5700 - (Date.now() - startedAt)));
         hideRewardWheel();
         showRewardModal(reward.id, reward.item_name || 'هدية مجانية');
         poll();
@@ -1953,6 +1972,12 @@ async function skipReview() {
         } catch (e) {}
     }
     closeModal('reviewModal');
+}
+
+function dismissReviewFromBackdrop(event) {
+    if (event.target && event.target.id === 'reviewModal') {
+        skipReview();
+    }
 }
 
 function handleNewOfficePin(newPinData) {
