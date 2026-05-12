@@ -2169,30 +2169,9 @@ async def admin_action(request: Request):
                 (office, amount, DEBT_PAYMENT_INFO, get_pal_time()),
             )
         elif action == "mark_paid":
-            current_debt = int(fetch_current_debt(c, office) or 0)
-            now = get_pal_time()
-            office_variants = office_location_variants(office)
-            office_number = office_number_value(office)
-            if current_debt > 0:
-                c.execute(
-                    """
-                    INSERT INTO orders (user_id, details, total_price, location, timestamp, status, is_paid, order_type, approved_at)
-                    VALUES (%s,%s,%s,%s,%s,'مقبول',1,'سداد يدوي',%s)
-                    """,
-                    (0, "سداد يدوي من الإدارة", -current_debt, office, now, now),
-                )
-            c.execute(
-                "UPDATE orders SET is_paid=1 WHERE (location IN %s OR regexp_replace(COALESCE(location, ''), '[^0-9]', '', 'g')=%s) AND status='مقبول'",
-                (office_variants, office_number),
-            )
-            c.execute(
-                "UPDATE reminders SET is_active=0 WHERE office IN %s OR regexp_replace(COALESCE(office, ''), '[^0-9]', '', 'g')=%s",
-                (office_variants, office_number),
-            )
-            c.execute(
-                "UPDATE debt_payment_requests SET status='paid' WHERE (office IN %s OR regexp_replace(COALESCE(office, ''), '[^0-9]', '', 'g')=%s) AND status='pending'",
-                (office_variants, office_number),
-            )
+            c.close()
+            conn.close()
+            return {"status": "error", "message": "تم إيقاف السداد اليدوي. استخدم طلب سداد الدين أو تعديل الدين فقط."}
         elif action == "confirm_debt_payment":
             c.execute(
                 "SELECT office, amount FROM debt_payment_requests WHERE id=%s AND status='pending'",
@@ -2300,19 +2279,9 @@ async def admin_action(request: Request):
                 )
             deactivate_debt_collection_if_clear(c, office)
         elif action == "add_manual_debt":
-            amount = int(data.get("amount", 0) or 0)
-            note = clean_office_name(data.get("note")) or "إضافة دين يدوية"
-            if not office or amount <= 0:
-                c.close()
-                conn.close()
-                return {"status": "error", "message": "office and amount are required"}
-            c.execute(
-                """
-                INSERT INTO orders (user_id, details, total_price, location, timestamp, status, is_paid, order_type, approved_at)
-                VALUES (%s,%s,%s,%s,%s,'مقبول',0,'إضافة يدوية',%s)
-                """,
-                (0, f"إضافة دين: {note}", amount, office, get_pal_time(), get_pal_time()),
-            )
+            c.close()
+            conn.close()
+            return {"status": "error", "message": "تم إيقاف إضافة الدين اليدوية. استخدم تعديل الدين فقط."}
         elif action == "remove_debt_item":
             item_name = clean_office_name(data.get("item_name"))
             if not order_id or not item_name:
