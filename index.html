@@ -1791,29 +1791,32 @@ function renderLedger(orders) {
         const orderType = String(o.order_type || '');
         const isAdjustment = orderType.includes('تسوية دين') || details.startsWith('تسوية دين:');
         const isPaymentRejected = orderType.includes('رفض سداد الدين') || details.startsWith('رفض سداد الدين:');
+        const isDebtPayment = orderType.includes('سداد دين') || details.startsWith('سداد دين');
         const isManualPayment = orderType.includes('سداد يدوي') || details.startsWith('سداد يدوي');
         const adjustmentReason = isAdjustment ? details.replace('تسوية دين:', '').trim() : '';
         const rejectionReason = isPaymentRejected ? details.replace('رفض سداد الدين:', '').trim() : '';
         const amountText = (isAdjustment && amount > 0) ? `+${amount} ₪` : `${amount} ₪`;
-        const amountClass = isPaymentRejected ? 'text-gray-400' : (isManualPayment ? 'text-green-600' : (isAdjustment && amount < 0 ? 'text-green-600' : (isAdjustment && amount > 0 ? 'text-red-600' : 'text-navy')));
-        const title = isPaymentRejected ? 'رفض إثبات السداد' : (isManualPayment ? 'سداد يدوي' : (isAdjustment ? 'تصحيح الدين' : details));
+        const amountClass = isPaymentRejected ? 'text-gray-400' : ((isManualPayment || isDebtPayment) ? 'text-green-600' : (isAdjustment && amount < 0 ? 'text-green-600' : (isAdjustment && amount > 0 ? 'text-red-600' : 'text-navy')));
+        const title = isPaymentRejected ? 'رفض إثبات السداد' : (isDebtPayment ? 'سداد دين' : (isManualPayment ? 'سداد يدوي' : (isAdjustment ? 'تصحيح الدين' : details)));
         const subtitle = isPaymentRejected
             ? `سبب الرفض: ${rejectionReason || 'لم يتم توضيح السبب'}`
-            : (isManualPayment
+            : (isDebtPayment
+                ? 'تم تسجيل سداد الدين بناء على تذكير الكاشير'
+                : (isManualPayment
                 ? 'تم تسجيل سداد يدوي من الإدارة'
                 : (isAdjustment
                     ? `${amount < 0 ? 'تم خصم قيمة من الدين' : 'تم إضافة قيمة على الدين'}${adjustmentReason ? ` - السبب: ${adjustmentReason}` : ''}`
-                    : ''));
+                    : '')));
         const subtitleClass = isPaymentRejected ? 'text-red-500' : (amount < 0 ? 'text-green-600' : 'text-red-500');
-        const badgeText = isPaymentRejected ? 'مرفوض' : (o.is_paid ? 'مسدد' : 'دين');
-        const badgeClass = isPaymentRejected ? 'bg-red-100 text-red-600' : (o.is_paid ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600');
+        const badgeText = isPaymentRejected ? 'مرفوض' : (isDebtPayment ? 'سداد دين' : (o.is_paid ? 'مسدد' : 'دين'));
+        const badgeClass = isPaymentRejected ? 'bg-red-100 text-red-600' : ((o.is_paid || isDebtPayment) ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600');
         return `<div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 mb-3">
             <div class="flex justify-between items-start gap-3">
                 <div class="flex-1">
                     <p class="font-bold text-navy text-sm">${title}</p>
                     ${subtitle ? `<p class="text-xs ${subtitleClass} mt-1 font-bold leading-relaxed">${subtitle}</p>` : ''}
                     <p class="text-xs text-gray-400 mt-1">${formatDisplayTime(o.timestamp)}</p>
-                    ${o.order_type && !isAdjustment && !isPaymentRejected && !isManualPayment ? `<p class="text-xs text-gray-400 mt-1">${o.order_type}</p>` : ''}
+                    ${o.order_type && !isAdjustment && !isPaymentRejected && !isDebtPayment && !isManualPayment ? `<p class="text-xs text-gray-400 mt-1">${o.order_type}</p>` : ''}
                 </div>
                 <div class="text-left">
                     <p class="font-black ${amountClass}">${amountText}</p>
