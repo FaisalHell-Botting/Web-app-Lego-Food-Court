@@ -656,8 +656,6 @@
         <div class="bg-gray-50 p-3 rounded-xl mb-3">
             <p class="text-base font-black text-blue-600">المبلغ المطلوب: <span id="debtPaymentAmount" class="text-xl"></span></p>
         </div>
-        <div id="debtPaymentInfo" class="space-y-3 mb-3"></div>
-        <p class="text-[11px] text-gray-400 font-bold text-center mb-4">بعد الدفع ارفع صورة الإشعار لتأكيد السداد</p>
         <div class="border-2 border-dashed border-blue-300 rounded-2xl p-6 text-center mb-4 cursor-pointer hover:border-blue-600 transition-colors bg-blue-50/30" onclick="document.getElementById('debtReceiptInput').click()">
             <div id="debtReceiptPreview" class="hidden"><img id="debtReceiptImg" class="max-h-40 mx-auto rounded-xl object-contain"></div>
             <div id="debtReceiptPlaceholder">
@@ -1769,7 +1767,7 @@ function renderGuestPaymentInfo() {
     return renderStructuredPaymentInfo(debtTransferDefaults);
 }
 function renderPaymentInfo(info) {
-    const html = renderStructuredPaymentInfo(info);
+    const html = renderStructuredPaymentInfo(info, 'dialDebtPalPay()');
     document.getElementById('popupPaymentInfo').innerHTML = html;
     const reminderInfo = document.getElementById('reminderPaymentInfo');
     if (reminderInfo) reminderInfo.innerHTML = html;
@@ -1863,8 +1861,6 @@ function openDebtPaymentModal() {
     debtReceiptBase64 = null;
     document.getElementById('debtReceiptPreview').classList.add('hidden');
     document.getElementById('debtReceiptPlaceholder').classList.remove('hidden');
-    const debtInfoBox = document.getElementById('debtPaymentInfo');
-    if (debtInfoBox) debtInfoBox.innerHTML = renderStructuredPaymentInfo(latestReminder.payment_info || debtTransferDefaults, 'dialDebtPalPay()');
     resetInlineSuccessStatus('debtPaymentSuccessStatus');
     document.getElementById('debtPaymentModal').classList.remove('hidden');
 }
