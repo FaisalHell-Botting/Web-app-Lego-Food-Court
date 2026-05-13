@@ -225,15 +225,27 @@
             <button onclick="closeModal('debtEditModal')" class="text-gray-400 font-bold text-xl">×</button>
         </div>
         <div class="bg-blue-50 border border-blue-100 rounded-2xl p-4 mb-4">
-            <div class="flex justify-between items-center gap-3 mb-3">
+            <div class="flex justify-between items-center gap-3">
                 <span class="text-sm font-bold text-gray-500">الدين الحالي</span>
                 <span id="currentDebtTotalText" class="font-black text-xl text-[#2E3468]">0 ₪</span>
             </div>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
-                <input id="finalDebtAmount" type="number" min="0" placeholder="القيمة النهائية" class="border-2 border-gray-200 p-3 rounded-xl font-bold focus:outline-none focus:border-[#2E3468]">
-                <input id="finalDebtNote" type="text" placeholder="سبب التصحيح" class="md:col-span-2 border-2 border-gray-200 p-3 rounded-xl font-bold focus:outline-none focus:border-[#2E3468]">
+            <p class="text-xs text-gray-400 font-bold mt-1">للقراءة فقط، ويتم تغييره عبر إضافة دين أو تسجيل سداد.</p>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+            <div class="bg-red-50 border border-red-100 rounded-2xl p-4">
+                <h4 class="font-black text-red-600 mb-1">إضافة دين</h4>
+                <p class="text-xs text-gray-500 font-bold mb-3">تستخدم لمبلغ أو مبيعات غير مسجلة.</p>
+                <input id="debtChargeAmount" type="number" min="1" placeholder="قيمة الدين" class="w-full border-2 border-gray-200 p-3 rounded-xl font-bold focus:outline-none focus:border-red-400 mb-2">
+                <input id="debtChargeNote" type="text" placeholder="سبب الإضافة" class="w-full border-2 border-gray-200 p-3 rounded-xl font-bold focus:outline-none focus:border-red-400 mb-3">
+                <button onclick="submitDebtMovement('charge')" class="w-full bg-red-600 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-1.5"><svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg><span>إضافة دين</span></button>
             </div>
-            <button onclick="submitFinalDebtAmount()" class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold mt-3 flex items-center justify-center gap-1.5"><span class="inline-flex items-center justify-center gap-1.5"><svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></svg><span>حفظ القيمة النهائية</span></span></button>
+            <div class="bg-green-50 border border-green-100 rounded-2xl p-4">
+                <h4 class="font-black text-green-700 mb-1">تسجيل سداد</h4>
+                <p class="text-xs text-gray-500 font-bold mb-3">تستخدم فقط إذا وصل مبلغ مدفوع فعلياً.</p>
+                <input id="debtPaymentAmount" type="number" min="1" placeholder="قيمة السداد" class="w-full border-2 border-gray-200 p-3 rounded-xl font-bold focus:outline-none focus:border-green-400 mb-2">
+                <input id="debtPaymentNote" type="text" placeholder="سبب السداد" class="w-full border-2 border-gray-200 p-3 rounded-xl font-bold focus:outline-none focus:border-green-400 mb-3">
+                <button onclick="submitDebtMovement('payment')" class="w-full bg-green-600 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-1.5"><svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0 0 4h14a2 2 0 0 1 2 2v3"/><path d="M3 6v12a2 2 0 0 0 2 2h16v-5"/><path d="M18 12h4v6h-4a3 3 0 0 1 0-6Z"/></svg><span>تسجيل سداد</span></button>
+            </div>
         </div>
         <div id="debtEditOrders" class="space-y-3 mb-5"></div>
     </div>
@@ -1112,20 +1124,29 @@ async function loadDebtDetails() {
     if (data.status !== 'success') { box.innerHTML = '<p class="text-center text-gray-400 py-6">تعذر تحميل الدين</p>'; return; }
     currentDebtTotal = Number(data.total_debt || 0);
     document.getElementById('currentDebtTotalText').innerText = `${currentDebtTotal} ₪`;
-    document.getElementById('finalDebtAmount').value = currentDebtTotal;
+    document.getElementById('debtChargeAmount').value = '';
+    document.getElementById('debtChargeNote').value = '';
+    document.getElementById('debtPaymentAmount').value = '';
+    document.getElementById('debtPaymentNote').value = '';
     const adjustmentCards = (data.adjustments || []).map(item => {
         const amount = Number(item.amount || 0);
-        const isDiscount = amount < 0;
-        const amountText = `${isDiscount ? '' : '+'}${amount} ₪`;
+        const itemType = String(item.order_type || '');
+        const isPayment = itemType.includes('سداد دين') || String(item.details || '').startsWith('سداد دين');
+        const isDiscount = amount < 0 && !isPayment;
+        const isAddition = amount > 0;
+        const amountText = `${isAddition ? '+' : ''}${amount} ₪`;
+        const cardClass = isPayment ? 'bg-green-50 border-green-100' : (isDiscount ? 'bg-emerald-50 border-emerald-100' : 'bg-red-50 border-red-100');
+        const amountClass = isPayment || isDiscount ? 'text-green-600' : 'text-red-600';
+        const title = isPayment ? 'سداد دين' : (isAddition ? 'إضافة دين' : 'حذف/خصم من الدين');
         return `
-        <div class="border rounded-2xl p-4 ${isDiscount ? 'bg-green-50 border-green-100' : 'bg-red-50 border-red-100'}">
+        <div class="border rounded-2xl p-4 ${cardClass}">
             <div class="flex justify-between items-start gap-3">
                 <div>
-                    <p class="font-black text-[#2E3468]">تصحيح الدين</p>
+                    <p class="font-black text-[#2E3468]">${title}</p>
                     <p class="text-xs text-gray-400 mt-1">#${item.id} - ${formatDisplayTime(item.timestamp)}</p>
                     <p class="text-sm font-bold text-gray-600 mt-2">${item.note || item.details || ''}</p>
                 </div>
-                <span class="font-black ${isDiscount ? 'text-green-600' : 'text-red-600'} whitespace-nowrap">${amountText}</span>
+                <span class="font-black ${amountClass} whitespace-nowrap">${amountText}</span>
             </div>
         </div>`;
     }).join('');
@@ -1150,25 +1171,36 @@ async function removeDebtItem(orderId, itemName, orderTimestamp='', itemPrice=0)
     await loadDebtDetails();
     fetchData();
 }
-async function submitFinalDebtAmount() {
-    const amount = Number(document.getElementById('finalDebtAmount').value || 0);
-    const note = document.getElementById('finalDebtNote').value.trim();
-    if (amount < 0) {
+async function submitDebtMovement(kind) {
+    const isPayment = kind === 'payment';
+    const amountInput = document.getElementById(isPayment ? 'debtPaymentAmount' : 'debtChargeAmount');
+    const noteInput = document.getElementById(isPayment ? 'debtPaymentNote' : 'debtChargeNote');
+    const amount = Number(amountInput.value || 0);
+    const note = noteInput.value.trim();
+    if (!currentDebtOffice || amount <= 0) {
         alert('أدخل قيمة صحيحة');
         return;
     }
-    if (!await showAdminConfirm(`تعديل الدين النهائي من ${currentDebtTotal} ₪ إلى ${amount} ₪؟`, 'تأكيد تعديل الدين', '!')) return;
+    if (!note) {
+        alert(isPayment ? 'اكتب سبب السداد' : 'اكتب سبب إضافة الدين');
+        return;
+    }
+    const actionName = isPayment ? 'تسجيل سداد' : 'إضافة دين';
+    const effectText = isPayment
+        ? `سيتم تسجيل سداد بقيمة ${amount} ₪ لهذا المكتب.`
+        : `سيتم إضافة دين بقيمة ${amount} ₪ لهذا المكتب.`;
+    if (!await showAdminConfirm(`${effectText}\n\nالسبب: ${note}\n\nهل أنت متأكد؟`, `تأكيد ${actionName}`, '!')) return;
     const res = await fetch(`${API_URL}/admin/action`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'set_total_debt', office: currentDebtOffice, amount, note })
+        body: JSON.stringify({ action: isPayment ? 'add_debt_payment' : 'add_debt_charge', office: currentDebtOffice, amount, note })
     });
     const data = await res.json();
     if (data.status !== 'success') {
-        alert(data.message || 'تعذر تصحيح الدين');
+        alert(data.message || 'تعذر حفظ الحركة');
         return;
     }
-    showAdminToast('تم تصحيح الدين');
+    showAdminToast(isPayment ? 'تم تسجيل السداد' : 'تمت إضافة الدين');
     await loadDebtDetails();
     fetchData();
 }
