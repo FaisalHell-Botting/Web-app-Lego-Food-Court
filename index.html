@@ -391,7 +391,7 @@
                    class="w-full border-2 border-gray-200 p-4 rounded-2xl text-center text-2xl font-black text-navy focus:outline-none focus:border-navy mb-4">
             <div id="quickPaymentInfo" class="space-y-3 mb-4"></div>
             <button onclick="dialQuickPalPay()" class="w-full bg-blue-600 text-white py-3 rounded-xl font-black shadow hover:bg-blue-700 transition-all mb-2">
-                الدفع عبر بال باي بدون إنترنت
+                الدفع من خلال USSD
             </button>
             <p class="text-[11px] text-gray-400 font-bold text-center mb-3">بعد الدفع ارجع وارفق صورة الإشعار لتأكيد الحسابات</p>
             <button onclick="openQuickGuestPaymentModal()" class="w-full bg-navy text-white py-3.5 rounded-xl font-bold shadow hover:bg-opacity-90 transition-all">
@@ -513,7 +513,7 @@
             </div>
             <div id="guestPaymentInfo" class="space-y-2"></div>
             <button onclick="dialGuestPalPay()" class="w-full bg-blue-600 text-white py-2.5 rounded-xl font-black text-sm mt-3 hover:bg-blue-700 transition-all">
-                الدفع عبر بال باي بدون إنترنت
+                الدفع من خلال USSD
             </button>
             <p class="text-[11px] text-gray-400 font-bold text-center mt-2">بعد الدفع ارفع صورة الإشعار بالأسفل</p>
         </div>
@@ -663,11 +663,9 @@
         <div class="bg-gray-50 p-3 rounded-xl mb-3">
             <p class="text-base font-black text-blue-600">المبلغ المطلوب: <span id="debtPaymentAmount" class="text-xl"></span></p>
         </div>
-        <button onclick="dialDebtPalPay()" class="w-full bg-blue-600 text-white py-3 rounded-xl font-black mb-2 hover:bg-blue-700 transition-all">
-            الدفع عبر بال باي بدون إنترنت
-        </button>
+        <div id="debtPaymentInfo" class="space-y-3 mb-3"></div>
         <p class="text-[11px] text-gray-400 font-bold text-center mb-4">بعد الدفع ارفع صورة الإشعار لتأكيد السداد</p>
-        <div class="border-2 border-dashed border-gray-300 rounded-2xl p-6 text-center mb-4 cursor-pointer hover:border-navy transition-colors" onclick="document.getElementById('debtReceiptInput').click()">
+        <div class="border-2 border-dashed border-blue-300 rounded-2xl p-6 text-center mb-4 cursor-pointer hover:border-blue-600 transition-colors bg-blue-50/30" onclick="document.getElementById('debtReceiptInput').click()">
             <div id="debtReceiptPreview" class="hidden"><img id="debtReceiptImg" class="max-h-40 mx-auto rounded-xl object-contain"></div>
             <div id="debtReceiptPlaceholder">
                 <div class="text-4xl mb-2">📷</div>
@@ -1737,8 +1735,12 @@ function paymentInfoCard(label, value, copyValue) {
         </div>
     `;
 }
-function renderStructuredPaymentInfo(source) {
+function renderStructuredPaymentInfo(source, ussdAction='') {
     const parsed = typeof source === 'string' ? parsePaymentInfo(source) : { ...debtTransferDefaults, ...(source || {}) };
+    const ussdButton = ussdAction ? `
+            <button onclick="${ussdAction}" class="w-full bg-blue-600 text-white py-2.5 rounded-xl font-black text-sm mt-2 hover:bg-blue-700 transition-all">
+                الدفع من خلال USSD
+            </button>` : '';
     return `
         <div class="bg-gray-50 rounded-2xl border p-3">
             <div class="flex items-center gap-3 mb-2">
@@ -1763,6 +1765,7 @@ function renderStructuredPaymentInfo(source) {
                 </div>
             </div>
             ${paymentInfoCard('Mobile Number', parsed.wallet, parsed.wallet)}
+            ${ussdButton}
         </div>
     `;
 }
@@ -1867,6 +1870,8 @@ function openDebtPaymentModal() {
     debtReceiptBase64 = null;
     document.getElementById('debtReceiptPreview').classList.add('hidden');
     document.getElementById('debtReceiptPlaceholder').classList.remove('hidden');
+    const debtInfoBox = document.getElementById('debtPaymentInfo');
+    if (debtInfoBox) debtInfoBox.innerHTML = renderStructuredPaymentInfo(latestReminder.payment_info || debtTransferDefaults, 'dialDebtPalPay()');
     resetInlineSuccessStatus('debtPaymentSuccessStatus');
     document.getElementById('debtPaymentModal').classList.remove('hidden');
 }
@@ -2091,7 +2096,10 @@ async function copyText(value) {
 
 function parseDisplayTime(value) {
     if (!value) return null;
-    const date = new Date(String(value).replace(' ', 'T'));
+    let normalized = String(value).trim().replace(' ', 'T');
+    normalized = normalized.replace(/(\.\d{3})\d+/, '$1');
+    if (/[+-]\d{2}$/.test(normalized)) normalized += ':00';
+    const date = new Date(normalized);
     return Number.isNaN(date.getTime()) ? null : date;
 }
 
