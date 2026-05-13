@@ -1476,7 +1476,7 @@ async def sync_user(office: str):
                     "order_type": row[5],
                 }
 
-        history_since = (datetime.now(PALESTINE_TZ) - timedelta(days=14)).strftime("%Y-%m-%d %H:%M:%S")
+        history_since = (get_pal_datetime() - timedelta(days=14)).strftime("%Y-%m-%d %H:%M:%S")
         c.execute(
             """
             SELECT id, details, total_price, timestamp, is_paid, status, receipt, order_type
