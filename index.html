@@ -390,9 +390,6 @@
             <input type="number" id="quickPaymentAmount" min="1" inputmode="numeric" placeholder="مثلاً 12"
                    class="w-full border-2 border-gray-200 p-4 rounded-2xl text-center text-2xl font-black text-navy focus:outline-none focus:border-navy mb-4">
             <div id="quickPaymentInfo" class="space-y-3 mb-4"></div>
-            <button onclick="dialQuickPalPay()" class="w-full bg-blue-600 text-white py-3 rounded-xl font-black shadow hover:bg-blue-700 transition-all mb-2">
-                الدفع من خلال USSD
-            </button>
             <p class="text-[11px] text-gray-400 font-bold text-center mb-3">بعد الدفع ارجع وارفق صورة الإشعار لتأكيد الحسابات</p>
             <button onclick="openQuickGuestPaymentModal()" class="w-full bg-navy text-white py-3.5 rounded-xl font-bold shadow hover:bg-opacity-90 transition-all">
                 دفعت؟ أرفق الفاتورة هنا
@@ -512,14 +509,10 @@
                 <span id="guestPaymentTotal" class="font-black text-navy">0 ₪</span>
             </div>
             <div id="guestPaymentInfo" class="space-y-2"></div>
-            <button onclick="dialGuestPalPay()" class="w-full bg-blue-600 text-white py-2.5 rounded-xl font-black text-sm mt-3 hover:bg-blue-700 transition-all">
-                الدفع من خلال USSD
-            </button>
-            <p class="text-[11px] text-gray-400 font-bold text-center mt-2">بعد الدفع ارفع صورة الإشعار بالأسفل</p>
         </div>
         <input type="tel" id="guestPhoneInput" dir="ltr" placeholder="أدخل رقم الجوال" inputmode="tel"
                class="w-full border-2 border-gray-200 p-3 rounded-xl mb-3 text-center font-bold focus:outline-none focus:border-navy">
-        <div class="border-2 border-dashed border-gray-300 rounded-2xl p-6 text-center mb-4 cursor-pointer hover:border-navy transition-colors" onclick="document.getElementById('receiptInput').click()">
+        <div class="border-2 border-dashed border-blue-300 rounded-2xl p-6 text-center mb-4 cursor-pointer hover:border-blue-600 transition-colors bg-blue-50/30" onclick="document.getElementById('receiptInput').click()">
             <div id="receiptPreview" class="hidden"><img id="receiptImg" class="max-h-40 mx-auto rounded-xl object-contain"></div>
             <div id="receiptPlaceholder">
                 <div class="text-4xl mb-2">📄</div>
@@ -1738,7 +1731,7 @@ function paymentInfoCard(label, value, copyValue) {
 function renderStructuredPaymentInfo(source, ussdAction='') {
     const parsed = typeof source === 'string' ? parsePaymentInfo(source) : { ...debtTransferDefaults, ...(source || {}) };
     const ussdButton = ussdAction ? `
-            <button onclick="${ussdAction}" class="w-full bg-blue-600 text-white py-2.5 rounded-xl font-black text-sm mt-2 hover:bg-blue-700 transition-all">
+            <button onclick="${ussdAction}" class="w-full bg-[#F7CC46] text-navy py-2.5 rounded-xl font-black text-sm mt-2 hover:bg-yellow-300 transition-all">
                 الدفع من خلال USSD
             </button>` : '';
     return `
@@ -1770,7 +1763,7 @@ function renderStructuredPaymentInfo(source, ussdAction='') {
     `;
 }
 function renderQuickPaymentInfo() {
-    return renderStructuredPaymentInfo(debtTransferDefaults);
+    return renderStructuredPaymentInfo(debtTransferDefaults, 'dialQuickPalPay()');
 }
 function renderGuestPaymentInfo() {
     return renderStructuredPaymentInfo(debtTransferDefaults);
