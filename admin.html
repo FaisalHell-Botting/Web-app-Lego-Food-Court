@@ -119,10 +119,14 @@
     </div>
 
     <div id="view_ledger" class="hidden">
-        <div class="flex justify-end mb-4">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
+            <div class="inline-flex bg-white border rounded-2xl p-1 shadow-sm w-full md:w-auto">
+                <button id="ledgerModeDebtsBtn" onclick="switchLedgerMode('debts')" class="flex-1 md:flex-none px-4 py-2 rounded-xl text-sm font-black bg-[#2E3468] text-white">كشف الديون</button>
+                <button id="ledgerModeArchiveBtn" onclick="switchLedgerMode('archive')" class="flex-1 md:flex-none px-4 py-2 rounded-xl text-sm font-black text-gray-500">أرشيف السداد</button>
+            </div>
             <button onclick="downloadDebtCsv()" class="bg-[#2E3468] text-white px-4 py-2 rounded-xl text-sm font-bold shadow hover:bg-opacity-90 transition-all flex items-center justify-center gap-1.5"><svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg><span>تحميل الكشف</span></button>
         </div>
-        <div class="bg-white rounded-2xl shadow-sm border overflow-hidden">
+        <div id="ledgerDebtsPanel" class="bg-white rounded-2xl shadow-sm border overflow-hidden">
             <div class="overflow-x-auto">
                 <table class="w-full text-right text-sm">
                     <thead class="bg-gray-50 border-b">
@@ -136,6 +140,26 @@
                     <tbody id="ledgerList" class="divide-y divide-gray-100"></tbody>
                 </table>
             </div>
+        </div>
+        <div id="ledgerArchivePanel" class="hidden space-y-4">
+            <div class="bg-white rounded-2xl border border-red-100 shadow-sm p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                <div>
+                    <p class="font-black text-[#2E3468]">أرشيف التحويلات</p>
+                    <p class="text-xs text-gray-400 font-bold mt-1">المسح يحذف صور الإشعارات والتصنيفات فقط ولا يؤثر على المبيعات أو الديون.</p>
+                </div>
+                <button onclick="clearPaymentArchive()" class="bg-red-50 text-red-600 border border-red-100 px-4 py-2 rounded-xl text-sm font-black hover:bg-red-100 transition-colors flex items-center justify-center gap-1.5"><svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg><span>مسح الأرشيف</span></button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div class="bg-white rounded-2xl border shadow-sm p-4">
+                    <p class="text-xs text-gray-400 font-bold mb-1">إجمالي حوالات المحفظة</p>
+                    <p id="archiveWalletTotal" class="text-2xl font-black text-[#2E3468]">0 ₪</p>
+                </div>
+                <div class="bg-white rounded-2xl border shadow-sm p-4">
+                    <p class="text-xs text-gray-400 font-bold mb-1">إجمالي حوالات البنك</p>
+                    <p id="archiveBankTotal" class="text-2xl font-black text-[#2E3468]">0 ₪</p>
+                </div>
+            </div>
+            <div id="paymentArchiveList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
         </div>
     </div>
 
@@ -216,6 +240,18 @@
             <button id="adminDialogCancel" class="bg-gray-100 text-gray-600 py-3 rounded-xl font-black hover:bg-gray-200 transition-colors">إلغاء</button>
             <button id="adminDialogOk" class="bg-[#2E3468] text-white py-3 rounded-xl font-black hover:bg-opacity-90 transition-colors">تأكيد</button>
         </div>
+    </div>
+</div>
+<div id="paymentMethodModal" class="fixed inset-0 bg-black/70 z-[85] flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl w-full max-w-sm p-6 slide-up text-center shadow-2xl">
+        <div class="w-14 h-14 mx-auto rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mb-4 text-2xl font-black">₪</div>
+        <h3 class="font-black text-xl text-[#2E3468] mb-2">حفظ التحويل كـ</h3>
+        <p class="text-sm text-gray-500 font-bold leading-relaxed mb-4">اختر مكان وصول المبلغ حتى يظهر في أرشيف السداد.</p>
+        <div class="grid grid-cols-2 gap-2">
+            <button onclick="resolvePaymentMethod('wallet')" class="bg-[#F7CC46] text-[#2E3468] py-3 rounded-xl font-black hover:bg-yellow-300 transition-colors">محفظة</button>
+            <button onclick="resolvePaymentMethod('bank')" class="bg-[#2E3468] text-white py-3 rounded-xl font-black hover:bg-opacity-90 transition-colors">بنك</button>
+        </div>
+        <button onclick="resolvePaymentMethod(null)" class="w-full mt-2 bg-gray-100 text-gray-500 py-3 rounded-xl font-black hover:bg-gray-200 transition-colors">إلغاء</button>
     </div>
 </div>
 <div id="debtEditModal" class="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 hidden">
@@ -337,6 +373,9 @@ let latestMenuItems = [];
 let currentMenuFilter = 'hot';
 let currentDebtTotal = 0;
 let adminToastTimer = null;
+let paymentMethodResolve = null;
+let latestPaymentArchive = [];
+let currentLedgerMode = 'debts';
 
 function showAdminToast(message, type='success') {
     const toast = document.getElementById('adminToast');
@@ -405,6 +444,19 @@ function showAdminPrompt(message, title='إدخال مطلوب', placeholder='ا
     return openAdminDialog({ title, message, icon: '؟', mode: 'prompt', confirmText: 'إرسال', cancelText: 'إلغاء', placeholder, required: true });
 }
 
+function askPaymentMethod() {
+    return new Promise(resolve => {
+        paymentMethodResolve = resolve;
+        document.getElementById('paymentMethodModal').classList.remove('hidden');
+    });
+}
+
+function resolvePaymentMethod(method) {
+    document.getElementById('paymentMethodModal').classList.add('hidden');
+    if (paymentMethodResolve) paymentMethodResolve(method);
+    paymentMethodResolve = null;
+}
+
 window.alert = (message) => { showAdminAlert(message); };
 const ADMIN_PASSWORD = '444555666';
 
@@ -437,6 +489,15 @@ function switchTab(tab) {
     });
     document.getElementById(`view_${tab}`).classList.remove('hidden');
     document.getElementById(`tab_${tab}`).className = 'font-bold px-4 py-2 rounded-lg bg-[#F7CC46] text-[#2E3468] text-sm whitespace-nowrap';
+}
+
+function switchLedgerMode(mode) {
+    currentLedgerMode = mode;
+    const isArchive = mode === 'archive';
+    document.getElementById('ledgerDebtsPanel').classList.toggle('hidden', isArchive);
+    document.getElementById('ledgerArchivePanel').classList.toggle('hidden', !isArchive);
+    document.getElementById('ledgerModeDebtsBtn').className = `flex-1 md:flex-none px-4 py-2 rounded-xl text-sm font-black ${isArchive ? 'text-gray-500' : 'bg-[#2E3468] text-white'}`;
+    document.getElementById('ledgerModeArchiveBtn').className = `flex-1 md:flex-none px-4 py-2 rounded-xl text-sm font-black ${isArchive ? 'bg-[#2E3468] text-white' : 'text-gray-500'}`;
 }
 
 async function fetchData() {
@@ -484,6 +545,7 @@ async function fetchData() {
         }
         renderActiveOrders(data.active_orders || []);
         renderLedger(data.debts || []);
+        renderPaymentArchive(data.payment_archive || [], data.payment_archive_stats || {});
         renderGuests(data.guest_orders || []);
         renderReviews(data.reviews || [], data.stats || {});
         renderExpenses(data.expenses || []);
@@ -611,6 +673,20 @@ function timeAgo(value) {
     const days = Math.floor(hours / 24);
     return days === 1 ? 'قبل يوم' : `قبل ${days} أيام`;
 }
+
+function paymentMethodLabel(method) {
+    if (method === 'wallet') return 'محفظة';
+    if (method === 'bank') return 'بنك';
+    return 'غير مصنف';
+}
+
+function paymentStatusLabel(status) {
+    if (status === 'paid' || status === 'مقبول') return 'مقبول';
+    if (status === 'rejected' || status === 'فاتورة_زائر_مرفوضة') return 'مرفوض';
+    if (status === 'cancelled') return 'ملغي';
+    return status || '-';
+}
+
 function renderActiveOrders(orders) {
     const list = document.getElementById('activeOrdersList');
     if (!orders.length) {
@@ -638,7 +714,7 @@ function renderActiveOrders(orders) {
                 <p class="text-xs text-indigo-700 font-bold mb-2">وصل للكاشير ${timeAgo(order.timestamp)}</p>
                 <button onclick="showReceipt('debt_payment', ${order.id})" class="bg-white border border-indigo-200 text-indigo-700 py-2.5 rounded-xl text-sm font-bold mb-3 hover:bg-indigo-50 transition-colors flex items-center justify-center gap-1.5">${ICON_IMAGE}<span>عرض الصورة المرفقة</span></button>
                 <div class="grid grid-cols-5 gap-2 mt-auto">
-                    <button onclick="action('confirm_debt_payment', ${order.id})" class="col-span-3 bg-[#2E3468] text-white py-2.5 rounded-xl text-sm font-bold shadow hover:bg-opacity-90 transition-all flex items-center justify-center gap-1.5">${ICON_CHECK}<span>تأكيد السداد</span></button>
+                    <button onclick="confirmPaymentWithMethod('confirm_debt_payment', ${order.id})" class="col-span-3 bg-[#2E3468] text-white py-2.5 rounded-xl text-sm font-bold shadow hover:bg-opacity-90 transition-all flex items-center justify-center gap-1.5">${ICON_CHECK}<span>تأكيد السداد</span></button>
                     <button onclick="rejectDebtPayment(${order.id})" class="col-span-2 bg-red-50 text-red-600 border border-red-100 py-2.5 rounded-xl text-sm font-bold shadow hover:bg-red-100 transition-all flex items-center justify-center gap-1.5">${ICON_X}<span>رفض</span></button>
                 </div>
             </div>`;
@@ -707,6 +783,53 @@ function renderLedger(debts) {
             </td>
         </tr>
     `).join('');
+}
+
+function renderPaymentArchive(items, stats={}) {
+    latestPaymentArchive = items || [];
+    document.getElementById('archiveWalletTotal').innerText = `${Number(stats.wallet_total || 0)} ₪`;
+    document.getElementById('archiveBankTotal').innerText = `${Number(stats.bank_total || 0)} ₪`;
+    const list = document.getElementById('paymentArchiveList');
+    if (!latestPaymentArchive.length) {
+        list.innerHTML = `<div class="col-span-full text-center py-16 text-gray-400 bg-white border rounded-2xl">
+            <div class="text-5xl mb-3">₪</div>
+            <p class="font-bold">لا يوجد أرشيف سداد بعد</p>
+        </div>`;
+        return;
+    }
+    list.innerHTML = latestPaymentArchive.map(item => {
+        const isAccepted = item.status === 'paid' || item.status === 'مقبول';
+        const isRejected = item.status === 'rejected' || item.status === 'فاتورة_زائر_مرفوضة';
+        const statusClass = isAccepted ? 'bg-green-100 text-green-700' : (isRejected ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600');
+        const sourceLabel = item.source === 'debt_payment' ? 'سداد دين' : (item.source === 'manual_debt_payment' ? 'سداد يدوي' : 'فاتورة زائر');
+        const receiptSource = item.source === 'debt_payment' ? 'debt_payment' : 'order';
+        return `
+            <div class="bg-white rounded-2xl border shadow-sm p-4 slide-up">
+                <div class="flex justify-between items-start gap-3 mb-3">
+                    <div>
+                        <p class="font-black text-[#2E3468]">#${item.id} · ${item.payer}</p>
+                        <p class="text-xs text-gray-400 font-bold mt-1">${sourceLabel} · ${formatDisplayTime(item.created_at)}</p>
+                    </div>
+                    <span class="text-xs ${statusClass} font-bold px-2 py-1 rounded-full">${paymentStatusLabel(item.status)}</span>
+                </div>
+                <div class="grid grid-cols-2 gap-2 mb-3">
+                    <div class="bg-gray-50 rounded-xl p-3">
+                        <p class="text-[11px] text-gray-400 font-bold mb-1">المبلغ</p>
+                        <p class="font-black text-[#2E3468]">${item.amount || 0} ₪</p>
+                    </div>
+                    <div class="bg-gray-50 rounded-xl p-3">
+                        <p class="text-[11px] text-gray-400 font-bold mb-1">التصنيف</p>
+                        <p class="font-black text-[#2E3468]">${paymentMethodLabel(item.payment_method)}</p>
+                    </div>
+                </div>
+                ${isRejected && item.note ? `<div class="bg-red-50 border border-red-100 text-red-700 rounded-xl p-3 mb-3 text-xs font-bold leading-relaxed">سبب الرفض: ${item.note}</div>` : ''}
+                <div class="grid grid-cols-2 gap-2">
+                    ${item.has_receipt ? `<button onclick="showReceipt('${receiptSource}', ${item.id})" class="border rounded-xl py-2.5 text-sm font-bold hover:bg-gray-50 flex items-center justify-center gap-1.5">${ICON_IMAGE}<span>عرض الإشعار</span></button>` : '<span class="text-xs text-gray-400 font-bold py-2.5">لا توجد صورة</span>'}
+                    ${isAccepted ? `<button onclick="updateArchivePaymentMethod('${item.source}', ${item.id})" class="bg-blue-50 text-blue-700 border border-blue-100 rounded-xl py-2.5 text-sm font-bold hover:bg-blue-100 flex items-center justify-center gap-1.5">${ICON_EDIT}<span>تعديل التصنيف</span></button>` : ''}
+                </div>
+            </div>
+        `;
+    }).join('');
 }
 
 function csvCell(value) {
@@ -780,7 +903,7 @@ function renderGuests(orders) {
             </div>
             <div class="grid grid-cols-1 gap-2">
                 ${o.has_receipt ? `<button onclick="showReceipt('order', ${o.id})" class="w-full border rounded-xl py-2.5 text-sm font-bold hover:bg-gray-50 flex items-center justify-center gap-1.5">${ICON_IMAGE}<span>عرض الفاتورة</span></button>` : '<p class="text-xs text-red-400 font-bold">لا توجد فاتورة</p>'}
-                ${isPaid || isRejected ? '' : `<div class="grid grid-cols-5 gap-2"><button onclick="action('confirm_visitor_payment', ${o.id})" class="col-span-3 bg-green-600 text-white rounded-xl py-2.5 text-sm font-bold shadow hover:bg-green-700 transition-colors flex items-center justify-center gap-1.5">${ICON_CHECK}<span>تأكيد الفاتورة</span></button><button onclick="rejectVisitorPayment(${o.id})" class="col-span-2 bg-red-50 text-red-600 border border-red-100 rounded-xl py-2.5 text-sm font-bold hover:bg-red-100 transition-colors flex items-center justify-center gap-1.5">${ICON_X}<span>رفض</span></button></div>`}
+                ${isPaid || isRejected ? '' : `<div class="grid grid-cols-5 gap-2"><button onclick="confirmPaymentWithMethod('confirm_visitor_payment', ${o.id})" class="col-span-3 bg-green-600 text-white rounded-xl py-2.5 text-sm font-bold shadow hover:bg-green-700 transition-colors flex items-center justify-center gap-1.5">${ICON_CHECK}<span>تأكيد الفاتورة</span></button><button onclick="rejectVisitorPayment(${o.id})" class="col-span-2 bg-red-50 text-red-600 border border-red-100 rounded-xl py-2.5 text-sm font-bold hover:bg-red-100 transition-colors flex items-center justify-center gap-1.5">${ICON_X}<span>رفض</span></button></div>`}
             </div>
         </div>`;
     }).join('');
@@ -1038,27 +1161,53 @@ function renderExpenses(expenses) {
     `).join('');
 }
 
-async function action(act, id, office=null, note=null) {
+async function action(act, id, office=null, note=null, extra={}) {
     try {
         const res = await fetch(`${API_URL}/admin/action`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: act, order_id: id, office, note })
+            body: JSON.stringify({ action: act, order_id: id, office, note, ...extra })
         });
         const data = await res.json();
         if (data.status !== 'success') {
             alert(data.message || 'حدث خطأ، حاول مجدداً');
-            return;
+            return false;
         }
         if (act === 'remind') showAdminToast(`تم إرسال تذكير الدفع لـ ${office}`);
         if (act === 'confirm_debt_payment') showAdminToast('تم تأكيد طلب تسديد الدين وتحويله إلى مدفوع');
         if (act === 'reject_debt_payment') showAdminToast('تم رفض إثبات السداد وإرسال السبب للمكتب');
         if (act === 'confirm_visitor_payment') showAdminToast('تم تأكيد فاتورة الزائر');
         if (act === 'reject_visitor_payment') showAdminToast('تم رفض فاتورة الزائر وحفظ السبب للكاشير');
+        if (act === 'clear_payment_archive') showAdminToast('تم مسح أرشيف التحويلات');
         fetchData();
+        return true;
     } catch (e) {
         alert('حدث خطأ، حاول مجدداً');
+        return false;
     }
+}
+
+async function confirmPaymentWithMethod(act, id) {
+    const method = await askPaymentMethod();
+    if (!method) return;
+    await action(act, id, null, null, { payment_method: method });
+}
+
+async function updateArchivePaymentMethod(source, id) {
+    const method = await askPaymentMethod();
+    if (!method) return;
+    const ok = await action('update_payment_method', id, null, null, { source, payment_method: method });
+    if (ok) showAdminToast('تم تحديث تصنيف التحويل');
+}
+
+async function clearPaymentArchive() {
+    const ok = await showAdminConfirm(
+        'سيتم مسح أرشيف التحويلات وحذف صور الإشعارات والتصنيفات من قاعدة البيانات.\n\nلن تتأثر المبيعات أو الديون أو المدفوعات.\n\nهل أنت متأكد؟',
+        'مسح أرشيف التحويلات',
+        '!'
+    );
+    if (!ok) return;
+    await action('clear_payment_archive');
 }
 
 async function resolveOfficePinHelp(office) {
@@ -1192,10 +1341,12 @@ async function submitDebtMovement(kind) {
         ? `سيتم تسجيل سداد بقيمة ${amount} ₪ لهذا المكتب.`
         : `سيتم إضافة دين بقيمة ${amount} ₪ لهذا المكتب.`;
     if (!await showAdminConfirm(`${effectText}\n\nالسبب: ${note}\n\nهل أنت متأكد؟`, `تأكيد ${actionName}`, '!')) return;
+    const method = isPayment ? await askPaymentMethod() : null;
+    if (isPayment && !method) return;
     const res = await fetch(`${API_URL}/admin/action`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: isPayment ? 'add_debt_payment' : 'add_debt_charge', office: currentDebtOffice, amount, note })
+        body: JSON.stringify({ action: isPayment ? 'add_debt_payment' : 'add_debt_charge', office: currentDebtOffice, amount, note, payment_method: method })
     });
     const data = await res.json();
     if (data.status !== 'success') {
