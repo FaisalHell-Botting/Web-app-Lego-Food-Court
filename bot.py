@@ -771,7 +771,9 @@ def init_db():
             is_reviewed INTEGER DEFAULT 0,
             approved_at TEXT,
             guest_phone TEXT,
-            item_snapshot TEXT
+            item_snapshot TEXT,
+            payment_method TEXT,
+            archive_hidden INTEGER DEFAULT 0
         )
         """
     )
@@ -786,6 +788,8 @@ def init_db():
         ("approved_at", "TEXT"),
         ("guest_phone", "TEXT"),
         ("item_snapshot", "TEXT"),
+        ("payment_method", "TEXT"),
+        ("archive_hidden", "INTEGER DEFAULT 0"),
     ]:
         try:
             c.execute(f"ALTER TABLE orders ADD COLUMN {col} {definition}")
@@ -827,10 +831,14 @@ def init_db():
             receipt TEXT,
             status TEXT DEFAULT 'pending',
             created_at TEXT,
-            reminder_id INTEGER
+            reminder_id INTEGER,
+            payment_method TEXT,
+            archive_hidden INTEGER DEFAULT 0
         )
         """
     )
+    c.execute("ALTER TABLE debt_payment_requests ADD COLUMN IF NOT EXISTS payment_method TEXT")
+    c.execute("ALTER TABLE debt_payment_requests ADD COLUMN IF NOT EXISTS archive_hidden INTEGER DEFAULT 0")
 
     c.execute(
         """
@@ -1796,7 +1804,7 @@ async def admin_dashboard():
 
         c.execute(
             """
-            SELECT id, office, amount, (receipt IS NOT NULL AND receipt <> '') AS has_receipt, status, created_at
+            SELECT id, office, amount, (receipt IS NOT NULL AND receipt <> '') AS has_receipt, status, created_at, payment_method
             FROM debt_payment_requests
             WHERE status='pending'
             ORDER BY id ASC
@@ -1816,6 +1824,7 @@ async def admin_dashboard():
                     "has_receipt": bool(row[3]),
                     "timestamp": row[5],
                     "kind": "debt_payment",
+                    "payment_method": row[6],
                 }
             )
 
@@ -1915,9 +1924,10 @@ async def admin_dashboard():
 
         c.execute(
             """
-            SELECT id, details, total_price, location, timestamp, (receipt IS NOT NULL AND receipt <> '') AS has_receipt, guest_phone, status, is_paid, missing_note, order_type
+            SELECT id, details, total_price, location, timestamp, (receipt IS NOT NULL AND receipt <> '') AS has_receipt, guest_phone, status, is_paid, missing_note, order_type, payment_method
             FROM orders
-            WHERE location LIKE 'زائر%%' AND status<>'ملغي'
+            WHERE location LIKE 'زائر%%'
+              AND status NOT IN ('ملغي','مقبول','فاتورة_زائر_مرفوضة')
             ORDER BY id DESC
             LIMIT 50
             """
@@ -1935,9 +1945,77 @@ async def admin_dashboard():
                 "is_paid": row[8],
                 "rejection_note": row[9],
                 "order_type": row[10],
+                "payment_method": row[11],
             }
             for row in c.fetchall()
         ]
+        c.execute(
+            """
+            SELECT 'debt_payment' AS source, id, office AS payer, amount, status, created_at,
+                   (receipt IS NOT NULL AND receipt <> '') AS has_receipt, payment_method, NULL::TEXT AS note
+            FROM debt_payment_requests
+            WHERE status <> 'pending' AND COALESCE(archive_hidden, 0)=0
+            UNION ALL
+            SELECT 'guest_order' AS source, id, location AS payer, total_price AS amount, status, COALESCE(approved_at, timestamp) AS created_at,
+                   (receipt IS NOT NULL AND receipt <> '') AS has_receipt, payment_method, missing_note AS note
+            FROM orders
+            WHERE location LIKE 'زائر%%' AND status IN ('مقبول','فاتورة_زائر_مرفوضة') AND COALESCE(archive_hidden, 0)=0
+            UNION ALL
+            SELECT 'manual_debt_payment' AS source, id, location AS payer, ABS(total_price) AS amount, status, COALESCE(approved_at, timestamp) AS created_at,
+                   FALSE AS has_receipt, payment_method, details AS note
+            FROM orders
+            WHERE location NOT LIKE 'زائر%%'
+              AND status='مقبول'
+              AND order_type='سداد دين'
+              AND details LIKE 'سداد دين:%%'
+              AND COALESCE(archive_hidden, 0)=0
+            ORDER BY created_at DESC NULLS LAST
+            LIMIT 120
+            """
+        )
+        payment_archive = [
+            {
+                "source": row[0],
+                "id": row[1],
+                "payer": row[2],
+                "amount": row[3],
+                "status": row[4],
+                "created_at": row[5],
+                "has_receipt": bool(row[6]),
+                "payment_method": row[7],
+                "note": row[8],
+            }
+            for row in c.fetchall()
+        ]
+        c.execute(
+            """
+            SELECT payment_method, COALESCE(SUM(amount), 0)
+            FROM (
+                SELECT payment_method, amount
+                FROM debt_payment_requests
+                WHERE status='paid' AND COALESCE(archive_hidden, 0)=0
+                UNION ALL
+                SELECT payment_method, total_price AS amount
+                FROM orders
+                WHERE location LIKE 'زائر%%' AND status='مقبول' AND COALESCE(archive_hidden, 0)=0
+                UNION ALL
+                SELECT payment_method, ABS(total_price) AS amount
+                FROM orders
+                WHERE location NOT LIKE 'زائر%%'
+                  AND status='مقبول'
+                  AND order_type='سداد دين'
+                  AND details LIKE 'سداد دين:%%'
+                  AND COALESCE(archive_hidden, 0)=0
+            ) reviewed_payments
+            WHERE payment_method IN ('wallet','bank')
+            GROUP BY payment_method
+            """
+        )
+        archive_totals = {row[0]: int(row[1] or 0) for row in c.fetchall()}
+        payment_archive_stats = {
+            "wallet_total": archive_totals.get("wallet", 0),
+            "bank_total": archive_totals.get("bank", 0),
+        }
         c.execute("SELECT id, amount, (receipt IS NOT NULL AND receipt <> '') AS has_receipt, created_at, description FROM expenses ORDER BY id DESC")
         expenses = [
             {"id": row[0], "amount": row[1], "has_receipt": bool(row[2]), "created_at": row[3], "description": row[4]}
@@ -2035,6 +2113,8 @@ async def admin_dashboard():
             "debts": debts,
             "reviews": reviews,
             "guest_orders": guest_orders,
+            "payment_archive": payment_archive,
+            "payment_archive_stats": payment_archive_stats,
             "expenses": expenses,
             "offices": offices,
         "menu_items": menu_items,
@@ -2115,6 +2195,9 @@ async def admin_action(request: Request):
     new_pin = None
     order_id = data.get("order_id")
     office = clean_office_name(data.get("office"))
+    payment_method = data.get("payment_method")
+    if payment_method not in ("wallet", "bank"):
+        payment_method = None
     try:
         conn = get_db()
         c = conn.cursor()
@@ -2140,7 +2223,11 @@ async def admin_action(request: Request):
         elif action == "missing":
             c.execute("UPDATE orders SET status='صنف_ناقص', missing_note=%s, approved_at=%s WHERE id=%s", (data.get("note"), get_pal_time(), order_id))
         elif action == "confirm_visitor_payment":
-            c.execute("UPDATE orders SET status='مقبول', is_paid=1, approved_at=%s, missing_note=NULL WHERE id=%s AND location LIKE 'زائر%%'", (get_pal_time(), order_id))
+            if not payment_method:
+                c.close()
+                conn.close()
+                return {"status": "error", "message": "اختر طريقة حفظ التحويل"}
+            c.execute("UPDATE orders SET status='مقبول', is_paid=1, approved_at=%s, missing_note=NULL, payment_method=%s WHERE id=%s AND location LIKE 'زائر%%'", (get_pal_time(), payment_method, order_id))
         elif action == "reject_visitor_payment":
             note = clean_office_name(data.get("note"))
             if not note:
@@ -2175,6 +2262,10 @@ async def admin_action(request: Request):
             conn.close()
             return {"status": "error", "message": "تم إيقاف السداد اليدوي. استخدم طلب سداد الدين أو تعديل الدين فقط."}
         elif action == "confirm_debt_payment":
+            if not payment_method:
+                c.close()
+                conn.close()
+                return {"status": "error", "message": "اختر طريقة حفظ التحويل"}
             c.execute(
                 "SELECT office, amount FROM debt_payment_requests WHERE id=%s AND status='pending'",
                 (order_id,),
@@ -2190,7 +2281,7 @@ async def admin_action(request: Request):
                 c.close()
                 conn.close()
                 return {"status": "error", "message": "invalid payment amount"}
-            c.execute("UPDATE debt_payment_requests SET status='paid' WHERE id=%s", (order_id,))
+            c.execute("UPDATE debt_payment_requests SET status='paid', payment_method=%s WHERE id=%s", (payment_method, order_id))
             c.execute(
                 """
                 INSERT INTO orders (user_id, details, total_price, location, timestamp, status, is_paid, order_type, approved_at)
@@ -2201,6 +2292,46 @@ async def admin_action(request: Request):
             c.execute(
                 "UPDATE reminders SET is_active=0 WHERE office IN %s OR regexp_replace(COALESCE(office, ''), '[^0-9]', '', 'g')=%s",
                 (office_location_variants(pay_office), office_number_value(pay_office)),
+            )
+        elif action == "update_payment_method":
+            source = data.get("source")
+            if not payment_method:
+                c.close()
+                conn.close()
+                return {"status": "error", "message": "اختر طريقة حفظ التحويل"}
+            if source == "debt_payment":
+                c.execute("UPDATE debt_payment_requests SET payment_method=%s WHERE id=%s AND status='paid'", (payment_method, order_id))
+            elif source == "guest_order":
+                c.execute("UPDATE orders SET payment_method=%s WHERE id=%s AND location LIKE 'زائر%%' AND status='مقبول'", (payment_method, order_id))
+            elif source == "manual_debt_payment":
+                c.execute("UPDATE orders SET payment_method=%s WHERE id=%s AND location NOT LIKE 'زائر%%' AND status='مقبول' AND order_type='سداد دين' AND details LIKE 'سداد دين:%%'", (payment_method, order_id))
+            else:
+                c.close()
+                conn.close()
+                return {"status": "error", "message": "مصدر التحويل غير معروف"}
+        elif action == "clear_payment_archive":
+            c.execute(
+                """
+                UPDATE debt_payment_requests
+                SET archive_hidden=1, receipt=NULL, payment_method=NULL
+                WHERE status <> 'pending' AND COALESCE(archive_hidden, 0)=0
+                """
+            )
+            c.execute(
+                """
+                UPDATE orders
+                SET archive_hidden=1, receipt=NULL, payment_method=NULL
+                WHERE COALESCE(archive_hidden, 0)=0
+                  AND (
+                    (location LIKE 'زائر%%' AND status IN ('مقبول','فاتورة_زائر_مرفوضة'))
+                    OR (
+                      location NOT LIKE 'زائر%%'
+                      AND status='مقبول'
+                      AND order_type='سداد دين'
+                      AND details LIKE 'سداد دين:%%'
+                    )
+                  )
+                """
             )
         elif action == "reject_debt_payment":
             note = clean_office_name(data.get("note"))
@@ -2283,6 +2414,10 @@ async def admin_action(request: Request):
         elif action == "add_debt_payment":
             amount = int(data.get("amount", 0) or 0)
             note = clean_office_name(data.get("note")) or "سداد خارجي"
+            if not payment_method:
+                c.close()
+                conn.close()
+                return {"status": "error", "message": "اختر طريقة حفظ التحويل"}
             if not office or amount <= 0:
                 c.close()
                 conn.close()
@@ -2298,10 +2433,10 @@ async def admin_action(request: Request):
                 return {"status": "error", "message": "قيمة السداد أكبر من الدين الحالي"}
             c.execute(
                 """
-                INSERT INTO orders (user_id, details, total_price, location, timestamp, status, is_paid, order_type, approved_at)
-                VALUES (%s,%s,%s,%s,%s,'مقبول',0,'سداد دين',%s)
+                INSERT INTO orders (user_id, details, total_price, location, timestamp, status, is_paid, order_type, approved_at, payment_method)
+                VALUES (%s,%s,%s,%s,%s,'مقبول',0,'سداد دين',%s,%s)
                 """,
-                (0, f"سداد دين: {note}", -amount, office, get_pal_time(), get_pal_time()),
+                (0, f"سداد دين: {note}", -amount, office, get_pal_time(), get_pal_time(), payment_method),
             )
             deactivate_debt_collection_if_clear(c, office)
         elif action == "add_manual_debt":
