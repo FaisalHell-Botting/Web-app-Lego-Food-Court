@@ -2180,10 +2180,35 @@ async def admin_debt_details(office: str):
                 "order_type": row[4],
                 "kind": "discount" if amount < 0 else "addition",
             })
+        current_debt_ids = {item["id"] for item in orders + adjustments}
+        c.execute(
+            """
+            SELECT id, details, total_price, timestamp, status, order_type, is_paid
+            FROM orders
+            WHERE (location IN %s OR regexp_replace(COALESCE(location, ''), '[^0-9]', '', 'g')=%s)
+              AND status NOT IN ('انتظار','صنف_ناقص','ملغي')
+              AND COALESCE(details, '') <> 'تم حذف جميع الأصناف من هذا الطلب'
+            ORDER BY id DESC
+            """,
+            (office_variants, office_number),
+        )
+        archive = [
+            {
+                "id": row[0],
+                "details": row[1],
+                "total_price": row[2],
+                "timestamp": row[3],
+                "status": row[4],
+                "order_type": row[5],
+                "is_paid": row[6],
+            }
+            for row in c.fetchall()
+            if row[0] not in current_debt_ids
+        ]
         total_debt = fetch_current_debt(c, office)
         c.close()
         conn.close()
-        return {"status": "success", "office": office, "orders": orders, "adjustments": adjustments, "total_debt": total_debt}
+        return {"status": "success", "office": office, "orders": orders, "adjustments": adjustments, "archive": archive, "total_debt": total_debt}
     except Exception as exc:
         return {"status": "error", "message": str(exc)}
 
