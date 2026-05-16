@@ -578,6 +578,7 @@
                 <div>
                     <h3 class="font-bold text-navy text-sm">طلب تسديد الدين</h3>
                     <p class="text-xs text-gray-400 mt-1">هذا الطلب تم إرساله من الإدارة</p>
+                    <p id="reminderSentAtText" class="text-xs text-gray-400 mt-1 font-bold"></p>
                 </div>
                 <span class="text-xs font-bold bg-yellow-50 text-yellow-700 px-2 py-1 rounded-full">نشط</span>
             </div>
@@ -636,6 +637,7 @@
     <div class="bg-white rounded-3xl w-full max-w-sm max-h-[90vh] overflow-y-auto p-6 slide-up">
         <h3 class="font-black text-lg text-navy mb-2">تذكير بتسديد الدين</h3>
         <p class="text-sm text-gray-500 mb-4 leading-relaxed">تم إرسال تذكير دفع جديد لهذا المكتب</p>
+        <p id="popupReminderSentAtText" class="text-xs text-gray-400 font-bold mb-3"></p>
         <div class="bg-gray-50 rounded-2xl p-4 mb-4">
             <p class="font-bold text-navy mb-2">قيمة الدين: <span id="popupDebtAmount" class="text-blue-600 font-black"></span></p>
             <p class="text-xs text-gray-400 font-bold mb-1">معلومات التحويل</p>
@@ -658,6 +660,7 @@
         <p class="text-sm text-gray-500 mb-4">ارفع صورة التحويل حتى تصل للإدارة كطلب تسديد دين</p>
         <div class="bg-gray-50 p-3 rounded-xl mb-3">
             <p class="text-base font-black text-blue-600">المبلغ المطلوب: <span id="debtPaymentAmount" class="text-xl"></span></p>
+            <p id="debtPaymentReminderSentAtText" class="text-xs text-gray-400 font-bold mt-1"></p>
         </div>
         <div class="border-2 border-dashed border-blue-300 rounded-2xl p-6 text-center mb-4 cursor-pointer hover:border-blue-600 transition-colors bg-blue-50/30" onclick="document.getElementById('debtReceiptInput').click()">
             <div id="debtReceiptPreview" class="hidden"><img id="debtReceiptImg" class="max-h-40 mx-auto rounded-xl object-contain"></div>
@@ -1852,6 +1855,10 @@ async function handleReminder(reminder, latestPaymentRequest, totalDebt) {
     renderPaymentInfo(reminder.payment_info || '');
     document.getElementById('popupDebtAmount').innerText = `${reminder.amount} ₪`;
     document.getElementById('debtPaymentAmount').innerText = `${reminder.amount} ₪`;
+    const reminderSentAt = reminder.created_at ? `تاريخ إرسال طلب السداد: ${formatDisplayTime(reminder.created_at)}` : '';
+    document.getElementById('reminderSentAtText').innerText = reminderSentAt;
+    document.getElementById('popupReminderSentAtText').innerText = reminderSentAt;
+    document.getElementById('debtPaymentReminderSentAtText').innerText = reminderSentAt;
 
     const statusText = latestPaymentRequest
         ? `آخر طلب سداد: ${latestPaymentRequest.status === 'pending' ? 'بانتظار تأكيد الإدارة' : 'تمت معالجته'}${latestPaymentRequest.created_at ? ` - ${formatDisplayTime(latestPaymentRequest.created_at)}` : ''}`
@@ -2120,6 +2127,31 @@ function parseDisplayTime(value) {
 function formatDisplayTime(value) {
     const date = parseDisplayTime(value);
     if (!date) return value || '';
+    const diffMs = Date.now() - date.getTime();
+    if (diffMs >= 0) {
+        const minutesAgo = Math.floor(diffMs / 60000);
+        const hoursAgo = Math.floor(diffMs / 3600000);
+        const daysAgo = Math.floor(diffMs / 86400000);
+        if (minutesAgo < 1) return 'الآن';
+        if (minutesAgo < 60) {
+            if (minutesAgo === 1) return 'قبل دقيقة';
+            if (minutesAgo === 2) return 'قبل دقيقتين';
+            if (minutesAgo <= 10) return `قبل ${minutesAgo} دقائق`;
+            return `قبل ${minutesAgo} دقيقة`;
+        }
+        if (hoursAgo < 24) {
+            if (hoursAgo === 1) return 'قبل ساعة';
+            if (hoursAgo === 2) return 'قبل ساعتين';
+            if (hoursAgo <= 10) return `قبل ${hoursAgo} ساعات`;
+            return `قبل ${hoursAgo} ساعة`;
+        }
+        if (daysAgo < 7) {
+            if (daysAgo === 1) return 'قبل يوم';
+            if (daysAgo === 2) return 'قبل يومين';
+            return `قبل ${daysAgo} أيام`;
+        }
+        if (daysAgo < 14) return 'قبل أسبوع';
+    }
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
