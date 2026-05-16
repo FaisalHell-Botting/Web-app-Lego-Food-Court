@@ -1275,6 +1275,34 @@ function renderDebtOrderItems(order) {
     }).join('');
 }
 
+function renderDebtArchiveCard(item) {
+    const amount = Number(item.total_price || 0);
+    const details = String(item.details || '');
+    const orderType = String(item.order_type || '');
+    const isRejected = item.status === 'فاتورة_زائر_مرفوضة' || orderType.includes('رفض سداد الدين') || details.startsWith('رفض سداد الدين');
+    const isPayment = orderType.includes('سداد دين') || details.startsWith('سداد دين');
+    const isGift = orderType === 'هدية مجانية';
+    const amountText = `${amount} ₪`;
+    const amountClass = isRejected ? 'text-gray-400' : (amount < 0 || isPayment ? 'text-green-600' : 'text-[#2E3468]');
+    const badgeText = isRejected ? 'مرفوض' : (isGift ? 'هدية' : (isPayment ? 'سداد دين' : (item.is_paid ? 'مسدد' : item.status || 'سجل')));
+    const badgeClass = isRejected ? 'bg-red-100 text-red-600' : (isGift ? 'bg-yellow-100 text-yellow-700' : (isPayment || item.is_paid ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'));
+    return `
+        <div class="border rounded-2xl p-4 bg-white">
+            <div class="flex justify-between items-start gap-3">
+                <div class="min-w-0">
+                    <p class="font-black text-[#2E3468] text-sm break-words">${details || '-'}</p>
+                    <p class="text-xs text-gray-400 mt-1">#${item.id} - ${formatDisplayTime(item.timestamp)}</p>
+                    ${orderType ? `<p class="text-xs text-gray-400 mt-1">${orderType}</p>` : ''}
+                </div>
+                <div class="text-left shrink-0">
+                    <p class="font-black ${amountClass} whitespace-nowrap">${amountText}</p>
+                    <span class="inline-block text-[10px] px-2 py-1 rounded-full ${badgeClass}">${badgeText}</span>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
 async function loadDebtDetails() {
     const res = await fetch(`${API_URL}/admin/debt-details/${encodeURIComponent(currentDebtOffice)}`);
     const data = await res.json();
@@ -1314,8 +1342,14 @@ async function loadDebtDetails() {
             <div class="space-y-2">${renderDebtOrderItems(order)}</div>
         </div>
     `).join('');
-    if (!adjustmentCards && !orderCards) { box.innerHTML = '<p class="text-center text-gray-400 py-6">لا توجد طلبات دين غير مدفوعة</p>'; return; }
-    box.innerHTML = `${adjustmentCards}${orderCards}`;
+    const debtSection = (adjustmentCards || orderCards)
+        ? `<div class="mb-5"><h4 class="font-black text-[#2E3468] mb-3">الطلبات الداخلة في الدين</h4><div class="space-y-3">${adjustmentCards}${orderCards}</div></div>`
+        : '<div class="mb-5"><h4 class="font-black text-[#2E3468] mb-3">الطلبات الداخلة في الدين</h4><p class="text-center text-gray-400 py-6 bg-gray-50 rounded-2xl border">لا توجد طلبات دين غير مدفوعة</p></div>';
+    const archiveCards = (data.archive || []).map(renderDebtArchiveCard).join('');
+    const archiveSection = archiveCards
+        ? `<div><h4 class="font-black text-[#2E3468] mb-3">أرشيف الطلبات</h4><div class="space-y-3">${archiveCards}</div></div>`
+        : '<div><h4 class="font-black text-[#2E3468] mb-3">أرشيف الطلبات</h4><p class="text-center text-gray-400 py-6 bg-gray-50 rounded-2xl border">لا يوجد سجل إضافي لهذا المكتب</p></div>';
+    box.innerHTML = `${debtSection}${archiveSection}`;
 }
 
 async function removeDebtItem(orderId, itemName, orderTimestamp='', itemPrice=0) {
