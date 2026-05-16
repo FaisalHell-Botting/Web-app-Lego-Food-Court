@@ -1371,10 +1371,10 @@ async function loadDebtDetails() {
         </div>
     `;
     const currentDebtItems = [
-        ...(data.adjustments || []).map(item => ({ kind: 'adjustment', ...item })),
-        ...(data.orders || []).map(item => ({ kind: 'order', ...item }))
+        ...(data.adjustments || []).map(item => ({ ...item, debt_entry_type: 'adjustment' })),
+        ...(data.orders || []).map(item => ({ ...item, debt_entry_type: 'order' }))
     ].sort((a, b) => (debtItemSortTime(b) - debtItemSortTime(a)) || (Number(b.id || 0) - Number(a.id || 0)));
-    const currentDebtCards = currentDebtItems.map(item => item.kind === 'adjustment' ? renderAdjustmentCard(item) : renderDebtOrderCard(item)).join('');
+    const currentDebtCards = currentDebtItems.map(item => item.debt_entry_type === 'adjustment' ? renderAdjustmentCard(item) : renderDebtOrderCard(item)).join('');
     const debtSection = currentDebtCards
         ? `<div class="mb-5"><h4 class="font-black text-[#2E3468] mb-3">الطلبات الداخلة في الدين</h4><div class="space-y-3">${currentDebtCards}</div></div>`
         : '<div class="mb-5"><h4 class="font-black text-[#2E3468] mb-3">الطلبات الداخلة في الدين</h4><p class="text-center text-gray-400 py-6 bg-gray-50 rounded-2xl border">لا توجد طلبات دين غير مدفوعة</p></div>';
