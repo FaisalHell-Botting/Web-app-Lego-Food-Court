@@ -79,12 +79,12 @@
         </div>
 
         <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-4 text-center">
-            <div class="bg-white/10 p-3 rounded-xl"><p class="text-xs text-gray-300 mb-1">المبيعات الإجمالية</p><p id="s_sales" class="font-black text-lg">0 ₪</p></div>
-            <div class="bg-white/10 p-3 rounded-xl"><p class="text-xs text-gray-300 mb-1">إجمالي الطلبات</p><p id="s_count" class="font-black text-lg">0</p></div>
-            <div class="bg-white/10 p-3 rounded-xl"><p class="text-xs text-green-300 mb-1">مدفوع</p><p id="s_paid" class="font-black text-lg text-green-400">0 ₪</p></div>
-            <div class="bg-white/10 p-3 rounded-xl"><p class="text-xs text-red-300 mb-1">ديون عالقة</p><p id="s_debt" class="font-black text-lg text-red-400">0 ₪</p></div>
-            <div class="bg-white/10 p-3 rounded-xl"><p class="text-xs text-cyan-200 mb-1">إجمالي الأرباح</p><p id="s_profit" class="font-black text-lg text-cyan-300">0 ₪</p></div>
-            <div id="responseAvgCard" class="bg-white/10 p-3 rounded-xl transition-colors"><p class="text-xs text-gray-300 mb-1">معدل الزمن للرد على الطلبات</p><p id="s_response_avg" class="font-black text-lg">0 دقيقة</p></div>
+            <div class="bg-white/10 p-3 rounded-xl"><p class="text-xs text-gray-300 mb-1">المبيعات الإجمالية</p><p id="s_sales" class="font-black text-lg">0 ₪</p><p id="s_sales_30" class="text-[11px] text-gray-300 font-normal leading-tight mt-0.5"></p></div>
+            <div class="bg-white/10 p-3 rounded-xl"><p class="text-xs text-gray-300 mb-1">إجمالي الطلبات</p><p id="s_count" class="font-black text-lg">0</p><p id="s_count_30" class="text-[11px] text-gray-300 font-normal leading-tight mt-0.5"></p></div>
+            <div class="bg-white/10 p-3 rounded-xl"><p class="text-xs text-green-300 mb-1">مدفوع</p><p id="s_paid" class="font-black text-lg text-green-400">0 ₪</p><p id="s_paid_30" class="text-[11px] text-green-200 font-normal leading-tight mt-0.5"></p></div>
+            <div class="bg-white/10 p-3 rounded-xl"><p class="text-xs text-red-300 mb-1">ديون عالقة</p><p id="s_debt" class="font-black text-lg text-red-400">0 ₪</p><p id="s_debt_30" class="text-[11px] text-red-200 font-normal leading-tight mt-0.5"></p></div>
+            <div class="bg-white/10 p-3 rounded-xl"><p class="text-xs text-cyan-200 mb-1">إجمالي الأرباح</p><p id="s_profit" class="font-black text-lg text-cyan-300">0 ₪</p><p id="s_profit_30" class="text-[11px] text-cyan-100 font-normal leading-tight mt-0.5"></p></div>
+            <div id="responseAvgCard" class="bg-white/10 p-3 rounded-xl transition-colors"><p class="text-xs text-gray-300 mb-1">معدل الزمن للرد على الطلبات</p><p id="s_response_avg" class="font-black text-lg">0 دقيقة</p><p id="s_response_week_delta" class="text-[11px] text-gray-300 font-normal leading-tight mt-0.5"></p></div>
         </div>
 
     </div>
@@ -521,6 +521,7 @@ async function fetchData() {
         document.getElementById('s_paid').innerText = `${data.stats.paid_invoices || 0} ₪`;
         document.getElementById('s_debt').innerText = `${data.stats.total_debts || 0} ₪`;
         document.getElementById('s_profit').innerText = `${data.stats.total_profit || 0} ₪`;
+        updateMonthlyStats(data.stats.last_30_days || {});
         updateResponseAverage(data.stats || {});
 
         const activeCount = (data.active_orders || []).length;
@@ -1055,12 +1056,34 @@ async function deleteMenuItem(id) {
     showAdminToast('تم حذف الصنف');
     fetchData();
 }
+
+function updateMonthlyStats(stats) {
+    const setText = (id, value, unit) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const safeValue = Number(value || 0);
+        el.innerText = `+${safeValue}${unit ? ` ${unit}` : ''} خلال 30 يوم`;
+    };
+    setText('s_sales_30', stats.total_sales, 'شيكل');
+    setText('s_count_30', stats.total_count, 'طلب خلال 30 يوم'.replace(' خلال 30 يوم', ''));
+    setText('s_paid_30', stats.paid_invoices, 'شيكل');
+    setText('s_debt_30', stats.total_debts, 'شيكل');
+    setText('s_profit_30', stats.total_profit, 'شيكل');
+}
+
 function updateResponseAverage(stats) {
     const value = Number(stats.avg_response_minutes || 0);
     const card = document.getElementById('responseAvgCard');
     const text = document.getElementById('s_response_avg');
+    const deltaText = document.getElementById('s_response_week_delta');
     if (!card || !text) return;
     text.innerText = value ? `${value} دقيقة` : '0 دقيقة';
+    const delta = Number(stats.response_week_delta_percent || 0);
+    if (deltaText) {
+        const sign = delta > 0 ? '+' : '';
+        deltaText.innerText = stats.week_response_count ? `${sign}${delta.toFixed(1)}% هذا الأسبوع` : 'لا توجد ردود هذا الأسبوع';
+        deltaText.className = `text-[11px] font-normal leading-tight mt-0.5 ${delta > 0 ? 'text-red-200' : (delta < 0 ? 'text-green-200' : 'text-gray-300')}`;
+    }
     card.className = 'bg-white/10 p-3 rounded-xl transition-colors';
     text.className = 'font-black text-lg ' + (
         stats.response_level === 'good' ? 'text-green-400' :
@@ -1303,6 +1326,11 @@ function renderDebtArchiveCard(item) {
     `;
 }
 
+function debtItemSortTime(item) {
+    const parsed = Date.parse(String(item.timestamp || '').replace(' ', 'T'));
+    return Number.isNaN(parsed) ? 0 : parsed;
+}
+
 async function loadDebtDetails() {
     const res = await fetch(`${API_URL}/admin/debt-details/${encodeURIComponent(currentDebtOffice)}`);
     const data = await res.json();
@@ -1314,7 +1342,7 @@ async function loadDebtDetails() {
     document.getElementById('debtChargeNote').value = '';
     document.getElementById('debtPaymentAmount').value = '';
     document.getElementById('debtPaymentNote').value = '';
-    const adjustmentCards = (data.adjustments || []).map(item => {
+    const renderAdjustmentCard = item => {
         const amount = Number(item.amount || 0);
         const itemType = String(item.order_type || '');
         const isPayment = itemType.includes('سداد دين') || String(item.details || '').startsWith('سداد دين');
@@ -1335,15 +1363,20 @@ async function loadDebtDetails() {
                 <span class="font-black ${amountClass} whitespace-nowrap">${amountText}</span>
             </div>
         </div>`;
-    }).join('');
-    const orderCards = (data.orders || []).map(order => `
+    };
+    const renderDebtOrderCard = order => `
         <div class="border rounded-2xl p-4 bg-gray-50">
             <div class="flex justify-between items-start gap-3 mb-3"><div><p class="font-bold text-[#2E3468]">#${order.id} - ${formatDisplayTime(order.timestamp)}</p><p class="text-xs text-gray-400 mt-1">${order.order_type || ''}</p></div><span class="font-black text-[#2E3468]">${order.total_price} ₪</span></div>
             <div class="space-y-2">${renderDebtOrderItems(order)}</div>
         </div>
-    `).join('');
-    const debtSection = (adjustmentCards || orderCards)
-        ? `<div class="mb-5"><h4 class="font-black text-[#2E3468] mb-3">الطلبات الداخلة في الدين</h4><div class="space-y-3">${adjustmentCards}${orderCards}</div></div>`
+    `;
+    const currentDebtItems = [
+        ...(data.adjustments || []).map(item => ({ kind: 'adjustment', ...item })),
+        ...(data.orders || []).map(item => ({ kind: 'order', ...item }))
+    ].sort((a, b) => (debtItemSortTime(b) - debtItemSortTime(a)) || (Number(b.id || 0) - Number(a.id || 0)));
+    const currentDebtCards = currentDebtItems.map(item => item.kind === 'adjustment' ? renderAdjustmentCard(item) : renderDebtOrderCard(item)).join('');
+    const debtSection = currentDebtCards
+        ? `<div class="mb-5"><h4 class="font-black text-[#2E3468] mb-3">الطلبات الداخلة في الدين</h4><div class="space-y-3">${currentDebtCards}</div></div>`
         : '<div class="mb-5"><h4 class="font-black text-[#2E3468] mb-3">الطلبات الداخلة في الدين</h4><p class="text-center text-gray-400 py-6 bg-gray-50 rounded-2xl border">لا توجد طلبات دين غير مدفوعة</p></div>';
     const archiveCards = (data.archive || []).map(renderDebtArchiveCard).join('');
     const archiveSection = archiveCards
