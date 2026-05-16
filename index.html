@@ -1805,13 +1805,14 @@ function renderLedger(orders) {
         const isManualPayment = orderType.includes('سداد يدوي') || details.startsWith('سداد يدوي');
         const adjustmentReason = isAdjustment ? details.replace('تسوية دين:', '').trim() : '';
         const rejectionReason = isPaymentRejected ? details.replace('رفض سداد الدين:', '').trim() : '';
+        const debtPaymentReason = isDebtPayment ? details.replace('سداد دين:', '').trim() : '';
         const amountText = (isAdjustment && amount > 0) ? `+${amount} ₪` : `${amount} ₪`;
         const amountClass = isPaymentRejected ? 'text-gray-400' : ((isManualPayment || isDebtPayment) ? 'text-green-600' : (isAdjustment && amount < 0 ? 'text-green-600' : (isAdjustment && amount > 0 ? 'text-red-600' : 'text-navy')));
         const title = isPaymentRejected ? 'رفض إثبات السداد' : (isDebtPayment ? 'سداد دين' : (isManualPayment ? 'سداد يدوي' : (isAdjustment ? 'تصحيح الدين' : details)));
         const subtitle = isPaymentRejected
             ? `سبب الرفض: ${rejectionReason || 'لم يتم توضيح السبب'}`
             : (isDebtPayment
-                ? 'تم تسجيل سداد الدين بناء على تذكير الكاشير'
+                ? (debtPaymentReason || 'تم تسجيل سداد الدين')
                 : (isManualPayment
                 ? 'تم تسجيل سداد يدوي من الإدارة'
                 : (isAdjustment
