@@ -1874,6 +1874,50 @@ async def admin_dashboard():
         c.execute("SELECT COALESCE(SUM(amount), 0) FROM expenses")
         total_expenses = c.fetchone()[0] or 0
         total_profit = total_sales - total_expenses
+        last_30_days = (get_pal_datetime() - timedelta(days=30)).strftime("%Y-%m-%d %H:%M:%S")
+
+        c.execute(
+            """
+            SELECT COUNT(*), COALESCE(SUM(total_price), 0)
+            FROM orders
+            WHERE status='مقبول'
+              AND COALESCE(order_type, '') NOT IN %s
+              AND COALESCE(approved_at, timestamp) >= %s
+            """,
+            (ACCOUNTING_EXCLUDED_ORDER_TYPES, last_30_days),
+        )
+        last_30_count, _ = c.fetchone()
+        last_30_count = int(last_30_count or 0)
+
+        c.execute(
+            """
+            SELECT COALESCE(SUM(total_price), 0)
+            FROM orders
+            WHERE status='مقبول'
+              AND COALESCE(order_type, '') NOT IN %s
+              AND COALESCE(approved_at, timestamp) >= %s
+            """,
+            (SALES_EXCLUDED_ORDER_TYPES, last_30_days),
+        )
+        last_30_sales = int(c.fetchone()[0] or 0)
+
+        c.execute(
+            """
+            SELECT COALESCE(SUM(total_price), 0)
+            FROM orders
+            WHERE status='مقبول'
+              AND is_paid=0
+              AND location NOT LIKE 'زائر%%'
+              AND COALESCE(approved_at, timestamp) >= %s
+            """,
+            (last_30_days,),
+        )
+        last_30_debts = int(c.fetchone()[0] or 0)
+        last_30_paid = last_30_sales - last_30_debts
+
+        c.execute("SELECT COALESCE(SUM(amount), 0) FROM expenses WHERE created_at >= %s", (last_30_days,))
+        last_30_expenses = int(c.fetchone()[0] or 0)
+        last_30_profit = last_30_sales - last_30_expenses
 
         c.execute(
             """
@@ -1894,6 +1938,29 @@ async def admin_dashboard():
             if started and handled and handled >= started:
                 response_minutes.append((handled - started).total_seconds() / 60)
         avg_response_minutes = round(sum(response_minutes) / len(response_minutes), 1) if response_minutes else 0
+        week_key = get_reward_week_key()
+        c.execute(
+            """
+            SELECT timestamp, approved_at
+            FROM orders
+            WHERE timestamp IS NOT NULL
+              AND approved_at IS NOT NULL
+              AND status IN ('مقبول','صنف_ناقص','فاتورة_زائر_مرفوضة')
+              AND COALESCE(order_type, '') NOT IN ('تسوية دين يدوية', 'إضافة يدوية', 'حذف صنف من الدين', 'رفض سداد الدين', 'سداد دين', 'سداد يدوي', 'هدية مجانية')
+              AND COALESCE(approved_at, timestamp) >= %s
+            """,
+            (week_key,),
+        )
+        week_response_minutes = []
+        for started_at, handled_at in c.fetchall():
+            started = parse_time(started_at)
+            handled = parse_time(handled_at)
+            if started and handled and handled >= started:
+                week_response_minutes.append((handled - started).total_seconds() / 60)
+        week_avg_response_minutes = round(sum(week_response_minutes) / len(week_response_minutes), 1) if week_response_minutes else 0
+        response_week_delta_percent = 0
+        if avg_response_minutes and week_avg_response_minutes:
+            response_week_delta_percent = round(((week_avg_response_minutes - avg_response_minutes) / avg_response_minutes) * 100, 1)
         if not response_minutes:
             response_level = "none"
         elif avg_response_minutes < 5:
@@ -2072,7 +2139,6 @@ async def admin_dashboard():
             office_map[office_name]["accepted_orders_count"] = int(order_count or 0)
             office_map[office_name]["total_purchases"] = int(total_purchase or 0)
 
-        week_key = get_reward_week_key()
         c.execute(
             """
             SELECT location, COUNT(*), COALESCE(SUM(total_price), 0)
@@ -2104,10 +2170,20 @@ async def admin_dashboard():
                 "total_expenses": total_expenses,
                 "total_profit": total_profit,
                 "avg_response_minutes": avg_response_minutes,
+                "week_avg_response_minutes": week_avg_response_minutes,
+                "response_week_delta_percent": response_week_delta_percent,
                 "response_count": len(response_minutes),
+                "week_response_count": len(week_response_minutes),
                 "response_level": response_level,
                 "rating_average": rating_avg,
                 "rating_count": rating_count,
+                "last_30_days": {
+                    "total_sales": last_30_sales,
+                    "total_count": last_30_count,
+                    "paid_invoices": last_30_paid,
+                    "total_debts": last_30_debts,
+                    "total_profit": last_30_profit,
+                },
             },
             "active_orders": active_orders,
             "debts": debts,
