@@ -1795,6 +1795,7 @@ function renderLedger(orders) {
         list.innerHTML = '<p class="text-center text-gray-400 py-8">لا توجد طلبات بعد</p>';
         return;
     }
+    const cleanLedgerNote = value => String(value || '').replace(/[\u0610-\u061A\u0640\u064B-\u065F\u0670\u06D6-\u06ED]/g, '').trim();
     list.innerHTML = orders.map(o => {
         const amount = Number(o.total_price || 0);
         const details = String(o.details || '');
@@ -1803,16 +1804,16 @@ function renderLedger(orders) {
         const isPaymentRejected = orderType.includes('رفض سداد الدين') || details.startsWith('رفض سداد الدين:');
         const isDebtPayment = orderType.includes('سداد دين') || details.startsWith('سداد دين');
         const isManualPayment = orderType.includes('سداد يدوي') || details.startsWith('سداد يدوي');
-        const adjustmentReason = isAdjustment ? details.replace('تسوية دين:', '').trim() : '';
-        const rejectionReason = isPaymentRejected ? details.replace('رفض سداد الدين:', '').trim() : '';
-        const debtPaymentReason = isDebtPayment ? details.replace('سداد دين:', '').trim() : '';
+        const adjustmentReason = isAdjustment ? cleanLedgerNote(details.replace('تسوية دين:', '')) : '';
+        const rejectionReason = isPaymentRejected ? cleanLedgerNote(details.replace('رفض سداد الدين:', '')) : '';
+        const debtPaymentReason = details.startsWith('سداد دين:') ? cleanLedgerNote(details.replace('سداد دين:', '')) : '';
         const amountText = (isAdjustment && amount > 0) ? `+${amount} ₪` : `${amount} ₪`;
         const amountClass = isPaymentRejected ? 'text-gray-400' : ((isManualPayment || isDebtPayment) ? 'text-green-600' : (isAdjustment && amount < 0 ? 'text-green-600' : (isAdjustment && amount > 0 ? 'text-red-600' : 'text-navy')));
         const title = isPaymentRejected ? 'رفض إثبات السداد' : (isDebtPayment ? 'سداد دين' : (isManualPayment ? 'سداد يدوي' : (isAdjustment ? 'تصحيح الدين' : details)));
         const subtitle = isPaymentRejected
             ? `سبب الرفض: ${rejectionReason || 'لم يتم توضيح السبب'}`
             : (isDebtPayment
-                ? (debtPaymentReason || 'تم تسجيل سداد الدين')
+                ? (debtPaymentReason || 'تم تسجيل سداد الدين بناء على تذكير الكاشير')
                 : (isManualPayment
                 ? 'تم تسجيل سداد يدوي من الإدارة'
                 : (isAdjustment
