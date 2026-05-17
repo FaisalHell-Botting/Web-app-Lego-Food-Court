@@ -1327,8 +1327,8 @@ function renderDebtArchiveCard(item) {
 }
 
 function debtItemSortTime(item) {
-    const parsed = Date.parse(String(item.timestamp || '').replace(' ', 'T'));
-    return Number.isNaN(parsed) ? 0 : parsed;
+    const parsed = parsePalTime(item.timestamp);
+    return parsed ? parsed.getTime() : 0;
 }
 
 async function loadDebtDetails() {
