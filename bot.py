@@ -1874,7 +1874,7 @@ async def admin_dashboard():
         c.execute("SELECT COALESCE(SUM(amount), 0) FROM expenses")
         total_expenses = c.fetchone()[0] or 0
         total_profit = total_sales - total_expenses
-        last_30_days = (get_pal_datetime() - timedelta(days=30)).strftime("%Y-%m-%d %H:%M:%S")
+        last_7_days = (get_pal_datetime() - timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
 
         c.execute(
             """
@@ -1884,10 +1884,10 @@ async def admin_dashboard():
               AND COALESCE(order_type, '') NOT IN %s
               AND COALESCE(approved_at, timestamp) >= %s
             """,
-            (ACCOUNTING_EXCLUDED_ORDER_TYPES, last_30_days),
+            (ACCOUNTING_EXCLUDED_ORDER_TYPES, last_7_days),
         )
-        last_30_count, _ = c.fetchone()
-        last_30_count = int(last_30_count or 0)
+        last_7_count, _ = c.fetchone()
+        last_7_count = int(last_7_count or 0)
 
         c.execute(
             """
@@ -1897,9 +1897,9 @@ async def admin_dashboard():
               AND COALESCE(order_type, '') NOT IN %s
               AND COALESCE(approved_at, timestamp) >= %s
             """,
-            (SALES_EXCLUDED_ORDER_TYPES, last_30_days),
+            (SALES_EXCLUDED_ORDER_TYPES, last_7_days),
         )
-        last_30_sales = int(c.fetchone()[0] or 0)
+        last_7_sales = int(c.fetchone()[0] or 0)
 
         c.execute(
             """
@@ -1910,14 +1910,14 @@ async def admin_dashboard():
               AND location NOT LIKE 'زائر%%'
               AND COALESCE(approved_at, timestamp) >= %s
             """,
-            (last_30_days,),
+            (last_7_days,),
         )
-        last_30_debts = int(c.fetchone()[0] or 0)
-        last_30_paid = last_30_sales - last_30_debts
+        last_7_debts = int(c.fetchone()[0] or 0)
+        last_7_paid = last_7_sales - last_7_debts
 
-        c.execute("SELECT COALESCE(SUM(amount), 0) FROM expenses WHERE created_at >= %s", (last_30_days,))
-        last_30_expenses = int(c.fetchone()[0] or 0)
-        last_30_profit = last_30_sales - last_30_expenses
+        c.execute("SELECT COALESCE(SUM(amount), 0) FROM expenses WHERE created_at >= %s", (last_7_days,))
+        last_7_expenses = int(c.fetchone()[0] or 0)
+        last_7_profit = last_7_sales - last_7_expenses
 
         c.execute(
             """
@@ -2037,7 +2037,7 @@ async def admin_dashboard():
               AND details LIKE 'سداد دين:%%'
               AND COALESCE(archive_hidden, 0)=0
             ORDER BY created_at DESC NULLS LAST
-            LIMIT 120
+            LIMIT 200
             """
         )
         payment_archive = [
@@ -2177,12 +2177,12 @@ async def admin_dashboard():
                 "response_level": response_level,
                 "rating_average": rating_avg,
                 "rating_count": rating_count,
-                "last_30_days": {
-                    "total_sales": last_30_sales,
-                    "total_count": last_30_count,
-                    "paid_invoices": last_30_paid,
-                    "total_debts": last_30_debts,
-                    "total_profit": last_30_profit,
+                "last_7_days": {
+                    "total_sales": last_7_sales,
+                    "total_count": last_7_count,
+                    "paid_invoices": last_7_paid,
+                    "total_debts": last_7_debts,
+                    "total_profit": last_7_profit,
                 },
             },
             "active_orders": active_orders,
