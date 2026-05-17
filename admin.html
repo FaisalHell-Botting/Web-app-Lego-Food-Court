@@ -521,7 +521,7 @@ async function fetchData() {
         document.getElementById('s_paid').innerText = `${data.stats.paid_invoices || 0} ₪`;
         document.getElementById('s_debt').innerText = `${data.stats.total_debts || 0} ₪`;
         document.getElementById('s_profit').innerText = `${data.stats.total_profit || 0} ₪`;
-        updateMonthlyStats(data.stats.last_30_days || {});
+        updateRecentStats(data.stats.last_7_days || {});
         updateResponseAverage(data.stats || {});
 
         const activeCount = (data.active_orders || []).length;
@@ -1057,15 +1057,15 @@ async function deleteMenuItem(id) {
     fetchData();
 }
 
-function updateMonthlyStats(stats) {
+function updateRecentStats(stats) {
     const setText = (id, value, unit) => {
         const el = document.getElementById(id);
         if (!el) return;
         const safeValue = Number(value || 0);
-        el.innerText = `+${safeValue}${unit ? ` ${unit}` : ''} خلال 30 يوم`;
+        el.innerText = `+${safeValue}${unit ? ` ${unit}` : ''} خلال 7 أيام`;
     };
     setText('s_sales_30', stats.total_sales, 'شيكل');
-    setText('s_count_30', stats.total_count, 'طلب خلال 30 يوم'.replace(' خلال 30 يوم', ''));
+    setText('s_count_30', stats.total_count, 'طلب');
     setText('s_paid_30', stats.paid_invoices, 'شيكل');
     setText('s_debt_30', stats.total_debts, 'شيكل');
     setText('s_profit_30', stats.total_profit, 'شيكل');
@@ -1370,19 +1370,19 @@ async function loadDebtDetails() {
             <div class="space-y-2">${renderDebtOrderItems(order)}</div>
         </div>
     `;
-    const currentDebtItems = [
+    const debtLedgerItems = [
         ...(data.adjustments || []).map(item => ({ ...item, debt_entry_type: 'adjustment' })),
-        ...(data.orders || []).map(item => ({ ...item, debt_entry_type: 'order' }))
+        ...(data.orders || []).map(item => ({ ...item, debt_entry_type: 'order' })),
+        ...(data.archive || []).map(item => ({ ...item, debt_entry_type: 'archive' }))
     ].sort((a, b) => (debtItemSortTime(b) - debtItemSortTime(a)) || (Number(b.id || 0) - Number(a.id || 0)));
-    const currentDebtCards = currentDebtItems.map(item => item.debt_entry_type === 'adjustment' ? renderAdjustmentCard(item) : renderDebtOrderCard(item)).join('');
-    const debtSection = currentDebtCards
-        ? `<div class="mb-5"><h4 class="font-black text-[#2E3468] mb-3">الطلبات الداخلة في الدين</h4><div class="space-y-3">${currentDebtCards}</div></div>`
-        : '<div class="mb-5"><h4 class="font-black text-[#2E3468] mb-3">الطلبات الداخلة في الدين</h4><p class="text-center text-gray-400 py-6 bg-gray-50 rounded-2xl border">لا توجد طلبات دين غير مدفوعة</p></div>';
-    const archiveCards = (data.archive || []).map(renderDebtArchiveCard).join('');
-    const archiveSection = archiveCards
-        ? `<div><h4 class="font-black text-[#2E3468] mb-3">أرشيف الطلبات</h4><div class="space-y-3">${archiveCards}</div></div>`
-        : '<div><h4 class="font-black text-[#2E3468] mb-3">أرشيف الطلبات</h4><p class="text-center text-gray-400 py-6 bg-gray-50 rounded-2xl border">لا يوجد سجل إضافي لهذا المكتب</p></div>';
-    box.innerHTML = `${debtSection}${archiveSection}`;
+    const ledgerCards = debtLedgerItems.map(item => {
+        if (item.debt_entry_type === 'adjustment') return renderAdjustmentCard(item);
+        if (item.debt_entry_type === 'order') return renderDebtOrderCard(item);
+        return renderDebtArchiveCard(item);
+    }).join('');
+    box.innerHTML = ledgerCards
+        ? `<div><h4 class="font-black text-[#2E3468] mb-3">سجل الدين</h4><div class="space-y-3">${ledgerCards}</div></div>`
+        : '<div><h4 class="font-black text-[#2E3468] mb-3">سجل الدين</h4><p class="text-center text-gray-400 py-6 bg-gray-50 rounded-2xl border">لا يوجد سجل لهذا المكتب</p></div>';
 }
 
 async function removeDebtItem(orderId, itemName, orderTimestamp='', itemPrice=0) {
