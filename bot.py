@@ -2037,7 +2037,6 @@ async def admin_dashboard():
               AND details LIKE 'سداد دين:%%'
               AND COALESCE(archive_hidden, 0)=0
             ORDER BY created_at DESC NULLS LAST
-            LIMIT 200
             """
         )
         payment_archive = [
