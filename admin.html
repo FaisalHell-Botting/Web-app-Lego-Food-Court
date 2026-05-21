@@ -154,7 +154,7 @@
                     <p class="font-black text-[#2E3468]">أرشيف التحويلات</p>
                     <p class="text-xs text-gray-400 font-bold mt-1">المسح يحذف صور الإشعارات والتصنيفات فقط ولا يؤثر على المبيعات أو الديون.</p>
                 </div>
-                <button onclick="clearPaymentArchive()" class="bg-red-50 text-red-600 border border-red-100 px-4 py-2 rounded-xl text-sm font-black hover:bg-red-100 transition-colors flex items-center justify-center gap-1.5"><svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg><span>مسح الأرشيف</span></button>
+                <button onclick="clearPaymentArchive()" class="bg-red-50 text-red-600 border border-red-100 px-4 py-2 rounded-xl text-sm font-black hover:bg-red-100 transition-colors flex items-center justify-center gap-1.5"><svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg><span>تنظيف المرفقات</span></button>
             </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div class="bg-white rounded-2xl border shadow-sm p-4">
@@ -1208,7 +1208,7 @@ async function action(act, id, office=null, note=null, extra={}) {
         if (act === 'reject_debt_payment') showAdminToast('تم رفض إثبات السداد وإرسال السبب للمكتب');
         if (act === 'confirm_visitor_payment') showAdminToast('تم تأكيد فاتورة الزائر');
         if (act === 'reject_visitor_payment') showAdminToast('تم رفض فاتورة الزائر وحفظ السبب للكاشير');
-        if (act === 'clear_payment_archive') showAdminToast('تم مسح أرشيف التحويلات');
+        if (act === 'clear_payment_archive') showAdminToast('تم تنظيف صور وتصنيفات الأرشيف');
         fetchData();
         return true;
     } catch (e) {
@@ -1232,8 +1232,8 @@ async function updateArchivePaymentMethod(source, id) {
 
 async function clearPaymentArchive() {
     const ok = await showAdminConfirm(
-        'سيتم مسح أرشيف التحويلات وحذف صور الإشعارات والتصنيفات من قاعدة البيانات.\n\nلن تتأثر المبيعات أو الديون أو المدفوعات.\n\nهل أنت متأكد؟',
-        'مسح أرشيف التحويلات',
+        'سيتم حذف صور الإشعارات وتصنيفات طريقة الدفع من قاعدة البيانات لتخفيف المساحة.\n\nسيبقى سجل الأرشيف ظاهراً ولن تتأثر المبيعات أو الديون أو المدفوعات.\n\nهل أنت متأكد؟',
+        'تنظيف مرفقات الأرشيف',
         '!'
     );
     if (!ok) return;
