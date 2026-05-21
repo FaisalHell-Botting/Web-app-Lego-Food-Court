@@ -760,11 +760,11 @@ let rewardWheelAudioNodes = [];
 let rewardWheelSpinDeg = 0;
 const debtTransferDefaults = {
     bank: 'بنك فلسطين',
-    bankOwner: 'محمد سلمان ابراهيم جندية',
+    bankOwner: 'محمد محمد سلمان جندية',
     bankIcon: 'bank-of-palestine.png',
     id: '1512081',
     iban: 'PS11PALS045115120810993100000',
-    bankMobile: '0599323410',
+    bankMobile: '',
     walletTitle: 'محفظة بال باي',
     walletOwner: 'كمال رفيق كمال عبيد',
     walletIcon: 'palpay.png',
@@ -1761,7 +1761,6 @@ function renderStructuredPaymentInfo(source, ussdAction='') {
                 </div>
             </div>
             <div class="space-y-2">
-                ${paymentInfoCard('Mobile Number', parsed.bankMobile, parsed.bankMobile)}
                 ${paymentInfoCard('ID', parsed.id, parsed.id)}
                 ${paymentInfoCard('IBAN', parsed.iban, parsed.iban)}
             </div>
