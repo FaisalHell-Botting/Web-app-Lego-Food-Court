@@ -2413,16 +2413,15 @@ async def admin_action(request: Request):
             c.execute(
                 """
                 UPDATE debt_payment_requests
-                SET archive_hidden=1, receipt=NULL, payment_method=NULL
-                WHERE status <> 'pending' AND COALESCE(archive_hidden, 0)=0
+                SET receipt=NULL, payment_method=NULL
+                WHERE status <> 'pending'
                 """
             )
             c.execute(
                 """
                 UPDATE orders
-                SET archive_hidden=1, receipt=NULL, payment_method=NULL
-                WHERE COALESCE(archive_hidden, 0)=0
-                  AND (
+                SET receipt=NULL, payment_method=NULL
+                WHERE (
                     (location LIKE 'زائر%%' AND status IN ('مقبول','فاتورة_زائر_مرفوضة'))
                     OR (
                       location NOT LIKE 'زائر%%'
