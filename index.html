@@ -749,6 +749,7 @@ let selectedOrderType = 'داخل الكوفي كورنر';
 let pollingStarted = false;
 let reviewShown = false;
 let latestReminder = null;
+let latestDebtPaymentAmount = 0;
 let editingOrderId = null;
 let storeIsOpen = true;
 let officePinMode = 'verify';
@@ -1843,6 +1844,7 @@ function renderLedger(orders) {
 }
 async function handleReminder(reminder, latestPaymentRequest, totalDebt) {
     latestReminder = reminder || null;
+    latestDebtPaymentAmount = Number(totalDebt || 0);
     const reminderCard = document.getElementById('reminderCard');
     if (!reminder || totalDebt <= 0) {
         reminderCard.classList.add('hidden');
@@ -1850,10 +1852,10 @@ async function handleReminder(reminder, latestPaymentRequest, totalDebt) {
     }
 
     reminderCard.classList.remove('hidden');
-    document.getElementById('reminderAmountText').innerText = `${reminder.amount} ₪`;
+    document.getElementById('reminderAmountText').innerText = `${latestDebtPaymentAmount} ₪`;
     renderPaymentInfo(reminder.payment_info || '');
-    document.getElementById('popupDebtAmount').innerText = `${reminder.amount} ₪`;
-    document.getElementById('debtPaymentAmount').innerText = `${reminder.amount} ₪`;
+    document.getElementById('popupDebtAmount').innerText = `${latestDebtPaymentAmount} ₪`;
+    document.getElementById('debtPaymentAmount').innerText = `${latestDebtPaymentAmount} ₪`;
     const reminderSentAt = reminder.created_at ? `تاريخ إرسال طلب السداد: ${formatDisplayTime(reminder.created_at)}` : '';
     document.getElementById('reminderSentAtText').innerText = reminderSentAt;
     document.getElementById('popupReminderSentAtText').innerText = reminderSentAt;
@@ -1917,7 +1919,7 @@ async function submitDebtPayment() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 office: user.id,
-                amount: latestReminder.amount,
+                amount: latestDebtPaymentAmount,
                 receipt: debtReceiptBase64
             })
         });
@@ -2103,7 +2105,7 @@ function dialGuestPalPay() {
 }
 
 function dialDebtPalPay() {
-    dialPalPayAmount(latestReminder ? latestReminder.amount : 0);
+    dialPalPayAmount(latestReminder ? latestDebtPaymentAmount : 0);
 }
 async function copyText(value) {
     try {
