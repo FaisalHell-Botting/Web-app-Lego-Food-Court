@@ -421,6 +421,10 @@ def clean_office_name(office):
     return value
 
 
+def clean_push_endpoint(endpoint):
+    return str(endpoint or "").strip()
+
+
 def office_location_variants(office):
     value = clean_office_name(office)
     variants = [value]
@@ -1128,14 +1132,14 @@ if os.path.exists("static"):
 @app.get("/")
 async def serve_index():
     if os.path.exists("index.html"):
-        return FileResponse("index.html")
+        return FileResponse("index.html", media_type="text/html; charset=utf-8")
     return {"message": "LE Coffee API"}
 
 
 @app.get("/admin")
 async def serve_admin():
     if os.path.exists("admin.html"):
-        return FileResponse("admin.html")
+        return FileResponse("admin.html", media_type="text/html; charset=utf-8")
     return {"error": "admin.html not found"}
 
 
@@ -1146,10 +1150,39 @@ async def serve_logo():
     return {"error": "logo.png not found"}
 
 
+@app.get("/manifest.webmanifest")
+async def serve_manifest():
+    if os.path.exists("manifest.webmanifest"):
+        return FileResponse(
+            "manifest.webmanifest",
+            media_type="application/manifest+json; charset=utf-8",
+            headers={"Cache-Control": "no-cache"},
+        )
+    return {"error": "manifest.webmanifest not found"}
+
+
+@app.get("/manifest-admin.webmanifest")
+async def serve_admin_manifest():
+    if os.path.exists("manifest-admin.webmanifest"):
+        return FileResponse(
+            "manifest-admin.webmanifest",
+            media_type="application/manifest+json; charset=utf-8",
+            headers={"Cache-Control": "no-cache"},
+        )
+    return {"error": "manifest-admin.webmanifest not found"}
+
+
 @app.get("/service-worker.js")
 async def serve_service_worker():
     if os.path.exists("service-worker.js"):
-        return FileResponse("service-worker.js", media_type="application/javascript")
+        return FileResponse(
+            "service-worker.js",
+            media_type="application/javascript",
+            headers={
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Service-Worker-Allowed": "/",
+            },
+        )
     return {"error": "service-worker.js not found"}
 
 
@@ -1240,7 +1273,7 @@ async def verify_office_pin(request: Request):
 async def push_status(request: Request):
     data = await request.json()
     office = clean_office_name(data.get("office"))
-    endpoint = clean_office_name(data.get("endpoint"))
+    endpoint = clean_push_endpoint(data.get("endpoint"))
     if not office or not endpoint:
         return {"status": "success", "active": False, "enabled": push_is_configured()}
     try:
@@ -1270,7 +1303,7 @@ async def push_subscribe(request: Request):
     office = clean_office_name(data.get("office"))
     pin = str(data.get("pin", "")).strip()
     subscription = data.get("subscription") or {}
-    endpoint = clean_office_name(subscription.get("endpoint"))
+    endpoint = clean_push_endpoint(subscription.get("endpoint"))
     if not push_is_configured():
         return {"status": "error", "message": "الإشعارات غير مفعلة على السيرفر حالياً"}
     if not office or is_guest_office(office) or not is_valid_office_number(office) or not is_valid_pin(pin) or not endpoint:
@@ -1310,7 +1343,7 @@ async def push_unsubscribe(request: Request):
     data = await request.json()
     office = clean_office_name(data.get("office"))
     pin = str(data.get("pin", "")).strip()
-    endpoint = clean_office_name(data.get("endpoint"))
+    endpoint = clean_push_endpoint(data.get("endpoint"))
     if not office or is_guest_office(office) or not is_valid_office_number(office) or not is_valid_pin(pin):
         return {"status": "error", "message": "بيانات الإشعارات غير مكتملة"}
     try:
@@ -1337,7 +1370,7 @@ async def push_unsubscribe(request: Request):
 @app.post("/api/admin/push/status")
 async def admin_push_status(request: Request):
     data = await request.json()
-    endpoint = clean_office_name(data.get("endpoint"))
+    endpoint = clean_push_endpoint(data.get("endpoint"))
     if not endpoint:
         return {"status": "success", "active": False, "enabled": push_is_configured()}
     try:
@@ -1359,7 +1392,7 @@ async def admin_push_status(request: Request):
 async def admin_push_subscribe(request: Request):
     data = await request.json()
     subscription = data.get("subscription") or {}
-    endpoint = clean_office_name(subscription.get("endpoint"))
+    endpoint = clean_push_endpoint(subscription.get("endpoint"))
     if not push_is_configured():
         return {"status": "error", "message": "الإشعارات غير مفعلة على السيرفر حالياً"}
     if not endpoint:
@@ -1391,7 +1424,7 @@ async def admin_push_subscribe(request: Request):
 @app.post("/api/admin/push/unsubscribe")
 async def admin_push_unsubscribe(request: Request):
     data = await request.json()
-    endpoint = clean_office_name(data.get("endpoint"))
+    endpoint = clean_push_endpoint(data.get("endpoint"))
     if not endpoint:
         return {"status": "error", "message": "بيانات الإشعارات غير مكتملة"}
     try:
