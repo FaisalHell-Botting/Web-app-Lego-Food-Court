@@ -554,6 +554,19 @@
         <button onclick="closeModal('officePinModal')" class="w-full bg-gray-100 text-gray-600 py-3 rounded-xl font-bold">إلغاء</button>
     </div>
 </div>
+<div id="pushPinModal" class="fixed inset-0 bg-black/70 z-[88] flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl w-full max-w-sm p-6 slide-up">
+        <div class="w-14 h-14 rounded-2xl bg-yellow-50 text-yellow-600 flex items-center justify-center text-3xl mx-auto mb-4">🔔</div>
+        <h3 id="pushPinTitle" class="font-black text-lg text-navy text-center mb-2">تفعيل إشعارات المكتب</h3>
+        <p id="pushPinHint" class="text-sm text-gray-500 text-center mb-4 leading-relaxed">أدخل PIN مكتبك للتأكد أن هذا الجهاز تابع للمكتب.</p>
+        <input type="password" id="pushPinInput" inputmode="numeric" maxlength="4" placeholder="PIN المكتب"
+               onkeyup="if(event.key==='Enter') submitPushPinModal()"
+               class="w-full border-2 border-gray-200 p-3.5 rounded-xl mb-3 text-center font-black text-xl tracking-[0.4em] focus:outline-none focus:border-navy">
+        <p id="pushPinError" class="hidden text-xs text-red-500 font-bold text-center mb-3"></p>
+        <button id="pushPinSubmitBtn" onclick="submitPushPinModal()" class="w-full bg-navy text-white py-3 rounded-xl font-bold mb-2 hover:bg-opacity-90 transition-all">متابعة</button>
+        <button onclick="cancelPushPinModal()" class="w-full bg-gray-100 text-gray-600 py-3 rounded-xl font-bold">إلغاء</button>
+    </div>
+</div>
 <div id="newOfficePinModal" class="fixed inset-0 bg-black/70 z-[86] flex items-center justify-center p-4 hidden">
     <div class="bg-white rounded-3xl w-full max-w-sm p-6 slide-up text-center help-status-loading">
         <h3 class="font-black text-lg text-navy mb-2">تم إنشاء كلمة سر جديدة لك</h3>
@@ -765,6 +778,7 @@ let rewardWheelSpinDeg = 0;
 let pushConfig = null;
 let pushActive = false;
 let pushBusy = false;
+let pushPinResolve = null;
 const debtTransferDefaults = {
     bank: 'بنك فلسطين',
     bankOwner: 'محمد محمد سلمان جندية',
@@ -1322,10 +1336,43 @@ async function initPushNotifications() {
     refreshPushStatus();
 }
 
-function askPushPin() {
-    const raw = window.prompt('أدخل الرقم السري للمكتب لتعديل إشعارات هذا الجهاز');
-    if (raw === null) return '';
-    return normalizeDigits(raw).trim();
+function askPushPin(mode='enable') {
+    return new Promise(resolve => {
+        pushPinResolve = resolve;
+        const modal = document.getElementById('pushPinModal');
+        const input = document.getElementById('pushPinInput');
+        const error = document.getElementById('pushPinError');
+        document.getElementById('pushPinTitle').innerText = mode === 'disable' ? 'إيقاف إشعارات المكتب' : 'تفعيل إشعارات المكتب';
+        document.getElementById('pushPinHint').innerText = mode === 'disable'
+            ? 'أدخل PIN مكتبك لإيقاف إشعارات هذا الجهاز.'
+            : 'أدخل PIN مكتبك للتأكد أن هذا الجهاز تابع للمكتب.';
+        document.getElementById('pushPinSubmitBtn').innerText = mode === 'disable' ? 'إيقاف الإشعارات' : 'تفعيل الإشعارات';
+        input.value = '';
+        error.classList.add('hidden');
+        error.innerText = '';
+        modal.classList.remove('hidden');
+        setTimeout(() => input.focus(), 80);
+    });
+}
+
+function submitPushPinModal() {
+    const input = document.getElementById('pushPinInput');
+    const error = document.getElementById('pushPinError');
+    const pin = normalizeDigits(input.value).trim();
+    if (!/^\d{4}$/.test(pin)) {
+        error.innerText = 'أدخل PIN المكتب المكون من 4 أرقام';
+        error.classList.remove('hidden');
+        return;
+    }
+    document.getElementById('pushPinModal').classList.add('hidden');
+    if (pushPinResolve) pushPinResolve(pin);
+    pushPinResolve = null;
+}
+
+function cancelPushPinModal() {
+    document.getElementById('pushPinModal').classList.add('hidden');
+    if (pushPinResolve) pushPinResolve('');
+    pushPinResolve = null;
 }
 
 async function enablePushNotifications(pin) {
@@ -1397,7 +1444,7 @@ async function togglePushNotifications() {
     if (pushBusy || user.isGuest || !user.id) return;
     pushBusy = true;
     try {
-        const pin = askPushPin();
+        const pin = await askPushPin(pushActive ? 'disable' : 'enable');
         if (!pin) return;
         if (pushActive) {
             if (!window.confirm('إيقاف إشعارات هذا المكتب على هذا الجهاز؟')) return;
