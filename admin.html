@@ -682,10 +682,20 @@ async function enableAdminPushNotifications() {
         return false;
     }
     const registration = await getAdminPushRegistration();
-    const subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: adminUrlBase64ToUint8Array(config.public_key)
-    });
+    const existingSubscription = await registration.pushManager.getSubscription();
+    if (existingSubscription) {
+        try { await existingSubscription.unsubscribe(); } catch (e) {}
+    }
+    let subscription = null;
+    try {
+        subscription = await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: adminUrlBase64ToUint8Array(config.public_key)
+        });
+    } catch (e) {
+        showAdminToast('تعذر تفعيل الإشعارات من هذا المتصفح', 'error');
+        return false;
+    }
     const res = await fetch(`${API_URL}/admin/push/subscribe`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
