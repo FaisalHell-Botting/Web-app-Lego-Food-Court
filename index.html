@@ -307,6 +307,9 @@
                 </div>
             </div>
             <div class="flex items-center gap-2 shrink-0">
+                <button id="pushBellBtn" onclick="togglePushNotifications()" title="إشعارات المكتب" class="hidden text-xs font-bold text-navy bg-gray-100 px-3 py-1.5 rounded-full hover:bg-gray-200 transition-colors">
+                    🔔
+                </button>
                 <button id="giftsHeaderBtn" onclick="toggleRewards()" class="relative text-xs font-bold text-navy bg-gray-100 px-3 py-1.5 rounded-full hover:bg-gray-200 transition-colors hidden">
                     🎁 الهدايا
                     <span id="giftsHeaderBadge" class="absolute -top-1 -left-1 w-3 h-3 bg-gray-300 rounded-full border-2 border-white"></span>
@@ -759,6 +762,9 @@ let pendingReward = null;
 let rewardsCountdownTimer = null;
 let rewardWheelAudioNodes = [];
 let rewardWheelSpinDeg = 0;
+let pushConfig = null;
+let pushActive = false;
+let pushBusy = false;
 const debtTransferDefaults = {
     bank: 'بنك فلسطين',
     bankOwner: 'محمد محمد سلمان جندية',
@@ -842,6 +848,7 @@ async function login(type) {
     renderMenu('hot');
     updateDraftOrderCard();
     persistState();
+    initPushNotifications();
     if (!pollingStarted) startPolling();
 }
 
@@ -898,6 +905,7 @@ async function restoreState() {
         setOrderType(selectedOrderType);
         updateDraftOrderCard();
         updateCartBar();
+        initPushNotifications();
         if (!pollingStarted) startPolling();
     } catch (e) {}
 }
@@ -1206,6 +1214,7 @@ async function submitOfficePin() {
         }
         closeModal('officePinModal');
         pendingOfficePin = pin;
+        maybeOfferPushNotifications(pin);
         sendOrder(pendingOrderItems, pendingOrderTotal, null, editingOrderId);
     } catch (e) {
         showToast('تعذر الاتصال بالسيرفر');
@@ -1225,6 +1234,199 @@ async function requestOfficePinHelp() {
         showToast('تعذر إرسال طلب المساعدة');
     }
 }
+
+function pushSupported() {
+    return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+}
+
+function pushPromptKey() {
+    return `lecoffee_push_later_${user.id || 'guest'}`;
+}
+
+function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    return Uint8Array.from([...rawData].map(char => char.charCodeAt(0)));
+}
+
+async function loadPushConfig() {
+    if (pushConfig) return pushConfig;
+    try {
+        const res = await fetch(`${API_URL}/push/config`, { cache: 'no-store' });
+        pushConfig = await res.json();
+    } catch (e) {
+        pushConfig = { enabled: false, public_key: '' };
+    }
+    return pushConfig;
+}
+
+async function getPushRegistration() {
+    if (!pushSupported()) return null;
+    return navigator.serviceWorker.register('/service-worker.js');
+}
+
+async function getCurrentPushSubscription() {
+    const registration = await getPushRegistration();
+    if (!registration) return null;
+    return registration.pushManager.getSubscription();
+}
+
+function updatePushBell() {
+    const btn = document.getElementById('pushBellBtn');
+    if (!btn) return;
+    btn.classList.toggle('hidden', user.isGuest || !user.id);
+    if (user.isGuest || !user.id) return;
+    btn.innerText = pushActive ? '🔔' : '🔕';
+    btn.title = pushActive ? 'الإشعارات مفعلة' : 'تفعيل إشعارات المكتب';
+    btn.className = pushActive
+        ? 'text-xs font-bold text-white bg-green-500 px-3 py-1.5 rounded-full hover:bg-green-600 transition-colors'
+        : 'text-xs font-bold text-navy bg-gray-100 px-3 py-1.5 rounded-full hover:bg-gray-200 transition-colors';
+}
+
+async function refreshPushStatus() {
+    updatePushBell();
+    if (user.isGuest || !user.id || !pushSupported()) return;
+    const config = await loadPushConfig();
+    if (!config.enabled) {
+        pushActive = false;
+        updatePushBell();
+        return;
+    }
+    const subscription = await getCurrentPushSubscription();
+    if (!subscription) {
+        pushActive = false;
+        updatePushBell();
+        return;
+    }
+    try {
+        const res = await fetch(`${API_URL}/push/status`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ office: user.id, endpoint: subscription.endpoint })
+        });
+        const data = await res.json();
+        pushActive = data.status === 'success' && !!data.active;
+    } catch (e) {
+        pushActive = false;
+    }
+    updatePushBell();
+}
+
+async function initPushNotifications() {
+    if (user.isGuest || !user.id) {
+        pushActive = false;
+        updatePushBell();
+        return;
+    }
+    refreshPushStatus();
+}
+
+function askPushPin() {
+    const raw = window.prompt('أدخل الرقم السري للمكتب لتعديل إشعارات هذا الجهاز');
+    if (raw === null) return '';
+    return normalizeDigits(raw).trim();
+}
+
+async function enablePushNotifications(pin) {
+    const config = await loadPushConfig();
+    if (!pushSupported()) {
+        showToast('الإشعارات غير مدعومة على هذا المتصفح');
+        return false;
+    }
+    if (!config.enabled || !config.public_key) {
+        showToast('الإشعارات غير مفعلة على السيرفر حالياً');
+        return false;
+    }
+    if (!/^\d{4}$/.test(pin || '')) {
+        showToast('أدخل الرقم السري من 4 أرقام');
+        return false;
+    }
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') {
+        showToast('لم يتم السماح بالإشعارات');
+        return false;
+    }
+    const registration = await getPushRegistration();
+    const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(config.public_key)
+    });
+    const res = await fetch(`${API_URL}/push/subscribe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ office: user.id, pin, subscription })
+    });
+    const data = await res.json();
+    if (data.status !== 'success') {
+        try { await subscription.unsubscribe(); } catch (e) {}
+        showToast(data.message || 'تعذر تفعيل الإشعارات');
+        return false;
+    }
+    pushActive = true;
+    updatePushBell();
+    showToast('تم تفعيل إشعارات المكتب');
+    return true;
+}
+
+async function disablePushNotifications(pin) {
+    if (!/^\d{4}$/.test(pin || '')) {
+        showToast('أدخل الرقم السري من 4 أرقام');
+        return false;
+    }
+    const subscription = await getCurrentPushSubscription();
+    const endpoint = subscription ? subscription.endpoint : '';
+    const res = await fetch(`${API_URL}/push/unsubscribe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ office: user.id, pin, endpoint })
+    });
+    const data = await res.json();
+    if (data.status !== 'success') {
+        showToast(data.message || 'تعذر إيقاف الإشعارات');
+        return false;
+    }
+    try { if (subscription) await subscription.unsubscribe(); } catch (e) {}
+    pushActive = false;
+    updatePushBell();
+    showToast('تم إيقاف إشعارات هذا الجهاز');
+    return true;
+}
+
+async function togglePushNotifications() {
+    if (pushBusy || user.isGuest || !user.id) return;
+    pushBusy = true;
+    try {
+        const pin = askPushPin();
+        if (!pin) return;
+        if (pushActive) {
+            if (!window.confirm('إيقاف إشعارات هذا المكتب على هذا الجهاز؟')) return;
+            await disablePushNotifications(pin);
+        } else {
+            await enablePushNotifications(pin);
+        }
+    } catch (e) {
+        showToast('تعذر تعديل الإشعارات');
+    } finally {
+        pushBusy = false;
+    }
+}
+
+async function maybeOfferPushNotifications(pin) {
+    if (pushActive || user.isGuest || !user.id || !pushSupported()) return;
+    const postponedAt = Number(localStorage.getItem(pushPromptKey()) || 0);
+    if (postponedAt && Date.now() - postponedAt < 3 * 24 * 60 * 60 * 1000) return;
+    const config = await loadPushConfig();
+    if (!config.enabled) return;
+    const ok = window.confirm('هل تريد تفعيل إشعارات المكتب؟\nسنرسل فقط التنبيهات المهمة جداً: الهدايا، طلبات سداد الدين، والأصناف الناقصة.');
+    if (!ok) {
+        localStorage.setItem(pushPromptKey(), String(Date.now()));
+        updatePushBell();
+        return;
+    }
+    await enablePushNotifications(pin);
+}
+
 function resetGuestSubmitButton() {
     const guestSubmitBtn = document.getElementById('guestSubmitBtn');
     if (guestSubmitBtn) {
@@ -1783,7 +1985,7 @@ function renderQuickPaymentInfo() {
     return renderStructuredPaymentInfo(debtTransferDefaults, 'dialQuickPalPay()');
 }
 function renderGuestPaymentInfo() {
-    return renderStructuredPaymentInfo(debtTransferDefaults);
+    return renderStructuredPaymentInfo(debtTransferDefaults, 'dialGuestPalPay()');
 }
 function renderPaymentInfo(info) {
     const html = renderStructuredPaymentInfo(info, 'dialDebtPalPay()');
