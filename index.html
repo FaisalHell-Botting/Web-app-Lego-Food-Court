@@ -307,9 +307,6 @@
                 </div>
             </div>
             <div class="flex items-center gap-2 shrink-0">
-                <button id="pushBellBtn" onclick="togglePushNotifications()" title="إشعارات المكتب" class="hidden text-xs font-bold text-navy bg-gray-100 px-3 py-1.5 rounded-full hover:bg-gray-200 transition-colors">
-                    🔔
-                </button>
                 <button id="giftsHeaderBtn" onclick="toggleRewards()" class="relative text-xs font-bold text-navy bg-gray-100 px-3 py-1.5 rounded-full hover:bg-gray-200 transition-colors hidden">
                     🎁 الهدايا
                     <span id="giftsHeaderBadge" class="absolute -top-1 -left-1 w-3 h-3 bg-gray-300 rounded-full border-2 border-white"></span>
@@ -580,7 +577,10 @@
     <div class="max-w-md mx-auto p-4">
         <div class="flex items-center gap-3 pt-4 mb-6">
             <button onclick="toggleLedger()" class="bg-white border p-2.5 rounded-xl font-bold text-navy shadow-sm">←</button>
-            <h2 class="font-black text-xl text-navy">سجل الطلبات والديون</h2>
+            <h2 class="font-black text-xl text-navy flex-1">سجل الطلبات والديون</h2>
+            <button id="pushBellBtn" onclick="togglePushNotifications()" title="إشعارات المكتب" class="hidden w-11 h-11 rounded-xl bg-gray-100 text-navy text-xl font-black border border-gray-200 shadow-sm hover:bg-gray-200 transition-colors flex items-center justify-center">
+                🔔
+            </button>
         </div>
 
         <div id="debtSummaryCard" class="bg-white p-6 rounded-3xl shadow-sm text-center border-t-4 border-red-400 mb-4">
@@ -1294,8 +1294,8 @@ function updatePushBell() {
     btn.innerText = pushActive ? '🔔' : '🔕';
     btn.title = pushActive ? 'الإشعارات مفعلة' : 'تفعيل إشعارات المكتب';
     btn.className = pushActive
-        ? 'text-xs font-bold text-white bg-green-500 px-3 py-1.5 rounded-full hover:bg-green-600 transition-colors'
-        : 'text-xs font-bold text-navy bg-gray-100 px-3 py-1.5 rounded-full hover:bg-gray-200 transition-colors';
+        ? 'w-11 h-11 rounded-xl bg-green-500 text-white text-xl font-black border border-green-500 shadow-sm hover:bg-green-600 transition-colors flex items-center justify-center'
+        : 'w-11 h-11 rounded-xl bg-gray-100 text-navy text-xl font-black border border-gray-200 shadow-sm hover:bg-gray-200 transition-colors flex items-center justify-center';
 }
 
 async function refreshPushStatus() {
