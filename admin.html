@@ -71,6 +71,9 @@
                 </div>
             </div>
             <div class="flex items-center gap-2">
+                <button id="adminPushToggleBtn" onclick="toggleAdminPushNotifications()" class="bg-white/10 text-white px-3 py-1.5 rounded-lg font-bold text-sm hover:bg-white/20 transition-colors">
+                    إشعارات الطلبات
+                </button>
                 <button id="audioToggleBtn" onclick="toggleAudioAlerts()" class="bg-white/10 text-white px-3 py-1.5 rounded-lg font-bold text-sm hover:bg-white/20 transition-colors">
                     تفعيل الصوت
                 </button>
@@ -383,6 +386,9 @@ let adminToastTimer = null;
 let paymentMethodResolve = null;
 let latestPaymentArchive = [];
 let currentLedgerMode = 'debts';
+let adminPushConfig = null;
+let adminPushActive = false;
+let adminPushBusy = false;
 
 function showAdminToast(message, type='success') {
     const toast = document.getElementById('adminToast');
@@ -475,6 +481,7 @@ function loginAdmin() {
         document.getElementById('adminAuthScreen').classList.add('hidden');
         error.classList.add('hidden');
         fetchData();
+        refreshAdminPushStatus();
         return;
     }
     error.classList.remove('hidden');
@@ -586,6 +593,155 @@ function updateAudioButton() {
     btn.className = audioAlertsEnabled
         ? 'bg-green-500 text-white px-3 py-1.5 rounded-lg font-bold text-sm hover:bg-green-600 transition-colors'
         : 'bg-white/10 text-white px-3 py-1.5 rounded-lg font-bold text-sm hover:bg-white/20 transition-colors';
+}
+
+function adminPushSupported() {
+    return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+}
+
+function adminUrlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    return Uint8Array.from([...rawData].map(char => char.charCodeAt(0)));
+}
+
+async function loadAdminPushConfig() {
+    if (adminPushConfig) return adminPushConfig;
+    try {
+        const res = await fetch(`${API_URL}/push/config`, { cache: 'no-store' });
+        adminPushConfig = await res.json();
+    } catch (e) {
+        adminPushConfig = { enabled: false, public_key: '' };
+    }
+    return adminPushConfig;
+}
+
+async function getAdminPushRegistration() {
+    if (!adminPushSupported()) return null;
+    return navigator.serviceWorker.register('/service-worker.js');
+}
+
+async function getAdminPushSubscription() {
+    const registration = await getAdminPushRegistration();
+    if (!registration) return null;
+    return registration.pushManager.getSubscription();
+}
+
+function updateAdminPushButton() {
+    const btn = document.getElementById('adminPushToggleBtn');
+    if (!btn) return;
+    btn.innerText = adminPushActive ? 'إشعارات الطلبات مفعلة' : 'إشعارات الطلبات';
+    btn.className = adminPushActive
+        ? 'bg-green-500 text-white px-3 py-1.5 rounded-lg font-bold text-sm hover:bg-green-600 transition-colors'
+        : 'bg-white/10 text-white px-3 py-1.5 rounded-lg font-bold text-sm hover:bg-white/20 transition-colors';
+}
+
+async function refreshAdminPushStatus() {
+    updateAdminPushButton();
+    if (!adminPushSupported()) return;
+    const config = await loadAdminPushConfig();
+    if (!config.enabled) {
+        adminPushActive = false;
+        updateAdminPushButton();
+        return;
+    }
+    const subscription = await getAdminPushSubscription();
+    if (!subscription) {
+        adminPushActive = false;
+        updateAdminPushButton();
+        return;
+    }
+    try {
+        const res = await fetch(`${API_URL}/admin/push/status`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ endpoint: subscription.endpoint })
+        });
+        const data = await res.json();
+        adminPushActive = data.status === 'success' && !!data.active;
+    } catch (e) {
+        adminPushActive = false;
+    }
+    updateAdminPushButton();
+}
+
+async function enableAdminPushNotifications() {
+    const config = await loadAdminPushConfig();
+    if (!adminPushSupported()) {
+        showAdminToast('الإشعارات غير مدعومة على هذا المتصفح', 'error');
+        return false;
+    }
+    if (!config.enabled || !config.public_key) {
+        showAdminToast('الإشعارات غير مفعلة على السيرفر حالياً', 'error');
+        return false;
+    }
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') {
+        showAdminToast('لم يتم السماح بالإشعارات', 'error');
+        return false;
+    }
+    const registration = await getAdminPushRegistration();
+    const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: adminUrlBase64ToUint8Array(config.public_key)
+    });
+    const res = await fetch(`${API_URL}/admin/push/subscribe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subscription })
+    });
+    const data = await res.json();
+    if (data.status !== 'success') {
+        try { await subscription.unsubscribe(); } catch (e) {}
+        showAdminToast(data.message || 'تعذر تفعيل الإشعارات', 'error');
+        return false;
+    }
+    adminPushActive = true;
+    updateAdminPushButton();
+    showAdminToast('تم تفعيل إشعارات الطلبات');
+    return true;
+}
+
+async function disableAdminPushNotifications() {
+    const subscription = await getAdminPushSubscription();
+    if (!subscription) {
+        adminPushActive = false;
+        updateAdminPushButton();
+        return true;
+    }
+    const res = await fetch(`${API_URL}/admin/push/unsubscribe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ endpoint: subscription.endpoint })
+    });
+    const data = await res.json();
+    if (data.status !== 'success') {
+        showAdminToast(data.message || 'تعذر إيقاف الإشعارات', 'error');
+        return false;
+    }
+    try { await subscription.unsubscribe(); } catch (e) {}
+    adminPushActive = false;
+    updateAdminPushButton();
+    showAdminToast('تم إيقاف إشعارات الطلبات');
+    return true;
+}
+
+async function toggleAdminPushNotifications() {
+    if (adminPushBusy) return;
+    adminPushBusy = true;
+    try {
+        if (adminPushActive) {
+            if (!await showAdminConfirm('إيقاف إشعارات الطلبات الجديدة على هذا الجهاز؟', 'إيقاف الإشعارات', '!')) return;
+            await disableAdminPushNotifications();
+        } else {
+            await enableAdminPushNotifications();
+        }
+    } catch (e) {
+        showAdminToast('تعذر تعديل الإشعارات', 'error');
+    } finally {
+        adminPushBusy = false;
+    }
 }
 
 function handleIncomingAudioAlerts(orders) {
@@ -1570,7 +1726,10 @@ function closeModal(id) {
 
 setInterval(fetchData, 8000);
 ensureAdminAuth();
-if (sessionStorage.getItem('admin_auth_ok') === '1') fetchData();
+if (sessionStorage.getItem('admin_auth_ok') === '1') {
+    fetchData();
+    refreshAdminPushStatus();
+}
 </script>
 </body>
 </html>
