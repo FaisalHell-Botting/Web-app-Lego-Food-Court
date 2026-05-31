@@ -1406,7 +1406,9 @@ async function enablePushNotifications(pin) {
             applicationServerKey: urlBase64ToUint8Array(config.public_key)
         });
     } catch (e) {
-        showToast('تعذر تفعيل الإشعارات من هذا المتصفح');
+        console.error('Push subscribe failed', e);
+        const detail = e && e.name ? e.name : (e && e.message ? e.message : 'UnknownError');
+        showToast(`تعذر تفعيل الإشعارات: ${detail}`);
         return false;
     }
     const res = await fetch(`${API_URL}/push/subscribe`, {
