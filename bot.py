@@ -14,6 +14,12 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 import uvicorn
 
+try:
+    from pywebpush import WebPushException, webpush
+except Exception:
+    WebPushException = Exception
+    webpush = None
+
 app = FastAPI()
 
 app.add_middleware(
@@ -32,6 +38,9 @@ DEBT_PAYMENT_INFO = os.environ.get(
     "DEBT_PAYMENT_INFO",
     "بنك فلسطين\nID: 1512081\nIBAN: PS11PALS045115120810993100000\nأو محفظة بال باي\n0597489605",
 )
+VAPID_PUBLIC_KEY = os.environ.get("VAPID_PUBLIC_KEY", "")
+VAPID_PRIVATE_KEY = os.environ.get("VAPID_PRIVATE_KEY", "")
+VAPID_CLAIM_EMAIL = os.environ.get("VAPID_CLAIM_EMAIL", "admin@lecoffee.local")
 
 PRICES = {
     "شاي": 1,
@@ -443,6 +452,93 @@ def is_valid_office_number(office):
 
 def get_db():
     return psycopg2.connect(DATABASE_URL)
+
+
+def push_is_configured():
+    return bool(webpush and VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY)
+
+
+def push_safe_tag(value):
+    return re.sub(r"[^a-zA-Z0-9_-]+", "-", str(value or "")).strip("-")
+
+
+def deactivate_push_subscriptions(cursor, office):
+    office_variants = office_location_variants(office)
+    office_number = office_number_value(office)
+    cursor.execute(
+        """
+        UPDATE push_subscriptions
+        SET is_active=0, updated_at=%s
+        WHERE office IN %s OR regexp_replace(COALESCE(office, ''), '[^0-9]', '', 'g')=%s
+        """,
+        (get_pal_time(), office_variants, office_number),
+    )
+
+
+def send_push_notification(cursor, office, title, body, tag="", url="/"):
+    if not push_is_configured() or not office:
+        return
+    office_variants = office_location_variants(office)
+    office_number = office_number_value(office)
+    cursor.execute(
+        """
+        SELECT id, subscription
+        FROM push_subscriptions
+        WHERE is_active=1
+          AND (office IN %s OR regexp_replace(COALESCE(office, ''), '[^0-9]', '', 'g')=%s)
+        """,
+        (office_variants, office_number),
+    )
+    rows = cursor.fetchall()
+    if not rows:
+        return
+    payload = json.dumps(
+        {
+            "title": title,
+            "body": body,
+            "tag": tag or push_safe_tag(f"{office}-{title}"),
+            "url": url or "/",
+        },
+        ensure_ascii=False,
+    )
+    for sub_id, subscription in rows:
+        try:
+            subscription_info = json.loads(subscription) if isinstance(subscription, str) else subscription
+            webpush(
+                subscription_info=subscription_info,
+                data=payload,
+                vapid_private_key=VAPID_PRIVATE_KEY,
+                vapid_claims={"sub": f"mailto:{VAPID_CLAIM_EMAIL}"},
+            )
+            cursor.execute("UPDATE push_subscriptions SET last_used_at=%s WHERE id=%s", (get_pal_time(), sub_id))
+        except WebPushException as exc:
+            if getattr(exc, "response", None) is not None and getattr(exc.response, "status_code", 0) in (404, 410):
+                cursor.execute("UPDATE push_subscriptions SET is_active=0, updated_at=%s WHERE id=%s", (get_pal_time(), sub_id))
+        except Exception:
+            pass
+
+
+def send_reward_ready_notifications(cursor, office):
+    try:
+        progress = fetch_reward_progress(cursor, office)
+        ready_tiers = [tier for tier in progress.get("tiers", []) if tier.get("can_claim") or tier.get("can_redeem")]
+        for tier in ready_tiers:
+            event_key = f"reward_ready:{progress.get('week_start')}:{office}:{tier.get('key')}"
+            cursor.execute(
+                "INSERT INTO push_notification_events (office, event_key, created_at) VALUES (%s,%s,%s) ON CONFLICT (office, event_key) DO NOTHING",
+                (office, event_key, get_pal_time()),
+            )
+            if cursor.rowcount:
+                send_push_notification(
+                    cursor,
+                    office,
+                    "مبروك، لديك هدية",
+                    "حصلها الآن من صفحة الهدايا.",
+                    tag=push_safe_tag(event_key),
+                    url="/",
+                )
+    except Exception:
+        pass
 
 
 def fetch_current_debt(cursor, office):
@@ -880,6 +976,49 @@ def init_db():
 
     c.execute(
         """
+        CREATE TABLE IF NOT EXISTS push_subscriptions (
+            id SERIAL PRIMARY KEY,
+            office TEXT,
+            endpoint TEXT UNIQUE,
+            subscription TEXT,
+            is_active INTEGER DEFAULT 1,
+            created_at TEXT,
+            updated_at TEXT,
+            last_used_at TEXT
+        )
+        """
+    )
+    for col, definition in [
+        ("office", "TEXT"),
+        ("endpoint", "TEXT UNIQUE"),
+        ("subscription", "TEXT"),
+        ("is_active", "INTEGER DEFAULT 1"),
+        ("created_at", "TEXT"),
+        ("updated_at", "TEXT"),
+        ("last_used_at", "TEXT"),
+    ]:
+        try:
+            c.execute(f"ALTER TABLE push_subscriptions ADD COLUMN {col} {definition}")
+        except Exception:
+            pass
+
+    c.execute(
+        """
+        CREATE TABLE IF NOT EXISTS push_notification_events (
+            id SERIAL PRIMARY KEY,
+            office TEXT,
+            event_key TEXT,
+            created_at TEXT
+        )
+        """
+    )
+    try:
+        c.execute("CREATE UNIQUE INDEX IF NOT EXISTS push_notification_events_unique ON push_notification_events (office, event_key)")
+    except Exception:
+        pass
+
+    c.execute(
+        """
         CREATE TABLE IF NOT EXISTS office_rewards (
             id SERIAL PRIMARY KEY,
             office TEXT,
@@ -1007,6 +1146,13 @@ async def serve_logo():
     return {"error": "logo.png not found"}
 
 
+@app.get("/service-worker.js")
+async def serve_service_worker():
+    if os.path.exists("service-worker.js"):
+        return FileResponse("service-worker.js", media_type="application/javascript")
+    return {"error": "service-worker.js not found"}
+
+
 
 @app.get("/api/store-status")
 async def store_status():
@@ -1014,6 +1160,11 @@ async def store_status():
         "is_open": is_store_open(),
         "message": "الطلبات متاحة حتى الساعة 8:30 مساءً بتوقيت فلسطين" if is_store_open() else "الطلبات مغلقة الآن. نستقبل الطلبات حتى الساعة 8:30 مساءً بتوقيت فلسطين.",
     }
+
+
+@app.get("/api/push/config")
+async def push_config():
+    return {"enabled": push_is_configured(), "public_key": VAPID_PUBLIC_KEY if push_is_configured() else ""}
 
 
 @app.get("/api/office-pin-status/{office}")
@@ -1081,6 +1232,176 @@ async def verify_office_pin(request: Request):
         if row and row[0] == hash_pin(pin):
             return {"status": "success"}
         return {"status": "error", "message": "رقم سري غير صحيح"}
+    except Exception as exc:
+        return {"status": "error", "message": str(exc)}
+
+
+@app.post("/api/push/status")
+async def push_status(request: Request):
+    data = await request.json()
+    office = clean_office_name(data.get("office"))
+    endpoint = clean_office_name(data.get("endpoint"))
+    if not office or not endpoint:
+        return {"status": "success", "active": False, "enabled": push_is_configured()}
+    try:
+        conn = get_db()
+        c = conn.cursor()
+        c.execute(
+            """
+            SELECT COALESCE(is_active, 0)
+            FROM push_subscriptions
+            WHERE office=%s AND endpoint=%s
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (office, endpoint),
+        )
+        row = c.fetchone()
+        c.close()
+        conn.close()
+        return {"status": "success", "active": bool(row and row[0]), "enabled": push_is_configured()}
+    except Exception as exc:
+        return {"status": "error", "message": str(exc), "active": False, "enabled": push_is_configured()}
+
+
+@app.post("/api/push/subscribe")
+async def push_subscribe(request: Request):
+    data = await request.json()
+    office = clean_office_name(data.get("office"))
+    pin = str(data.get("pin", "")).strip()
+    subscription = data.get("subscription") or {}
+    endpoint = clean_office_name(subscription.get("endpoint"))
+    if not push_is_configured():
+        return {"status": "error", "message": "الإشعارات غير مفعلة على السيرفر حالياً"}
+    if not office or is_guest_office(office) or not is_valid_office_number(office) or not is_valid_pin(pin) or not endpoint:
+        return {"status": "error", "message": "بيانات الإشعارات غير مكتملة"}
+    try:
+        conn = get_db()
+        c = conn.cursor()
+        c.execute("SELECT pin_hash FROM office_pins WHERE office=%s LIMIT 1", (office,))
+        row = c.fetchone()
+        if not row or row[0] != hash_pin(pin):
+            c.close()
+            conn.close()
+            return {"status": "error", "message": "الرقم السري للمكتب غير صحيح"}
+        now = get_pal_time()
+        c.execute(
+            """
+            INSERT INTO push_subscriptions (office, endpoint, subscription, is_active, created_at, updated_at, last_used_at)
+            VALUES (%s,%s,%s,1,%s,%s,%s)
+            ON CONFLICT (endpoint) DO UPDATE
+            SET office=EXCLUDED.office,
+                subscription=EXCLUDED.subscription,
+                is_active=1,
+                updated_at=EXCLUDED.updated_at
+            """,
+            (office, endpoint, json.dumps(subscription), now, now, now),
+        )
+        conn.commit()
+        c.close()
+        conn.close()
+        return {"status": "success"}
+    except Exception as exc:
+        return {"status": "error", "message": str(exc)}
+
+
+@app.post("/api/push/unsubscribe")
+async def push_unsubscribe(request: Request):
+    data = await request.json()
+    office = clean_office_name(data.get("office"))
+    pin = str(data.get("pin", "")).strip()
+    endpoint = clean_office_name(data.get("endpoint"))
+    if not office or is_guest_office(office) or not is_valid_office_number(office) or not is_valid_pin(pin):
+        return {"status": "error", "message": "بيانات الإشعارات غير مكتملة"}
+    try:
+        conn = get_db()
+        c = conn.cursor()
+        c.execute("SELECT pin_hash FROM office_pins WHERE office=%s LIMIT 1", (office,))
+        row = c.fetchone()
+        if not row or row[0] != hash_pin(pin):
+            c.close()
+            conn.close()
+            return {"status": "error", "message": "الرقم السري للمكتب غير صحيح"}
+        if endpoint:
+            c.execute("UPDATE push_subscriptions SET is_active=0, updated_at=%s WHERE office=%s AND endpoint=%s", (get_pal_time(), office, endpoint))
+        else:
+            deactivate_push_subscriptions(c, office)
+        conn.commit()
+        c.close()
+        conn.close()
+        return {"status": "success"}
+    except Exception as exc:
+        return {"status": "error", "message": str(exc)}
+
+
+@app.post("/api/admin/push/status")
+async def admin_push_status(request: Request):
+    data = await request.json()
+    endpoint = clean_office_name(data.get("endpoint"))
+    if not endpoint:
+        return {"status": "success", "active": False, "enabled": push_is_configured()}
+    try:
+        conn = get_db()
+        c = conn.cursor()
+        c.execute(
+            "SELECT COALESCE(is_active, 0) FROM push_subscriptions WHERE office='__admin__' AND endpoint=%s ORDER BY id DESC LIMIT 1",
+            (endpoint,),
+        )
+        row = c.fetchone()
+        c.close()
+        conn.close()
+        return {"status": "success", "active": bool(row and row[0]), "enabled": push_is_configured()}
+    except Exception as exc:
+        return {"status": "error", "message": str(exc), "active": False, "enabled": push_is_configured()}
+
+
+@app.post("/api/admin/push/subscribe")
+async def admin_push_subscribe(request: Request):
+    data = await request.json()
+    subscription = data.get("subscription") or {}
+    endpoint = clean_office_name(subscription.get("endpoint"))
+    if not push_is_configured():
+        return {"status": "error", "message": "الإشعارات غير مفعلة على السيرفر حالياً"}
+    if not endpoint:
+        return {"status": "error", "message": "بيانات الإشعارات غير مكتملة"}
+    try:
+        conn = get_db()
+        c = conn.cursor()
+        now = get_pal_time()
+        c.execute(
+            """
+            INSERT INTO push_subscriptions (office, endpoint, subscription, is_active, created_at, updated_at, last_used_at)
+            VALUES ('__admin__',%s,%s,1,%s,%s,%s)
+            ON CONFLICT (endpoint) DO UPDATE
+            SET office='__admin__',
+                subscription=EXCLUDED.subscription,
+                is_active=1,
+                updated_at=EXCLUDED.updated_at
+            """,
+            (endpoint, json.dumps(subscription), now, now, now),
+        )
+        conn.commit()
+        c.close()
+        conn.close()
+        return {"status": "success"}
+    except Exception as exc:
+        return {"status": "error", "message": str(exc)}
+
+
+@app.post("/api/admin/push/unsubscribe")
+async def admin_push_unsubscribe(request: Request):
+    data = await request.json()
+    endpoint = clean_office_name(data.get("endpoint"))
+    if not endpoint:
+        return {"status": "error", "message": "بيانات الإشعارات غير مكتملة"}
+    try:
+        conn = get_db()
+        c = conn.cursor()
+        c.execute("UPDATE push_subscriptions SET is_active=0, updated_at=%s WHERE office='__admin__' AND endpoint=%s", (get_pal_time(), endpoint))
+        conn.commit()
+        c.close()
+        conn.close()
+        return {"status": "success"}
     except Exception as exc:
         return {"status": "error", "message": str(exc)}
 
@@ -1300,9 +1621,20 @@ async def create_order(request: Request):
             INSERT INTO orders
             (user_id, details, total_price, location, timestamp, status, is_paid, receipt, order_type, approved_at, guest_phone, item_snapshot)
             VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            RETURNING id
             """,
             (0, details_text, total_price, office, get_pal_time(), status, is_paid, receipt, order_type, approved_at, guest_phone, item_snapshot),
         )
+        new_order_id = c.fetchone()[0]
+        if not is_guest:
+            send_push_notification(
+                c,
+                "__admin__",
+                "طلب جديد",
+                f"{office} - {details_text}",
+                tag=push_safe_tag(f"admin-order-{new_order_id}"),
+                url="/admin",
+            )
         conn.commit()
         c.close()
         conn.close()
@@ -1425,8 +1757,18 @@ async def submit_debt_payment(request: Request):
             """
             INSERT INTO debt_payment_requests (office, amount, receipt, status, created_at, reminder_id)
             VALUES (%s,%s,%s,'pending',%s,%s)
+            RETURNING id
             """,
             (office, amount, receipt, get_pal_time(), reminder["id"]),
+        )
+        payment_request_id = c.fetchone()[0]
+        send_push_notification(
+            c,
+            "__admin__",
+            "طلب سداد دين جديد",
+            f"{office} أرسل إثبات سداد بقيمة {amount} ₪",
+            tag=push_safe_tag(f"admin-debt-payment-{payment_request_id}"),
+            url="/admin",
         )
         conn.commit()
         c.close()
@@ -1718,6 +2060,14 @@ async def redeem_reward(request: Request):
         c.execute(
             "UPDATE office_rewards SET status='ordered', order_id=%s, ordered_at=%s WHERE id=%s",
             (order_id, now, reward_id),
+        )
+        send_push_notification(
+            c,
+            "__admin__",
+            "هدية جديدة للكاشير",
+            f"{office} طلب استلام هدية: {item_name}",
+            tag=push_safe_tag(f"admin-reward-{order_id}"),
+            url="/admin",
         )
         conn.commit()
         c.close()
@@ -2320,8 +2670,21 @@ async def admin_action(request: Request):
                             "INSERT INTO expenses (amount, receipt, created_at, description) VALUES (%s,%s,%s,%s)",
                             (item_price, None, now, f"هدية مجانية للمكتب {gift_office}: {item_name}"),
                         )
+            elif approve_row and approve_row[0] and not is_guest_office(approve_row[0]):
+                send_reward_ready_notifications(c, approve_row[0])
         elif action == "missing":
+            c.execute("SELECT location FROM orders WHERE id=%s", (order_id,))
+            missing_row = c.fetchone()
             c.execute("UPDATE orders SET status='صنف_ناقص', missing_note=%s, approved_at=%s WHERE id=%s", (data.get("note"), get_pal_time(), order_id))
+            if missing_row and missing_row[0] and not is_guest_office(missing_row[0]):
+                send_push_notification(
+                    c,
+                    missing_row[0],
+                    "يوجد صنف ناقص في طلبك",
+                    "راجع الطلب الآن من الموقع.",
+                    tag=push_safe_tag(f"missing-{order_id}"),
+                    url="/",
+                )
         elif action == "confirm_visitor_payment":
             if not payment_method:
                 c.close()
@@ -2356,6 +2719,14 @@ async def admin_action(request: Request):
                 VALUES (%s,%s,%s,1,0,%s)
                 """,
                 (office, amount, DEBT_PAYMENT_INFO, get_pal_time()),
+            )
+            send_push_notification(
+                c,
+                office,
+                "لديك طلب سداد دين",
+                "راجع صفحة ديوني لإرسال إثبات السداد.",
+                tag=push_safe_tag(f"debt-reminder-{office}-{get_pal_time()}"),
+                url="/",
             )
         elif action == "mark_paid":
             c.close()
@@ -2470,6 +2841,7 @@ async def admin_action(request: Request):
                 c.close()
                 conn.close()
                 return {"status": "error", "message": "office is required"}
+            deactivate_push_subscriptions(c, office)
             new_pin = generate_unique_pin(c)
             c.execute(
                 """
