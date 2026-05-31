@@ -1277,7 +1277,8 @@ async function loadPushConfig() {
 
 async function getPushRegistration() {
     if (!pushSupported()) return null;
-    return navigator.serviceWorker.register('/service-worker.js');
+    await navigator.serviceWorker.register('/service-worker.js');
+    return navigator.serviceWorker.ready;
 }
 
 async function getCurrentPushSubscription() {
