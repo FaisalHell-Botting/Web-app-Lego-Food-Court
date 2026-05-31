@@ -5,6 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>لوحة الكاشير | LE Coffee</title>
     <link rel="icon" type="image/png" href="/logo.png">
+    <link rel="manifest" href="/manifest-admin.webmanifest">
+    <link rel="apple-touch-icon" href="/logo.png">
+    <meta name="theme-color" content="#2E3468">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="LE Coffee Admin">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
     <style>
@@ -597,8 +604,36 @@ function updateAudioButton() {
         : 'w-10 h-10 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-colors flex items-center justify-center';
 }
 
+function adminIsIOSDevice() {
+    return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
+function adminIsStandalonePWA() {
+    return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+}
+
+function adminPushSupportIssue() {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+        return 'هذا المتصفح ما يدعم الإشعارات. على أندرويد استخدم Chrome، وعلى الآيفون أضف التطبيق للشاشة الرئيسية.';
+    }
+    if (adminIsIOSDevice() && !adminIsStandalonePWA()) {
+        return 'على الآيفون: افتح لوحة الكاشير من Safari، اضغط مشاركة، ثم أضف إلى الشاشة الرئيسية، وبعدها فعّل الإشعارات من أيقونة التطبيق.';
+    }
+    if (!window.isSecureContext) {
+        return 'لازم يكون الاتصال آمن (HTTPS) عشان تشتغل الإشعارات.';
+    }
+    return '';
+}
+
 function adminPushSupported() {
-    return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+    return !adminPushSupportIssue();
+}
+
+async function adminRequestPushPermission() {
+    if (!('Notification' in window)) return 'unsupported';
+    if (Notification.permission === 'granted') return 'granted';
+    if (Notification.permission === 'denied') return 'denied';
+    return Notification.requestPermission();
 }
 
 function adminUrlBase64ToUint8Array(base64String) {
@@ -621,8 +656,32 @@ async function loadAdminPushConfig() {
 
 async function getAdminPushRegistration() {
     if (!adminPushSupported()) return null;
-    await navigator.serviceWorker.register('/service-worker.js');
-    return navigator.serviceWorker.ready;
+    const registration = await navigator.serviceWorker.register('/service-worker.js', { scope: '/' });
+    try { await registration.update(); } catch (e) {}
+    await navigator.serviceWorker.ready;
+    return registration;
+}
+
+async function resetAdminPushRegistration() {
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    for (const registration of registrations) {
+        if (registration.scope === `${window.location.origin}/`) {
+            try { await registration.unregister(); } catch (e) {}
+        }
+    }
+    await wait(500);
+    return getAdminPushRegistration();
+}
+
+function adminPushSubscribeErrorMessage(error) {
+    const detail = error && error.name ? error.name : (error && error.message ? error.message : 'UnknownError');
+    if (detail === 'AbortError') {
+        return 'ما قدرنا نفعّل الإشعارات. تم تنظيف الاشتراك القديم، أغلق Chrome وافتحه وجرب مرة ثانية. إذا استمرت المشكلة امسح بيانات الموقع من إعدادات Chrome.';
+    }
+    if (detail === 'NotAllowedError') {
+        return 'تم رفض الإشعارات. فعّلها من إعدادات المتصفح أو الجوال وجرب مرة ثانية.';
+    }
+    return `ما قدرنا نفعّل الإشعارات. السبب: ${detail}`;
 }
 
 async function getAdminPushSubscription() {
@@ -671,36 +730,55 @@ async function refreshAdminPushStatus() {
 
 async function enableAdminPushNotifications() {
     const config = await loadAdminPushConfig();
-    if (!adminPushSupported()) {
-        showAdminToast('الإشعارات غير مدعومة على هذا المتصفح', 'error');
+    const supportIssue = adminPushSupportIssue();
+    if (supportIssue) {
+        showAdminToast(supportIssue, 'error');
         return false;
     }
     if (!config.enabled || !config.public_key) {
         showAdminToast('الإشعارات غير مفعلة على السيرفر حالياً', 'error');
         return false;
     }
-    const permission = await Notification.requestPermission();
-    if (permission !== 'granted') {
-        showAdminToast('لم يتم السماح بالإشعارات', 'error');
-        return false;
+    if (Notification.permission !== 'granted') {
+        const permission = await adminRequestPushPermission();
+        if (permission !== 'granted') {
+            showAdminToast(permission === 'denied'
+                ? 'تم رفض الإشعارات. فعّلها من إعدادات المتصفح أو الجوال وجرب مرة ثانية.'
+                : 'ما تم السماح بالإشعارات', 'error');
+            return false;
+        }
     }
-    const registration = await getAdminPushRegistration();
+    let registration = await getAdminPushRegistration();
     const existingSubscription = await registration.pushManager.getSubscription();
     if (existingSubscription) {
         try { await existingSubscription.unsubscribe(); } catch (e) {}
         await wait(350);
     }
+    const applicationServerKey = adminUrlBase64ToUint8Array(config.public_key);
     let subscription = null;
     try {
         subscription = await registration.pushManager.subscribe({
             userVisibleOnly: true,
-            applicationServerKey: adminUrlBase64ToUint8Array(config.public_key)
+            applicationServerKey
         });
     } catch (e) {
         console.error('Admin push subscribe failed', e);
-        const detail = e && e.name ? e.name : (e && e.message ? e.message : 'UnknownError');
-        showAdminToast(detail === 'AbortError' ? 'تعذر تفعيل الإشعارات: جرّب إعادة فتح Chrome أو تحديث خدمات Google' : `تعذر تفعيل الإشعارات: ${detail}`, 'error');
-        return false;
+        if (e && e.name === 'AbortError') {
+            try {
+                registration = await resetAdminPushRegistration();
+                subscription = await registration.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey
+                });
+            } catch (retryError) {
+                console.error('Admin push subscribe retry failed', retryError);
+                showAdminToast(adminPushSubscribeErrorMessage(retryError && retryError.name ? retryError : e), 'error');
+                return false;
+            }
+        } else {
+            showAdminToast(adminPushSubscribeErrorMessage(e), 'error');
+            return false;
+        }
     }
     const res = await fetch(`${API_URL}/admin/push/subscribe`, {
         method: 'POST',
@@ -745,12 +823,24 @@ async function disableAdminPushNotifications() {
 
 async function toggleAdminPushNotifications() {
     if (adminPushBusy) return;
+    const supportIssue = adminPushSupportIssue();
+    if (!adminPushActive && supportIssue) {
+        showAdminToast(supportIssue, 'error');
+        return;
+    }
     adminPushBusy = true;
     try {
         if (adminPushActive) {
             if (!await showAdminConfirm('إيقاف إشعارات الطلبات الجديدة على هذا الجهاز؟', 'إيقاف الإشعارات', '!')) return;
             await disableAdminPushNotifications();
         } else {
+            const permission = await adminRequestPushPermission();
+            if (permission !== 'granted') {
+                showAdminToast(permission === 'denied'
+                    ? 'تم رفض الإشعارات. فعّلها من إعدادات المتصفح/الجهاز ثم أعد المحاولة.'
+                    : 'ما تم السماح بالإشعارات', 'error');
+                return;
+            }
             await enableAdminPushNotifications();
         }
     } catch (e) {
