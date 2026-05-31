@@ -619,7 +619,8 @@ async function loadAdminPushConfig() {
 
 async function getAdminPushRegistration() {
     if (!adminPushSupported()) return null;
-    return navigator.serviceWorker.register('/service-worker.js');
+    await navigator.serviceWorker.register('/service-worker.js');
+    return navigator.serviceWorker.ready;
 }
 
 async function getAdminPushSubscription() {
