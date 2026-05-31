@@ -693,7 +693,9 @@ async function enableAdminPushNotifications() {
             applicationServerKey: adminUrlBase64ToUint8Array(config.public_key)
         });
     } catch (e) {
-        showAdminToast('تعذر تفعيل الإشعارات من هذا المتصفح', 'error');
+        console.error('Admin push subscribe failed', e);
+        const detail = e && e.name ? e.name : (e && e.message ? e.message : 'UnknownError');
+        showAdminToast(`تعذر تفعيل الإشعارات: ${detail}`, 'error');
         return false;
     }
     const res = await fetch(`${API_URL}/admin/push/subscribe`, {
