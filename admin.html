@@ -71,13 +71,13 @@
                 </div>
             </div>
             <div class="flex items-center gap-2">
-                <button id="adminPushToggleBtn" onclick="toggleAdminPushNotifications()" class="bg-white/10 text-white px-3 py-1.5 rounded-lg font-bold text-sm hover:bg-white/20 transition-colors">
-                    إشعارات الطلبات
+                <button id="adminPushToggleBtn" onclick="toggleAdminPushNotifications()" title="إشعارات الطلبات" class="w-9 h-9 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-colors flex items-center justify-center">
+                    <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.27 21a2 2 0 0 0 3.46 0"/><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/></svg>
                 </button>
-                <button id="audioToggleBtn" onclick="toggleAudioAlerts()" class="bg-white/10 text-white px-3 py-1.5 rounded-lg font-bold text-sm hover:bg-white/20 transition-colors">
-                    تفعيل الصوت
+                <button id="audioToggleBtn" onclick="toggleAudioAlerts()" title="تنبيه صوتي" class="w-9 h-9 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-colors flex items-center justify-center">
+                    <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
                 </button>
-                <button onclick="fetchData()" class="bg-[#F7CC46] text-[#2E3468] px-4 py-1.5 rounded-lg font-bold text-sm hover:bg-yellow-300 transition-colors flex items-center justify-center gap-1.5"><span class="inline-flex items-center justify-center gap-1.5"><svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg><span>تحديث</span></span></button>
+                <button onclick="fetchData()" title="تحديث" class="w-9 h-9 bg-[#F7CC46] text-[#2E3468] rounded-lg font-bold hover:bg-yellow-300 transition-colors flex items-center justify-center"><svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg></button>
             </div>
         </div>
 
@@ -589,10 +589,10 @@ function toggleAudioAlerts() {
 
 function updateAudioButton() {
     const btn = document.getElementById('audioToggleBtn');
-    btn.innerText = audioAlertsEnabled ? 'الصوت مفعل' : 'تفعيل الصوت';
+    btn.title = audioAlertsEnabled ? 'الصوت مفعل' : 'تفعيل الصوت';
     btn.className = audioAlertsEnabled
-        ? 'bg-green-500 text-white px-3 py-1.5 rounded-lg font-bold text-sm hover:bg-green-600 transition-colors'
-        : 'bg-white/10 text-white px-3 py-1.5 rounded-lg font-bold text-sm hover:bg-white/20 transition-colors';
+        ? 'w-9 h-9 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center justify-center'
+        : 'w-9 h-9 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-colors flex items-center justify-center';
 }
 
 function adminPushSupported() {
@@ -632,10 +632,10 @@ async function getAdminPushSubscription() {
 function updateAdminPushButton() {
     const btn = document.getElementById('adminPushToggleBtn');
     if (!btn) return;
-    btn.innerText = adminPushActive ? 'إشعارات الطلبات مفعلة' : 'إشعارات الطلبات';
+    btn.title = adminPushActive ? 'إشعارات الطلبات مفعلة' : 'إشعارات الطلبات';
     btn.className = adminPushActive
-        ? 'bg-green-500 text-white px-3 py-1.5 rounded-lg font-bold text-sm hover:bg-green-600 transition-colors'
-        : 'bg-white/10 text-white px-3 py-1.5 rounded-lg font-bold text-sm hover:bg-white/20 transition-colors';
+        ? 'w-9 h-9 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center justify-center'
+        : 'w-9 h-9 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-colors flex items-center justify-center';
 }
 
 async function refreshAdminPushStatus() {
