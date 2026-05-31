@@ -5,3 +5,4 @@ requests
 pydantic
 google-generativeai
 python-multipart
+pywebpush
