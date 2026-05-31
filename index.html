@@ -1399,6 +1399,7 @@ async function enablePushNotifications(pin) {
     let existingSubscription = await registration.pushManager.getSubscription();
     if (existingSubscription) {
         try { await existingSubscription.unsubscribe(); } catch (e) {}
+        await wait(350);
     }
     let subscription = null;
     try {
@@ -1409,7 +1410,7 @@ async function enablePushNotifications(pin) {
     } catch (e) {
         console.error('Push subscribe failed', e);
         const detail = e && e.name ? e.name : (e && e.message ? e.message : 'UnknownError');
-        showToast(`تعذر تفعيل الإشعارات: ${detail}`);
+        showToast(detail === 'AbortError' ? 'تعذر تفعيل الإشعارات: جرّب إعادة فتح Chrome أو تحديث خدمات Google' : `تعذر تفعيل الإشعارات: ${detail}`);
         return false;
     }
     const res = await fetch(`${API_URL}/push/subscribe`, {
