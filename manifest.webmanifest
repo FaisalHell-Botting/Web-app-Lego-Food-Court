@@ -2,6 +2,7 @@
   "name": "LE Coffee | كوفي كورنر",
   "short_name": "LE Coffee",
   "description": "نظام طلبات كوفي كورنر",
+  "id": "/",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

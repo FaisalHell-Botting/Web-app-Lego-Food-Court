@@ -2,6 +2,7 @@
   "name": "LE Coffee Admin",
   "short_name": "Cashier",
   "description": "لوحة كاشير كوفي كورنر",
+  "id": "/admin",
   "start_url": "/admin",
   "scope": "/",
   "display": "standalone",
