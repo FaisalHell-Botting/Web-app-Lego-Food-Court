@@ -613,11 +613,16 @@ function adminIsStandalonePWA() {
 }
 
 function adminPushSupportIssue() {
+    if (adminIsIOSDevice()) {
+        if (!adminIsStandalonePWA()) {
+            return 'على الآيفون: الإشعارات لا تعمل من تبويب Safari أو Chrome العادي. افتح لوحة الكاشير من Safari، اضغط مشاركة، اختر إضافة إلى الشاشة الرئيسية، ثم افتحها من الأيقونة وفعّل الإشعارات.';
+        }
+        if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+            return 'الإشعارات على الآيفون تحتاج iOS 16.4 أو أحدث، وأن تفتح لوحة الكاشير من أيقونة الشاشة الرئيسية.';
+        }
+    }
     if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
         return 'هذا المتصفح ما يدعم الإشعارات. على أندرويد استخدم Chrome، وعلى الآيفون أضف التطبيق للشاشة الرئيسية.';
-    }
-    if (adminIsIOSDevice() && !adminIsStandalonePWA()) {
-        return 'على الآيفون: افتح لوحة الكاشير من Safari، اضغط مشاركة، ثم أضف إلى الشاشة الرئيسية، وبعدها فعّل الإشعارات من أيقونة التطبيق.';
     }
     if (!window.isSecureContext) {
         return 'لازم يكون الاتصال آمن (HTTPS) عشان تشتغل الإشعارات.';
