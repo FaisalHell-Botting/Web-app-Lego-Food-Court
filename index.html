@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
@@ -421,42 +421,19 @@
 </main>
 
 
-<button id="aiAssistantFab" onclick="toggleAiAssistant(true)" class="fixed bottom-5 right-5 z-[60] w-14 h-14 rounded-full bg-navy text-white shadow-2xl border-2 border-gold flex items-center justify-center transition-all hover:scale-105 hidden" aria-label="المساعد الذكي">
-    <span class="ai-spark-wrap text-xl"><span class="ai-bolt ai-spark-icon">✦</span></span>
+<button id="aiAssistantFab" onclick="toggleDeliveryHelp(true)" class="fixed bottom-5 right-5 z-[60] w-14 h-14 rounded-full bg-navy text-white shadow-2xl border-2 border-gold flex items-center justify-center transition-all hover:scale-105 hidden" aria-label="مساعدة الطلبات">
+    <span class="text-2xl font-black leading-none">؟</span>
 </button>
 <div id="aiAssistantPanel" class="fixed inset-0 bg-black/40 z-[78] hidden p-4 flex items-end justify-center">
     <div id="aiAssistantBox" class="bg-white rounded-3xl w-full max-w-md max-h-[82vh] overflow-hidden shadow-2xl slide-up flex flex-col">
         <div class="flex-1 min-h-0 flex flex-col">
             <div class="bg-navy text-white p-3 text-sm font-bold flex items-center justify-between gap-2">
-                <span>المساعد الذكي</span>
-                <button onclick="toggleAiAssistant(false)" class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-lg leading-none">×</button>
+                <span>طلبات اليوم</span>
+                <button onclick="toggleDeliveryHelp(false)" class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-lg leading-none">×</button>
             </div>
-            <div id="chatMessages" class="p-4 space-y-3 min-h-[220px] max-h-[46vh] overflow-y-auto">
-                <div class="flex gap-2">
-                    <div class="bg-gray-100 rounded-2xl rounded-tr-sm p-3 text-sm text-navy max-w-[85%]">
-                        اكتب طلبك بكلامك، مثل: بدي قهوة مزاج وسط وسنيكرز.
-                    </div>
-                </div>
+            <div id="deliveryHelpOrdersList" class="p-4 space-y-3 min-h-[220px] max-h-[56vh] overflow-y-auto">
+                <p class="text-center text-gray-400 py-8 font-bold">لا توجد طلبات اليوم</p>
             </div>
-            <div class="p-3 border-t flex gap-2">
-                <input type="text" id="chatInput" placeholder="اكتب طلبك هنا..."
-                       class="flex-1 border rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-navy"
-                       onkeyup="if(event.key==='Enter') sendChatMessage()">
-                <button onclick="sendChatMessage()" class="bg-navy text-white px-4 py-2 rounded-xl text-sm font-bold">
-                    إرسال
-                </button>
-            </div>
-        </div>
-        <div id="aiOrderSummary" class="hidden bg-white rounded-2xl border shadow-sm p-4 m-3 mt-0">
-            <h4 class="font-bold text-navy mb-3">الطلب المقترح</h4>
-            <div id="aiOrderItems" class="space-y-1 mb-3"></div>
-            <div class="flex justify-between items-center border-t pt-3">
-                <span class="font-bold text-gray-500">المجموع:</span>
-                <span id="aiOrderTotal" class="font-black text-xl text-navy"></span>
-            </div>
-            <button onclick="confirmAIOrder()" class="w-full bg-navy text-white py-3 rounded-xl font-bold mt-3">
-                أضف الطلب لطلبي الحالي
-            </button>
         </div>
     </div>
 </div>
@@ -745,6 +722,18 @@
     </div>
 </div>
 
+<div id="deliveryReminderConfirmModal" class="fixed inset-0 bg-black/70 z-[98] flex items-center justify-center p-4 hidden modal-focus-backdrop">
+    <div class="bg-white rounded-3xl w-full max-w-sm p-6 slide-up text-center shadow-2xl">
+        <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-yellow-50 border border-yellow-200 text-gold flex items-center justify-center text-3xl font-black">؟</div>
+        <h3 class="font-black text-xl text-navy mb-2">هل تود إرسال تذكير بالطلب؟</h3>
+        <p id="deliveryReminderConfirmText" class="text-sm text-gray-500 font-bold leading-relaxed bg-gray-50 border rounded-2xl p-3 mb-4"></p>
+        <div class="grid grid-cols-2 gap-2">
+            <button onclick="confirmDeliveryReminder()" class="bg-gold text-navy py-3 rounded-xl font-black shadow hover:bg-yellow-400 transition-colors">نعم</button>
+            <button onclick="closeDeliveryReminderConfirm()" class="bg-gray-100 text-gray-600 py-3 rounded-xl font-bold hover:bg-gray-200 transition-colors">لا</button>
+        </div>
+    </div>
+</div>
+
 <div id="toast" class="fixed bottom-24 left-1/2 -translate-x-1/2 bg-navy text-white px-6 py-3 rounded-2xl text-sm font-bold shadow-2xl z-[99] hidden opacity-0 transition-opacity"></div>
 
 <script>
@@ -782,6 +771,8 @@ let pendingReward = null;
 let rewardsCountdownTimer = null;
 let rewardWheelAudioNodes = [];
 let rewardWheelSpinDeg = 0;
+let latestOfficeOrders = [];
+let pendingDeliveryReminderOrderId = null;
 let pushConfig = null;
 let pushActive = false;
 let pushBusy = false;
@@ -861,7 +852,7 @@ async function login(type) {
     document.getElementById('giftsHeaderBtn').classList.toggle('hidden', user.isGuest);
     document.getElementById('guestModeTabs').classList.toggle('hidden', !user.isGuest);
     document.getElementById('officeMenuHeading').classList.toggle('hidden', user.isGuest);
-    document.getElementById('aiAssistantFab').classList.remove('hidden');
+    document.getElementById('aiAssistantFab').classList.toggle('hidden', user.isGuest);
     await loadMenu();
     setOrderType('داخل الكوفي كورنر');
     document.getElementById('quickPaymentInfo').innerHTML = renderQuickPaymentInfo();
@@ -917,7 +908,7 @@ async function restoreState() {
     document.getElementById('giftsHeaderBtn').classList.toggle('hidden', user.isGuest);
         document.getElementById('guestModeTabs').classList.toggle('hidden', !user.isGuest);
         document.getElementById('officeMenuHeading').classList.toggle('hidden', user.isGuest);
-        document.getElementById('aiAssistantFab').classList.remove('hidden');
+        document.getElementById('aiAssistantFab').classList.toggle('hidden', user.isGuest);
         await loadMenu();
         document.getElementById('quickPaymentInfo').innerHTML = renderQuickPaymentInfo();
         switchOrderMode(user.isGuest ? currentOrderMode : (currentOrderMode === 'quick' ? 'menu' : currentOrderMode));
@@ -950,6 +941,103 @@ function toggleAiAssistant(show) {
     panel.classList.toggle('hidden', !show);
     if (show) {
         setTimeout(() => document.getElementById('chatInput')?.focus(), 120);
+    }
+}
+
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function isTodayDate(value) {
+    const date = parseDisplayTime(value);
+    if (!date) return false;
+    const now = new Date();
+    return date.getFullYear() === now.getFullYear()
+        && date.getMonth() === now.getMonth()
+        && date.getDate() === now.getDate();
+}
+
+function deliveryReminderOrders() {
+    return (latestOfficeOrders || [])
+        .filter(order => {
+            const orderType = String(order.order_type || 'داخل الكوفي كورنر');
+            return order.status === 'مقبول'
+                && Number(order.total_price || 0) > 0
+                && ['داخل الكوفي كورنر', 'توصيل للمكتب'].includes(orderType)
+                && isTodayDate(order.approved_at || order.timestamp);
+        })
+        .sort((a, b) => (parseDisplayTime(b.approved_at || b.timestamp)?.getTime() || 0) - (parseDisplayTime(a.approved_at || a.timestamp)?.getTime() || 0));
+}
+
+function renderDeliveryHelpOrders() {
+    const list = document.getElementById('deliveryHelpOrdersList');
+    if (!list) return;
+    const orders = deliveryReminderOrders();
+    if (!orders.length) {
+        list.innerHTML = '<p class="text-center text-gray-400 py-8 font-bold">لا توجد طلبات اليوم</p>';
+        return;
+    }
+    list.innerHTML = orders.map(order => `
+        <div class="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
+            <div class="flex items-start justify-between gap-3 mb-2">
+                <div class="min-w-0">
+                    <p class="font-black text-navy text-sm">طلب #${order.id}</p>
+                    <p class="text-xs text-gray-400 font-bold mt-1">${formatDisplayTime(order.approved_at || order.timestamp)}</p>
+                </div>
+                <span class="shrink-0 bg-green-50 text-green-700 border border-green-100 rounded-full px-2 py-1 text-[11px] font-black">${escapeHtml(order.order_type || 'طلب')}</span>
+            </div>
+            <p class="text-sm text-navy font-bold leading-relaxed bg-gray-50 border rounded-xl p-3 mb-3">${escapeHtml(order.details)}</p>
+            <div class="flex items-center justify-between gap-3">
+                <span class="font-black text-navy">${Number(order.total_price || 0)} ₪</span>
+                <button onclick="openDeliveryReminderConfirm(${Number(order.id)})" class="bg-gold text-navy px-4 py-2 rounded-xl text-sm font-black shadow hover:bg-yellow-400 transition-colors">لم أستلم</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function toggleDeliveryHelp(show) {
+    if (user.isGuest) return;
+    const panel = document.getElementById('aiAssistantPanel');
+    panel.classList.toggle('hidden', !show);
+    if (show) renderDeliveryHelpOrders();
+}
+
+function openDeliveryReminderConfirm(orderId) {
+    const order = (latestOfficeOrders || []).find(item => Number(item.id) === Number(orderId));
+    if (!order) {
+        showToast('تعذر العثور على الطلب');
+        return;
+    }
+    pendingDeliveryReminderOrderId = Number(orderId);
+    document.getElementById('deliveryReminderConfirmText').innerText = `طلب #${order.id}: ${order.details}`;
+    document.getElementById('deliveryReminderConfirmModal').classList.remove('hidden');
+}
+
+function closeDeliveryReminderConfirm() {
+    pendingDeliveryReminderOrderId = null;
+    document.getElementById('deliveryReminderConfirmModal').classList.add('hidden');
+}
+
+async function confirmDeliveryReminder() {
+    if (!pendingDeliveryReminderOrderId || !user.id || user.isGuest) return;
+    const orderId = pendingDeliveryReminderOrderId;
+    try {
+        const res = await fetch(`${API_URL}/order-delivery-reminder`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ office: user.id, order_id: orderId })
+        });
+        const data = await res.json();
+        closeDeliveryReminderConfirm();
+        toggleDeliveryHelp(false);
+        showToast(data.message || (data.status === 'success' ? 'سيتم تذكير الكاشير بطلبك الآن' : 'تعذر إرسال التذكير'));
+    } catch (e) {
+        showToast('تعذر إرسال التذكير');
     }
 }
 
@@ -1839,7 +1927,9 @@ async function poll() {
 
         renderDebtSummary(data);
         renderRewards(data.rewards);
+        latestOfficeOrders = data.orders || [];
         renderLedger(data.orders || []);
+        if (!document.getElementById('aiAssistantPanel').classList.contains('hidden')) renderDeliveryHelpOrders();
         handleReminder(data.active_reminder, data.latest_payment_request, data.total_debt || 0);
         handleNewOfficePin(data.new_office_pin);
 
@@ -2560,7 +2650,3 @@ restoreState();
 </script>
 </body>
 </html>
-
-
-
-

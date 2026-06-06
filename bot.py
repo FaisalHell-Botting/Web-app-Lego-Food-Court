@@ -1,4 +1,4 @@
-import hashlib
+﻿import hashlib
 import json
 import os
 import random
@@ -942,6 +942,30 @@ def init_db():
 
     c.execute(
         """
+        CREATE TABLE IF NOT EXISTS delivery_reminders (
+            id SERIAL PRIMARY KEY,
+            order_id INTEGER,
+            office TEXT,
+            status TEXT DEFAULT 'pending',
+            created_at TEXT,
+            resolved_at TEXT
+        )
+        """
+    )
+    for col, definition in [
+        ("order_id", "INTEGER"),
+        ("office", "TEXT"),
+        ("status", "TEXT DEFAULT 'pending'"),
+        ("created_at", "TEXT"),
+        ("resolved_at", "TEXT"),
+    ]:
+        try:
+            c.execute(f"ALTER TABLE delivery_reminders ADD COLUMN {col} {definition}")
+        except Exception:
+            pass
+
+    c.execute(
+        """
         CREATE TABLE IF NOT EXISTS expenses (
             id SERIAL PRIMARY KEY,
             amount INTEGER,
@@ -1862,7 +1886,7 @@ async def sync_user(office: str):
         history_since = (get_pal_datetime() - timedelta(days=14)).strftime("%Y-%m-%d %H:%M:%S")
         c.execute(
             """
-            SELECT id, details, total_price, timestamp, is_paid, status, receipt, order_type
+            SELECT id, details, total_price, timestamp, is_paid, status, receipt, order_type, approved_at
             FROM orders
             WHERE (location IN %s OR regexp_replace(COALESCE(location, ''), '[^0-9]', '', 'g')=%s)
                           AND status NOT IN ('انتظار','صنف_ناقص','ملغي')
@@ -1883,6 +1907,7 @@ async def sync_user(office: str):
                 "status": row[5],
                 "receipt": row[6],
                 "order_type": row[7],
+                "approved_at": row[8],
             }
             for row in rows
         ]
@@ -2132,6 +2157,76 @@ async def submit_review(request: Request):
         return {"status": "error", "message": str(exc)}
 
 
+@app.post("/api/order-delivery-reminder")
+async def order_delivery_reminder(request: Request):
+    data = await request.json()
+    office = clean_office_name(data.get("office"))
+    order_id = data.get("order_id")
+    if not office or is_guest_office(office) or not is_valid_office_number(office) or not order_id:
+        return {"status": "error", "message": "بيانات التذكير غير مكتملة"}
+    office_variants = office_location_variants(office)
+    office_number = office_number_value(office)
+    today_start = get_pal_datetime().replace(hour=0, minute=0, second=0, microsecond=0).strftime("%Y-%m-%d %H:%M:%S")
+    try:
+        conn = get_db()
+        c = conn.cursor()
+        c.execute(
+            """
+            SELECT id, details
+            FROM orders
+            WHERE id=%s
+              AND (location IN %s OR regexp_replace(COALESCE(location, ''), '[^0-9]', '', 'g')=%s)
+              AND status='مقبول'
+              AND COALESCE(total_price, 0) > 0
+              AND COALESCE(order_type, 'داخل الكوفي كورنر') IN ('داخل الكوفي كورنر', 'توصيل للمكتب')
+              AND COALESCE(approved_at, timestamp) >= %s
+            LIMIT 1
+            """,
+            (order_id, office_variants, office_number, today_start),
+        )
+        order_row = c.fetchone()
+        if not order_row:
+            c.close()
+            conn.close()
+            return {"status": "error", "message": "هذا الطلب غير متاح للتذكير"}
+        c.execute(
+            """
+            SELECT id
+            FROM delivery_reminders
+            WHERE order_id=%s AND status='pending'
+            LIMIT 1
+            """,
+            (order_id,),
+        )
+        existing = c.fetchone()
+        if existing:
+            c.close()
+            conn.close()
+            return {"status": "success", "message": "تم إرسال تذكير بهذا الطلب سابقاً"}
+        now = get_pal_time()
+        c.execute(
+            """
+            INSERT INTO delivery_reminders (order_id, office, status, created_at)
+            VALUES (%s,%s,'pending',%s)
+            """,
+            (order_id, office, now),
+        )
+        send_push_notification(
+            c,
+            "__admin__",
+            "تذكير استلام طلب",
+            f"{office} لم يستلم الطلب #{order_id}",
+            tag=push_safe_tag(f"delivery-reminder-{order_id}"),
+            url="/admin",
+        )
+        conn.commit()
+        c.close()
+        conn.close()
+        return {"status": "success", "message": "سيتم تذكير الكاشير بطلبك الآن"}
+    except Exception as exc:
+        return {"status": "error", "message": str(exc)}
+
+
 @app.get("/api/admin/receipt/{source}/{item_id}")
 async def admin_receipt(source: str, item_id: int):
     table_map = {
@@ -2208,6 +2303,34 @@ async def admin_dashboard():
                     "timestamp": row[5],
                     "kind": "debt_payment",
                     "payment_method": row[6],
+                }
+            )
+
+        c.execute(
+            """
+            SELECT r.id, r.order_id, r.office, r.created_at, o.details, o.order_type, o.approved_at
+            FROM delivery_reminders r
+            JOIN orders o ON o.id = r.order_id
+            WHERE r.status='pending'
+            ORDER BY r.id ASC
+            """
+        )
+        delivery_rows = c.fetchall()
+        for row in delivery_rows:
+            active_orders.append(
+                {
+                    "id": row[0],
+                    "order_id": row[1],
+                    "details": row[4],
+                    "total_price": 0,
+                    "location": row[2],
+                    "status": "pending",
+                    "order_type": "تذكير استلام طلب",
+                    "missing_note": None,
+                    "timestamp": row[3],
+                    "kind": "delivery_reminder",
+                    "original_order_type": row[5],
+                    "original_approved_at": row[6],
                 }
             )
 
@@ -2321,7 +2444,6 @@ async def admin_dashboard():
             if started and handled and handled >= started:
                 response_minutes.append((handled - started).total_seconds() / 60)
         avg_response_minutes = round(sum(response_minutes) / len(response_minutes), 1) if response_minutes else 0
-        week_key = get_reward_week_key()
         c.execute(
             """
             SELECT timestamp, approved_at
@@ -2332,7 +2454,7 @@ async def admin_dashboard():
               AND COALESCE(order_type, '') NOT IN ('تسوية دين يدوية', 'إضافة يدوية', 'حذف صنف من الدين', 'رفض سداد الدين', 'سداد دين', 'سداد يدوي', 'هدية مجانية')
               AND COALESCE(approved_at, timestamp) >= %s
             """,
-            (week_key,),
+            (last_7_days,),
         )
         week_response_minutes = []
         for started_at, handled_at in c.fetchall():
@@ -2341,6 +2463,7 @@ async def admin_dashboard():
             if started and handled and handled >= started:
                 week_response_minutes.append((handled - started).total_seconds() / 60)
         week_avg_response_minutes = round(sum(week_response_minutes) / len(week_response_minutes), 1) if week_response_minutes else 0
+        response_week_delta_minutes = round(week_avg_response_minutes - avg_response_minutes, 1) if avg_response_minutes and week_avg_response_minutes else 0
         response_week_delta_percent = 0
         if avg_response_minutes and week_avg_response_minutes:
             response_week_delta_percent = round(((week_avg_response_minutes - avg_response_minutes) / avg_response_minutes) * 100, 1)
@@ -2553,6 +2676,7 @@ async def admin_dashboard():
                 "total_profit": total_profit,
                 "avg_response_minutes": avg_response_minutes,
                 "week_avg_response_minutes": week_avg_response_minutes,
+                "response_week_delta_minutes": response_week_delta_minutes,
                 "response_week_delta_percent": response_week_delta_percent,
                 "response_count": len(response_minutes),
                 "week_response_count": len(week_response_minutes),
@@ -2564,6 +2688,7 @@ async def admin_dashboard():
                     "total_count": last_7_count,
                     "paid_invoices": last_7_paid,
                     "total_debts": last_7_debts,
+                    "total_expenses": last_7_expenses,
                     "total_profit": last_7_profit,
                 },
             },
@@ -2718,6 +2843,11 @@ async def admin_action(request: Request):
                     tag=push_safe_tag(f"missing-{order_id}"),
                     url="/",
                 )
+        elif action == "resolve_delivery_reminder":
+            c.execute(
+                "UPDATE delivery_reminders SET status='resolved', resolved_at=%s WHERE id=%s AND status='pending'",
+                (get_pal_time(), order_id),
+            )
         elif action == "confirm_visitor_payment":
             if not payment_method:
                 c.close()
@@ -3080,13 +3210,6 @@ async def admin_action(request: Request):
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 8000)))
-
-
-
-
-
-
-
 
 
 
