@@ -2644,6 +2644,7 @@ async def admin_dashboard():
             office_map[office_name]["accepted_orders_count"] = int(order_count or 0)
             office_map[office_name]["total_purchases"] = int(total_purchase or 0)
 
+        week_key = get_reward_week_key()
         c.execute(
             """
             SELECT location, COUNT(*), COALESCE(SUM(total_price), 0)
@@ -3210,7 +3211,6 @@ async def admin_action(request: Request):
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 8000)))
-
 
 
 
