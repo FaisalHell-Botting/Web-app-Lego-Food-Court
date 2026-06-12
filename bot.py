@@ -34,6 +34,7 @@ DATABASE_URL = os.environ.get("DATABASE_URL")
 GEMINI_KEYS_ENV = os.environ.get("GEMINI_API_KEY", "")
 GEMINI_KEYS = [k.strip() for k in GEMINI_KEYS_ENV.split(",") if k.strip()] if GEMINI_KEYS_ENV else []
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-1.5-flash")
+AI_CHAT_ENABLED = os.environ.get("AI_CHAT_ENABLED", "0") == "1"
 DEBT_PAYMENT_INFO = os.environ.get(
     "DEBT_PAYMENT_INFO",
     "بنك فلسطين\nID: 1512081\nIBAN: PS11PALS045115120810993100000\nأو محفظة بال باي\n0597489605",
@@ -1496,6 +1497,12 @@ async def get_menu():
 
 @app.post("/api/chat")
 async def chat_with_ai(request: Request):
+    if not AI_CHAT_ENABLED:
+        return {
+            "reply": "ميزة المساعد الذكي غير مفعلة حالياً.",
+            "parsed_order": None,
+            "enabled": False,
+        }
     data = await request.json()
     user_message = data.get("message", "")
     history = data.get("history", [])
@@ -2736,7 +2743,8 @@ async def admin_debt_details(office: str):
                 items = [item["name"] for item in item_details if item.get("name")]
             else:
                 items = [] if (row[1] or "").strip() == "تم حذف جميع الأصناف من هذا الطلب" else [item.strip() for item in (row[1] or "").split(",") if item.strip()]
-                item_details = [{"name": item, "price": int(PRICES.get(item, 0) or 0)} for item in items]
+                legacy_item_price = int(row[2] or 0) if len(items) == 1 else 0
+                item_details = [{"name": item, "price": legacy_item_price} for item in items]
             orders.append({"id": row[0], "details": row[1], "items": items, "item_details": item_details, "total_price": row[2], "timestamp": row[3], "order_type": row[4]})
         c.execute(
             """
@@ -3211,6 +3219,4 @@ async def admin_action(request: Request):
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 8000)))
-
-
 
