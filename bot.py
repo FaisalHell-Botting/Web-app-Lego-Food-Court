@@ -1262,6 +1262,25 @@ async def accounting_daily_sales(date: str = None, days: int = 1):
             for row in c.fetchall()
             if row[0]
         }
+        c.execute(
+            """
+            SELECT SUBSTRING(approved_at FROM 1 FOR 10) AS gift_date,
+                   COALESCE(SUM(item_price), 0),
+                   COUNT(*)
+            FROM office_rewards
+            WHERE status='approved'
+              AND approved_at IS NOT NULL
+              AND SUBSTRING(approved_at FROM 1 FOR 10) BETWEEN %s AND %s
+            GROUP BY gift_date
+            ORDER BY gift_date ASC
+            """,
+            (start_key, end_key),
+        )
+        gifts_by_date = {
+            row[0]: {"gifts_cost": int(row[1] or 0), "gifts_count": int(row[2] or 0)}
+            for row in c.fetchall()
+            if row[0]
+        }
         c.close()
         conn.close()
 
@@ -1269,11 +1288,14 @@ async def accounting_daily_sales(date: str = None, days: int = 1):
         current_date = start_date
         while current_date <= end_date:
             day_key = current_date.strftime("%Y-%m-%d")
-            values = sales_by_date.get(day_key, {"total_sales": 0, "sales_entries": 0})
+            sales_values = sales_by_date.get(day_key, {"total_sales": 0, "sales_entries": 0})
+            gift_values = gifts_by_date.get(day_key, {"gifts_cost": 0, "gifts_count": 0})
             daily_sales.append({
                 "date": day_key,
-                "total_sales": values["total_sales"],
-                "sales_entries": values["sales_entries"],
+                "total_sales": sales_values["total_sales"],
+                "sales_entries": sales_values["sales_entries"],
+                "gifts_cost": gift_values["gifts_cost"],
+                "gifts_count": gift_values["gifts_count"],
             })
             current_date += timedelta(days=1)
 
