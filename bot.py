@@ -1220,6 +1220,81 @@ async def store_status():
     }
 
 
+@app.get("/api/accounting/daily-sales")
+async def accounting_daily_sales(date: str = None, days: int = 1):
+    if days < 1 or days > 366:
+        return {"status": "error", "message": "days must be between 1 and 366"}
+
+    if date:
+        try:
+            end_date = datetime.strptime(date, "%Y-%m-%d")
+        except ValueError:
+            return {"status": "error", "message": "date must use YYYY-MM-DD"}
+    else:
+        now = get_pal_datetime()
+        end_date = datetime(now.year, now.month, now.day)
+
+    start_date = end_date - timedelta(days=days - 1)
+    start_key = start_date.strftime("%Y-%m-%d")
+    end_key = end_date.strftime("%Y-%m-%d")
+
+    conn = None
+    c = None
+    try:
+        conn = get_db()
+        c = conn.cursor()
+        c.execute(
+            """
+            SELECT SUBSTRING(COALESCE(NULLIF(approved_at, ''), timestamp) FROM 1 FOR 10) AS sale_date,
+                   COALESCE(SUM(total_price), 0),
+                   COUNT(*)
+            FROM orders
+            WHERE status='مقبول'
+              AND COALESCE(order_type, '') NOT IN %s
+              AND SUBSTRING(COALESCE(NULLIF(approved_at, ''), timestamp) FROM 1 FOR 10) BETWEEN %s AND %s
+            GROUP BY sale_date
+            ORDER BY sale_date ASC
+            """,
+            (SALES_EXCLUDED_ORDER_TYPES, start_key, end_key),
+        )
+        sales_by_date = {
+            row[0]: {"total_sales": int(row[1] or 0), "sales_entries": int(row[2] or 0)}
+            for row in c.fetchall()
+            if row[0]
+        }
+        c.close()
+        conn.close()
+
+        daily_sales = []
+        current_date = start_date
+        while current_date <= end_date:
+            day_key = current_date.strftime("%Y-%m-%d")
+            values = sales_by_date.get(day_key, {"total_sales": 0, "sales_entries": 0})
+            daily_sales.append({
+                "date": day_key,
+                "total_sales": values["total_sales"],
+                "sales_entries": values["sales_entries"],
+            })
+            current_date += timedelta(days=1)
+
+        return {
+            "status": "success",
+            "timezone": "Asia/Hebron",
+            "start_date": start_key,
+            "end_date": end_key,
+            "daily_sales": daily_sales,
+        }
+    except Exception as exc:
+        try:
+            if c:
+                c.close()
+            if conn:
+                conn.close()
+        except Exception:
+            pass
+        return {"status": "error", "message": str(exc)}
+
+
 @app.get("/api/push/config")
 async def push_config():
     return {"enabled": push_is_configured(), "public_key": VAPID_PUBLIC_KEY if push_is_configured() else ""}
@@ -3219,4 +3294,3 @@ async def admin_action(request: Request):
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 8000)))
-
