@@ -185,6 +185,17 @@
     </div>
 
     <div id="view_offices" class="hidden">
+        <div class="bg-white border border-gray-100 rounded-2xl p-5 mb-4 shadow-sm">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div>
+                    <p class="font-black text-[#2E3468]">استقبال الطلبات</p>
+                    <p class="text-xs text-gray-500 font-bold leading-relaxed mt-1">التعطيل يمنع المشتركين من إنشاء طلبات جديدة، مع بقاء تسديد الديون متاحاً.</p>
+                </div>
+                <button id="storeClosureToggleBtn" onclick="toggleStoreClosure()" class="w-full md:w-auto px-5 py-2.5 rounded-xl text-sm font-black shadow transition-colors">
+                    تعطيل
+                </button>
+            </div>
+        </div>
         <div id="officesList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
     </div>
 
@@ -401,6 +412,7 @@ let currentLedgerMode = 'debts';
 let adminPushConfig = null;
 let adminPushActive = false;
 let adminPushBusy = false;
+let latestStoreStatus = { is_open: true, mode: 'normal', message: '' };
 
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -528,6 +540,14 @@ function switchLedgerMode(mode) {
     document.getElementById('ledgerModeArchiveBtn').className = `flex-1 md:flex-none px-4 py-2 rounded-xl text-sm font-black ${isArchive ? 'bg-[#2E3468] text-white' : 'text-gray-500'}`;
 }
 
+function friendlyNetworkError(error, fallback='حدث خطأ، حاول مجدداً') {
+    const message = String(error && error.message ? error.message : error || '');
+    if (!navigator.onLine || /failed to fetch|networkerror|load failed|تعذر الاتصال/i.test(message)) {
+        return 'فشل الاتصال بالانترنت';
+    }
+    return message || fallback;
+}
+
 async function fetchData() {
     if (!ensureAdminAuth()) return;
     try {
@@ -544,6 +564,8 @@ async function fetchData() {
         document.getElementById('s_profit').innerText = `${data.stats.total_profit || 0} ₪`;
         updateRecentStats(data.stats.last_7_days || {});
         updateResponseAverage(data.stats || {});
+        latestStoreStatus = data.store_status || latestStoreStatus;
+        updateStoreClosureButton();
 
         const activeCount = (data.active_orders || []).length;
         const badge = document.getElementById('activeCount');
@@ -582,7 +604,7 @@ async function fetchData() {
         renderAdminMenu(data.menu_items || []);
     } catch (e) {
         console.error(e);
-        alert(e.message || 'تعذر تحميل بيانات لوحة الكاشير');
+        alert(friendlyNetworkError(e, 'تعذر تحميل بيانات لوحة الكاشير'));
     }
 }
 
@@ -607,6 +629,47 @@ function updateAudioButton() {
     btn.className = audioAlertsEnabled
         ? 'w-10 h-10 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center justify-center'
         : 'w-10 h-10 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-colors flex items-center justify-center';
+}
+
+function updateStoreClosureButton() {
+    const btn = document.getElementById('storeClosureToggleBtn');
+    if (!btn) return;
+    const closed = latestStoreStatus && latestStoreStatus.mode === 'development';
+    btn.title = latestStoreStatus && latestStoreStatus.closed_by_env
+        ? 'الإغلاق مفعل من Render'
+        : (closed ? 'فتح استقبال الطلبات' : 'إيقاف استقبال الطلبات');
+    btn.innerText = closed ? 'تفعيل' : 'تعطيل';
+    btn.className = closed
+        ? 'w-full md:w-auto px-5 py-2.5 rounded-xl text-sm font-black shadow transition-colors bg-green-500 text-white hover:bg-green-600'
+        : 'w-full md:w-auto px-5 py-2.5 rounded-xl text-sm font-black shadow transition-colors bg-red-500 text-white hover:bg-red-600';
+}
+
+async function toggleStoreClosure() {
+    const closed = latestStoreStatus && latestStoreStatus.mode === 'development';
+    if (closed) {
+        const ok = await openAdminDialog({
+            title: 'فتح استقبال الطلبات',
+            message: 'سيتم السماح للمكاتب بإرسال طلبات جديدة من الموقع.',
+            mode: 'confirm',
+            confirmText: 'فتح الطلبات',
+            cancelText: 'إلغاء'
+        });
+        if (!ok) return;
+        await action('set_store_open');
+        return;
+    }
+
+    const ok = await openAdminDialog({
+        title: 'إيقاف استقبال الطلبات',
+        message: 'سيتم منع الطلبات الجديدة مؤقتاً، مع بقاء تسديد الديون متاحاً للمكاتب.',
+        mode: 'confirm',
+        confirmText: 'إيقاف الطلبات',
+        cancelText: 'إلغاء'
+    });
+    if (!ok) return;
+    await action('set_store_closed', null, null, null, {
+        message: 'الكفي كورنر قيد التطوير حالياً. إعادة الافتتاح غداً الأحد بإذن الله. لا يزال بإمكانك تسديد الديون السابقة من صفحة ديوني.'
+    });
 }
 
 function adminIsIOSDevice() {
@@ -1520,10 +1583,12 @@ async function action(act, id, office=null, note=null, extra={}) {
         if (act === 'reject_visitor_payment') showAdminToast('تم رفض فاتورة الزائر وحفظ السبب للكاشير');
         if (act === 'clear_payment_archive') showAdminToast('تم تنظيف صور وتصنيفات الأرشيف');
         if (act === 'resolve_delivery_reminder') showAdminToast('تم إغلاق تذكير الاستلام');
+        if (act === 'set_store_closed') showAdminToast('تم إيقاف استقبال الطلبات');
+        if (act === 'set_store_open') showAdminToast('تم فتح استقبال الطلبات');
         fetchData();
         return true;
     } catch (e) {
-        alert('حدث خطأ، حاول مجدداً');
+        alert(friendlyNetworkError(e));
         return false;
     }
 }

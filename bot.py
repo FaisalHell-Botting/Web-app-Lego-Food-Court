@@ -42,6 +42,15 @@ DEBT_PAYMENT_INFO = os.environ.get(
 VAPID_PUBLIC_KEY = os.environ.get("VAPID_PUBLIC_KEY", "")
 VAPID_PRIVATE_KEY = os.environ.get("VAPID_PRIVATE_KEY", "")
 VAPID_CLAIM_EMAIL = os.environ.get("VAPID_CLAIM_EMAIL", "admin@lecoffee.local")
+TEMP_STORE_CLOSED = os.environ.get("TEMP_STORE_CLOSED", "0") == "1"
+DB_STORE_CLOSED = False
+DB_STORE_CLOSED_MESSAGE = ""
+TEMP_STORE_CLOSED_MESSAGE = os.environ.get(
+    "TEMP_STORE_CLOSED_MESSAGE",
+    "الكفي كورنر قيد التطوير حالياً. إعادة الافتتاح غداً الأحد بإذن الله. لا يزال بإمكانك تسديد الديون السابقة من صفحة ديوني.",
+)
+DEFAULT_STORE_OPEN_MESSAGE = "الطلبات متاحة حتى الساعة 8:30 مساءً بتوقيت فلسطين"
+DEFAULT_STORE_CLOSED_MESSAGE = "الطلبات مغلقة الآن. نستقبل الطلبات حتى الساعة 8:30 مساءً بتوقيت فلسطين."
 
 PRICES = {
     "شاي": 1,
@@ -372,15 +381,58 @@ def get_pal_datetime():
     return datetime.utcnow() + timedelta(hours=3)
 
 
+def load_store_closure_settings():
+    global DB_STORE_CLOSED, DB_STORE_CLOSED_MESSAGE
+    try:
+        conn = get_db()
+        c = conn.cursor()
+        c.execute("SELECT value FROM app_settings WHERE key='store_closed' LIMIT 1")
+        closed_row = c.fetchone()
+        c.execute("SELECT value FROM app_settings WHERE key='store_closed_message' LIMIT 1")
+        message_row = c.fetchone()
+        DB_STORE_CLOSED = str(closed_row[0]).strip() == "1" if closed_row else False
+        DB_STORE_CLOSED_MESSAGE = str(message_row[0]).strip() if message_row and message_row[0] else ""
+        c.close()
+        conn.close()
+    except Exception:
+        DB_STORE_CLOSED = False
+        DB_STORE_CLOSED_MESSAGE = ""
+
+
+def set_app_setting(cursor, key, value):
+    cursor.execute(
+        """
+        INSERT INTO app_settings (key, value, updated_at)
+        VALUES (%s,%s,%s)
+        ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=EXCLUDED.updated_at
+        """,
+        (key, value, get_pal_time()),
+    )
+
+
+def store_closure_active():
+    return TEMP_STORE_CLOSED or DB_STORE_CLOSED
+
+
 def is_store_open():
+    if store_closure_active():
+        return False
     now = get_pal_datetime()
     return (now.hour, now.minute) < (20, 30)
+
+
+def store_status_message():
+    if TEMP_STORE_CLOSED:
+        return TEMP_STORE_CLOSED_MESSAGE
+    if DB_STORE_CLOSED:
+        return DB_STORE_CLOSED_MESSAGE or TEMP_STORE_CLOSED_MESSAGE
+    return DEFAULT_STORE_OPEN_MESSAGE if is_store_open() else DEFAULT_STORE_CLOSED_MESSAGE
 
 
 def store_closed_response():
     return {
         "status": "error",
-        "message": "الطلبات مغلقة الآن. نستقبل الطلبات حتى الساعة 8:30 مساءً بتوقيت فلسطين.",
+        "message": store_status_message(),
         "code": "store_closed",
     }
 
@@ -879,6 +931,16 @@ def init_db():
         """
     )
 
+    c.execute(
+        """
+        CREATE TABLE IF NOT EXISTS app_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT,
+            updated_at TEXT
+        )
+        """
+    )
+
     for col, definition in [
         ("receipt", "TEXT"),
         ("order_type", "TEXT DEFAULT 'داخل الكوفي كورنر'"),
@@ -1146,6 +1208,7 @@ def init_db():
 
 try:
     init_db()
+    load_store_closure_settings()
 except Exception as exc:
     print(f"DB init error: {exc}")
 
@@ -1214,9 +1277,13 @@ async def serve_service_worker():
 
 @app.get("/api/store-status")
 async def store_status():
+    is_open = is_store_open()
     return {
-        "is_open": is_store_open(),
-        "message": "الطلبات متاحة حتى الساعة 8:30 مساءً بتوقيت فلسطين" if is_store_open() else "الطلبات مغلقة الآن. نستقبل الطلبات حتى الساعة 8:30 مساءً بتوقيت فلسطين.",
+        "is_open": is_open,
+        "message": store_status_message(),
+        "mode": "development" if store_closure_active() else "normal",
+        "closed_by_env": TEMP_STORE_CLOSED,
+        "closed_by_admin": DB_STORE_CLOSED,
     }
 
 
@@ -2164,6 +2231,8 @@ async def redeem_reward(request: Request):
     reward_id = data.get("reward_id")
     if not office or is_guest_office(office) or not reward_id:
         return {"status": "error", "message": "بيانات الهدية غير مكتملة"}
+    if not is_store_open():
+        return store_closed_response()
     try:
         conn = get_db()
         c = conn.cursor()
@@ -2805,7 +2874,14 @@ async def admin_dashboard():
             "payment_archive_stats": payment_archive_stats,
             "expenses": expenses,
             "offices": offices,
-        "menu_items": menu_items,
+            "menu_items": menu_items,
+            "store_status": {
+                "is_open": is_store_open(),
+                "message": store_status_message(),
+                "mode": "development" if store_closure_active() else "normal",
+                "closed_by_env": TEMP_STORE_CLOSED,
+                "closed_by_admin": DB_STORE_CLOSED,
+            },
         }
     except Exception as exc:
         return {"error": str(exc)}
@@ -2916,7 +2992,27 @@ async def admin_action(request: Request):
         conn = get_db()
         c = conn.cursor()
 
-        if action == "approve":
+        if action == "set_store_closed":
+            message = clean_office_name(data.get("message")) or TEMP_STORE_CLOSED_MESSAGE
+            set_app_setting(c, "store_closed", "1")
+            set_app_setting(c, "store_closed_message", message)
+            conn.commit()
+            load_store_closure_settings()
+            c.close()
+            conn.close()
+            return {"status": "success", "message": "تم إيقاف استقبال الطلبات"}
+        elif action == "set_store_open":
+            if TEMP_STORE_CLOSED:
+                c.close()
+                conn.close()
+                return {"status": "error", "message": "الإغلاق مفعل من إعدادات Render ويجب إيقافه من هناك أولاً"}
+            set_app_setting(c, "store_closed", "0")
+            conn.commit()
+            load_store_closure_settings()
+            c.close()
+            conn.close()
+            return {"status": "success", "message": "تم فتح استقبال الطلبات"}
+        elif action == "approve":
             now = get_pal_time()
             c.execute("SELECT location, details, order_type FROM orders WHERE id=%s", (order_id,))
             approve_row = c.fetchone()

@@ -355,6 +355,13 @@
     </div>
 </div>
 
+<div id="storeNoticeBanner" class="max-w-md mx-auto px-4 pt-4 hidden">
+    <div class="bg-yellow-50 border-2 border-yellow-200 p-4 rounded-2xl shadow-sm">
+        <p class="font-black text-navy text-sm">تنبيه مهم</p>
+        <p id="storeNoticeText" class="text-sm text-yellow-800 font-bold leading-relaxed mt-1"></p>
+    </div>
+</div>
+
 <main id="mainScreen" class="max-w-md mx-auto px-4 hidden">
     <div id="debtMiniCard" class="bg-white border border-red-100 rounded-2xl p-4 mt-4 hidden transition-all">
         <div class="flex justify-between items-start gap-3">
@@ -764,6 +771,8 @@ let latestReminder = null;
 let latestDebtPaymentAmount = 0;
 let editingOrderId = null;
 let storeIsOpen = true;
+let storeClosedMessage = 'الطلبات مغلقة الآن. نستقبل الطلبات حتى الساعة 8:30 مساءً بتوقيت فلسطين.';
+let storeStatusMode = 'normal';
 let officePinMode = 'verify';
 let pendingNewOfficePin = null;
 let latestRewards = null;
@@ -859,6 +868,7 @@ async function login(type) {
     switchOrderMode(user.isGuest ? 'quick' : 'menu');
     renderMenu('hot');
     updateDraftOrderCard();
+    await refreshStoreStatus();
     persistState();
     initPushNotifications();
     if (!pollingStarted) startPolling();
@@ -916,6 +926,7 @@ async function restoreState() {
         enforceOrderTypeRules();
         setOrderType(selectedOrderType);
         updateDraftOrderCard();
+        await refreshStoreStatus();
         updateCartBar();
         initPushNotifications();
         if (!pollingStarted) startPolling();
@@ -1237,7 +1248,12 @@ function prepareGuestReceiptModal({ amount, quick=false }) {
     document.getElementById('receiptModal').classList.remove('hidden');
 }
 
-function openQuickGuestPaymentModal() {
+async function openQuickGuestPaymentModal() {
+    await refreshStoreStatus();
+    if (!storeIsOpen) {
+        showToast(storeClosedMessage);
+        return;
+    }
     const amount = Number(document.getElementById('quickPaymentAmount').value || 0);
     if (!amount || amount <= 0) {
         showToast('أدخل قيمة مشترياتك أولاً');
@@ -1251,7 +1267,7 @@ async function processOrder() {
     if (!stats.qty) return;
     await refreshStoreStatus();
     if (!storeIsOpen) {
-        showToast('الطلبات مغلقة الآن. نستقبل الطلبات حتى الساعة 8:30 مساءً بتوقيت فلسطين.');
+        showToast(storeClosedMessage);
         return;
     }
     pendingOrderItems = [];
@@ -1271,11 +1287,24 @@ async function refreshStoreStatus() {
         const res = await fetch(`${API_URL}/store-status`);
         const data = await res.json();
         storeIsOpen = data.is_open !== false;
+        storeClosedMessage = data.message || storeClosedMessage;
+        storeStatusMode = data.mode || 'normal';
     } catch (e) {
         storeIsOpen = true;
+        storeStatusMode = 'normal';
     }
+    updateStoreNoticeBanner();
     updateCartBar();
     return storeIsOpen;
+}
+
+function updateStoreNoticeBanner() {
+    const banner = document.getElementById('storeNoticeBanner');
+    const text = document.getElementById('storeNoticeText');
+    if (!banner || !text) return;
+    const shouldShow = !storeIsOpen && storeStatusMode === 'development';
+    text.innerText = shouldShow ? storeClosedMessage : '';
+    banner.classList.toggle('hidden', !shouldShow);
 }
 
 async function openOfficePinModal() {
