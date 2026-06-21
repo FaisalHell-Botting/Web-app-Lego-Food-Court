@@ -1451,7 +1451,7 @@ function updateResponseAverage(stats) {
         deltaText.innerText = stats.week_response_count ? `${sign}${delta.toFixed(1)} دقائق خلال 7 أيام` : 'لا توجد ردود خلال 7 أيام';
         deltaText.className = `text-[11px] font-normal leading-tight mt-0.5 ${delta > 0 ? 'text-red-200' : (delta < 0 ? 'text-green-200' : 'text-gray-300')}`;
     }
-    card.className = 'bg-white/10 p-3 rounded-xl transition-colors';
+    card.className = 'bg-white/10 p-3 rounded-xl transition-colors hidden';
     text.className = 'font-black text-lg ' + (
         stats.response_level === 'good' ? 'text-green-400' :
         stats.response_level === 'warn' ? 'text-orange-300' :
