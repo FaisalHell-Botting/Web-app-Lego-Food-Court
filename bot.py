@@ -37,7 +37,7 @@ GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-1.5-flash")
 AI_CHAT_ENABLED = os.environ.get("AI_CHAT_ENABLED", "0") == "1"
 DEBT_PAYMENT_INFO = os.environ.get(
     "DEBT_PAYMENT_INFO",
-    "بنك فلسطين\nID: 1512081\nIBAN: PS11PALS045115120810993100000\nأو محفظة بال باي\n0597489605",
+    "بنك فلسطين\nID: 1512081\nIBAN: PS11PALS045115120810993100000\nأو محفظة بال باي\nأحمد سليم جبريل جندية\n0592127473",
 )
 VAPID_PUBLIC_KEY = os.environ.get("VAPID_PUBLIC_KEY", "")
 VAPID_PRIVATE_KEY = os.environ.get("VAPID_PRIVATE_KEY", "")
