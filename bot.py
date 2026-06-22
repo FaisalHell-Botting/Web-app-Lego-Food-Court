@@ -3390,13 +3390,14 @@ async def admin_action(request: Request):
         elif action == "add_expense":
             amount = int(data.get("amount", 0) or 0)
             receipt = data.get("receipt")
+            description = str(data.get("description") or "").strip()[:240]
             if amount <= 0:
                 c.close()
                 conn.close()
                 return {"status": "error", "message": "invalid expense amount"}
             c.execute(
-                "INSERT INTO expenses (amount, receipt, created_at) VALUES (%s,%s,%s)",
-                (amount, receipt, get_pal_time()),
+                "INSERT INTO expenses (amount, receipt, created_at, description) VALUES (%s,%s,%s,%s)",
+                (amount, receipt, get_pal_time(), description),
             )
         elif action == "delete_expense":
             c.execute("DELETE FROM expenses WHERE id=%s", (order_id,))
