@@ -48,9 +48,92 @@
         }
         .success-border-loading > * { position: relative; z-index: 2; }
         @keyframes successBorderSpin { to { transform: rotate(360deg); } }
+        .loading-receipt {
+            position: relative;
+            width: 76px;
+            height: 86px;
+            margin: 0 auto 14px;
+        }
+        .loading-receipt-paper {
+            position: absolute;
+            inset: 8px 12px 4px;
+            border-radius: 16px 16px 10px 10px;
+            background: #fff;
+            border: 2px solid rgba(46,52,104,.12);
+            box-shadow: 0 16px 35px rgba(46,52,104,.16);
+            overflow: hidden;
+            animation: receiptFloat 1.45s ease-in-out infinite;
+        }
+        .loading-receipt-paper::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(110deg, transparent 18%, rgba(247,204,70,.34) 45%, transparent 70%);
+            transform: translateX(85%);
+            animation: receiptShine 1.55s ease-in-out infinite;
+        }
+        .loading-receipt-line {
+            position: absolute;
+            right: 13px;
+            height: 4px;
+            border-radius: 999px;
+            background: #2E3468;
+            opacity: .18;
+            animation: receiptLine 1.2s ease-in-out infinite;
+        }
+        .loading-receipt-line:nth-child(1) { top: 18px; width: 34px; animation-delay: 0s; }
+        .loading-receipt-line:nth-child(2) { top: 31px; width: 24px; animation-delay: .15s; }
+        .loading-receipt-line:nth-child(3) { top: 44px; width: 30px; animation-delay: .3s; }
+        .loading-receipt-coin {
+            position: absolute;
+            width: 22px;
+            height: 22px;
+            left: 6px;
+            bottom: 9px;
+            border-radius: 999px;
+            background: #F7CC46;
+            color: #2E3468;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 900;
+            box-shadow: 0 10px 22px rgba(247,204,70,.36);
+            animation: coinOrbit 1.6s ease-in-out infinite;
+        }
+        .loading-dot-row span {
+            width: 6px;
+            height: 6px;
+            border-radius: 999px;
+            background: #F7CC46;
+            display: inline-block;
+            animation: loadingDotBounce 1s ease-in-out infinite;
+        }
+        .loading-dot-row span:nth-child(2) { animation-delay: .14s; }
+        .loading-dot-row span:nth-child(3) { animation-delay: .28s; }
+        @keyframes receiptFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+        @keyframes receiptShine { 0% { transform: translateX(85%); } 55%,100% { transform: translateX(-85%); } }
+        @keyframes receiptLine { 0%,100% { opacity: .14; transform: scaleX(.84); } 50% { opacity: .42; transform: scaleX(1); } }
+        @keyframes coinOrbit { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(7px,-7px) scale(1.06); } }
+        @keyframes loadingDotBounce { 0%,100% { opacity: .35; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-4px); } }
     </style>
 </head>
 <body class="text-[#2E3468] pb-10">
+
+<div id="adminLoadingPopup" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[120] hidden items-center justify-center p-4">
+    <div class="bg-white rounded-3xl w-full max-w-xs p-6 text-center shadow-2xl slide-up">
+        <div class="loading-receipt" aria-hidden="true">
+            <div class="loading-receipt-paper">
+                <span class="loading-receipt-line"></span>
+                <span class="loading-receipt-line"></span>
+                <span class="loading-receipt-line"></span>
+            </div>
+            <div class="loading-receipt-coin">₪</div>
+        </div>
+        <p id="adminLoadingPopupText" class="font-black text-[#2E3468] text-base">جاري التحميل...</p>
+        <div class="loading-dot-row flex justify-center gap-1.5 mt-3" aria-hidden="true"><span></span><span></span><span></span></div>
+    </div>
+</div>
 
 <div id="adminAuthScreen" class="fixed inset-0 bg-[#2E3468] z-[100] flex items-center justify-center p-4">
     <div class="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 text-center">
@@ -415,8 +498,28 @@ let adminPushConfig = null;
 let adminPushActive = false;
 let adminPushBusy = false;
 let latestStoreStatus = { is_open: true, mode: 'normal', message: '' };
+let adminLoadingPopupDepth = 0;
 
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+function showAdminLoading(message='جاري التحميل...') {
+    const popup = document.getElementById('adminLoadingPopup');
+    const text = document.getElementById('adminLoadingPopupText');
+    if (!popup || !text) return;
+    adminLoadingPopupDepth += 1;
+    text.innerText = message;
+    popup.classList.remove('hidden');
+    popup.classList.add('flex');
+}
+
+function hideAdminLoading() {
+    const popup = document.getElementById('adminLoadingPopup');
+    if (!popup) return;
+    adminLoadingPopupDepth = Math.max(0, adminLoadingPopupDepth - 1);
+    if (adminLoadingPopupDepth > 0) return;
+    popup.classList.add('hidden');
+    popup.classList.remove('flex');
+}
 
 function showAdminToast(message, type='success') {
     const toast = document.getElementById('adminToast');
@@ -1568,7 +1671,8 @@ function renderExpenses(expenses, stats={}) {
     `).join('');
 }
 
-async function action(act, id, office=null, note=null, extra={}) {
+async function action(act, id, office=null, note=null, extra={}, options={}) {
+    if (options.loadingMessage) showAdminLoading(options.loadingMessage);
     try {
         const res = await fetch(`${API_URL}/admin/action`, {
             method: 'POST',
@@ -1594,19 +1698,21 @@ async function action(act, id, office=null, note=null, extra={}) {
     } catch (e) {
         alert(friendlyNetworkError(e));
         return false;
+    } finally {
+        if (options.loadingMessage) hideAdminLoading();
     }
 }
 
 async function confirmPaymentWithMethod(act, id) {
     const method = await askPaymentMethod();
     if (!method) return;
-    await action(act, id, null, null, { payment_method: method });
+    await action(act, id, null, null, { payment_method: method }, { loadingMessage: 'جاري اعتماد عملية السداد...' });
 }
 
 async function updateArchivePaymentMethod(source, id) {
     const method = await askPaymentMethod();
     if (!method) return;
-    const ok = await action('update_payment_method', id, null, null, { source, payment_method: method });
+    const ok = await action('update_payment_method', id, null, null, { source, payment_method: method }, { loadingMessage: 'جاري تحديث تصنيف التحويل...' });
     if (ok) showAdminToast('تم تحديث تصنيف التحويل');
 }
 
@@ -1617,7 +1723,7 @@ async function clearPaymentArchive() {
         '!'
     );
     if (!ok) return;
-    await action('clear_payment_archive');
+    await action('clear_payment_archive', null, null, null, {}, { loadingMessage: 'جاري تنظيف مرفقات الأرشيف...' });
 }
 
 async function resolveOfficePinHelp(office) {
@@ -1712,9 +1818,18 @@ function debtItemSortTime(item) {
 }
 
 async function loadDebtDetails() {
-    const res = await fetch(`${API_URL}/admin/debt-details/${encodeURIComponent(currentDebtOffice)}`);
-    const data = await res.json();
     const box = document.getElementById('debtEditOrders');
+    showAdminLoading('جاري تحميل سجل الدين...');
+    let data;
+    try {
+        const res = await fetch(`${API_URL}/admin/debt-details/${encodeURIComponent(currentDebtOffice)}`);
+        data = await res.json();
+    } catch (e) {
+        box.innerHTML = '<p class="text-center text-gray-400 py-6">تعذر تحميل الدين</p>';
+        return;
+    } finally {
+        hideAdminLoading();
+    }
     if (data.status !== 'success') { box.innerHTML = '<p class="text-center text-gray-400 py-6">تعذر تحميل الدين</p>'; return; }
     currentDebtTotal = Number(data.total_debt || 0);
     document.getElementById('currentDebtTotalText').innerText = `${currentDebtTotal} ₪`;
@@ -1769,12 +1884,19 @@ async function removeDebtItem(orderId, itemName, orderTimestamp='', itemPrice=0)
     const priceText = Number(itemPrice || 0) > 0 ? `${itemPrice} ₪` : 'غير محددة';
     const message = `أنت على وشك حذف هذا الصنف من دين المكتب:\n\nرقم الطلب: #${orderId}\nالتاريخ: ${orderTimestamp || '-'}\nالصنف: ${itemName}\nالقيمة: ${priceText}\n\nسيظهر عند المستخدم خصم بقيمة الصنف وأن الإدارة حذفته من الدين.\n\nهل أنت متأكد؟`;
     if (!await showAdminConfirm(message, 'تأكيد حذف صنف من الدين', '!')) return;
-    const res = await fetch(`${API_URL}/admin/action`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'remove_debt_item', order_id: orderId, item_name: itemName }) });
-    const data = await res.json();
-    if (data.status !== 'success') { alert(data.message || 'تعذر حذف الصنف'); return; }
-    showAdminToast('تم حذف الصنف من الدين');
-    await loadDebtDetails();
-    fetchData();
+    showAdminLoading('جاري حفظ تعديل الدين...');
+    try {
+        const res = await fetch(`${API_URL}/admin/action`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'remove_debt_item', order_id: orderId, item_name: itemName }) });
+        const data = await res.json();
+        if (data.status !== 'success') { alert(data.message || 'تعذر حذف الصنف'); return; }
+        showAdminToast('تم حذف الصنف من الدين');
+        await loadDebtDetails();
+        fetchData();
+    } catch (e) {
+        alert(friendlyNetworkError(e));
+    } finally {
+        hideAdminLoading();
+    }
 }
 async function submitDebtMovement(kind) {
     const isPayment = kind === 'payment';
@@ -1797,19 +1919,24 @@ async function submitDebtMovement(kind) {
     if (!await showAdminConfirm(`${effectText}\n\nالسبب: ${note}\n\nهل أنت متأكد؟`, `تأكيد ${actionName}`, '!')) return;
     const method = isPayment ? await askPaymentMethod() : null;
     if (isPayment && !method) return;
-    const res = await fetch(`${API_URL}/admin/action`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: isPayment ? 'add_debt_payment' : 'add_debt_charge', office: currentDebtOffice, amount, note, payment_method: method })
-    });
-    const data = await res.json();
-    if (data.status !== 'success') {
-        alert(data.message || 'تعذر حفظ الحركة');
-        return;
+    showAdminLoading(isPayment ? 'جاري تسجيل السداد...' : 'جاري إضافة الدين...');
+    try {
+        const res = await fetch(`${API_URL}/admin/action`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: isPayment ? 'add_debt_payment' : 'add_debt_charge', office: currentDebtOffice, amount, note, payment_method: method })
+        });
+        const data = await res.json();
+        if (data.status !== 'success') {
+            alert(data.message || 'تعذر حفظ الحركة');
+            return;
+        }
+        showAdminToast(isPayment ? 'تم تسجيل السداد' : 'تمت إضافة الدين');
+        await loadDebtDetails();
+        fetchData();
+    } finally {
+        hideAdminLoading();
     }
-    showAdminToast(isPayment ? 'تم تسجيل السداد' : 'تمت إضافة الدين');
-    await loadDebtDetails();
-    fetchData();
 }
 function openExpenseModal() {
     expenseReceiptBase64 = null;
@@ -1844,6 +1971,7 @@ async function submitExpense() {
         alert('الرجاء إدخال قيمة صحيحة');
         return;
     }
+    showAdminLoading(expenseReceiptBase64 ? 'جاري رفع الفاتورة وحفظ المصروف...' : 'جاري حفظ المصروف...');
     try {
         const res = await fetch(`${API_URL}/admin/action`, {
             method: 'POST',
@@ -1860,11 +1988,14 @@ async function submitExpense() {
             fetchData();
     } catch (e) {
         alert('حدث خطأ أثناء حفظ المصروف');
+    } finally {
+        hideAdminLoading();
     }
 }
 
 async function deleteExpense(id) {
     if (!await showAdminConfirm('هل تريد حذف هذا المصروف؟', 'تأكيد حذف المصروف', '!')) return;
+    showAdminLoading('جاري حذف المصروف...');
     try {
         const res = await fetch(`${API_URL}/admin/action`, {
             method: 'POST',
@@ -1879,6 +2010,8 @@ async function deleteExpense(id) {
         fetchData();
     } catch (e) {
         alert('حدث خطأ أثناء حذف المصروف');
+    } finally {
+        hideAdminLoading();
     }
 }
 
@@ -1925,6 +2058,7 @@ function copyPhone(value) {
     navigator.clipboard.writeText(value).then(() => showAdminToast('تم نسخ رقم الجوال')).catch(() => showAdminAlert(value));
 }
 async function showReceipt(source, id) {
+    showAdminLoading('جاري تحميل صورة الفاتورة...');
     try {
         const img = document.getElementById('receiptFullImg');
         img.src = '';
@@ -1938,6 +2072,8 @@ async function showReceipt(source, id) {
     } catch (e) {
         closeModal('receiptViewModal');
         alert(e.message || 'تعذر تحميل الصورة');
+    } finally {
+        hideAdminLoading();
     }
 }
 
