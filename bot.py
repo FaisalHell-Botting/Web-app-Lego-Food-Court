@@ -140,9 +140,9 @@ REWARD_EXCLUDED_ORDER_TYPES = {
 ACCOUNTING_EXCLUDED_ORDER_TYPES = tuple(REWARD_EXCLUDED_ORDER_TYPES)
 SALES_EXCLUDED_ORDER_TYPES = ('رفض سداد الدين', 'سداد دين', 'سداد يدوي', 'هدية مجانية')
 REWARD_TIERS = [
-    {'key': 'orders_3', 'kind': 'count', 'target': 10, 'prize_max': 2, 'title': 'أكملت 10 طلبات هذا الأسبوع'},
-    {'key': 'amount_30', 'kind': 'amount', 'target': 60, 'prize_max': 2, 'title': 'مجموع طلباتك وصل 60 شيكل'},
-    {'key': 'amount_60', 'kind': 'amount', 'target': 100, 'prize_max': 3, 'title': 'مجموع طلباتك وصل 100 شيكل'},
+    {'key': 'orders_3', 'kind': 'count', 'target': 12, 'title': 'أكملت 12 طلب هذا الأسبوع'},
+    {'key': 'amount_30', 'kind': 'amount', 'target': 80, 'title': 'مجموع طلباتك وصل 80 شيكل'},
+    {'key': 'amount_60', 'kind': 'amount', 'target': 140, 'title': 'مجموع طلباتك وصل 140 شيكل'},
 ]
 
 
@@ -359,19 +359,25 @@ def fetch_reward_progress(cursor, office):
     }
 
 
-def select_reward_item(cursor, prize_max):
+def is_hot_water_reward_name(name):
+    normalized = str(name or "").replace("ة", "ه")
+    has_water = "مياه" in normalized or "ماء" in normalized or "ميه" in normalized
+    has_hot = "سخن" in normalized or "ساخن" in normalized
+    return has_water and has_hot
+
+
+def select_reward_item(cursor):
     cursor.execute(
         """
         SELECT name, price
         FROM menu_items
         WHERE COALESCE(is_deleted,0)=0
           AND COALESCE(is_active,1)=1
+          AND category='hot'
           AND price > 0
-          AND price <= %s
         """,
-        (prize_max,),
     )
-    rows = cursor.fetchall()
+    rows = [row for row in cursor.fetchall() if not is_hot_water_reward_name(row[0])]
     if not rows:
         return None
     return random.choice(rows)
@@ -2199,7 +2205,7 @@ async def claim_reward(request: Request):
             c.close()
             conn.close()
             return {"status": "success", "reward": reward, "already_claimed": True}
-        prize = select_reward_item(c, tier["prize_max"])
+        prize = select_reward_item(c)
         if not prize:
             c.close()
             conn.close()

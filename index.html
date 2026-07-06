@@ -638,6 +638,22 @@
         <button onclick="cancelPushPinModal()" class="w-full bg-gray-100 text-gray-600 py-3 rounded-xl font-bold">إلغاء</button>
     </div>
 </div>
+<div id="pushConfirmModal" class="fixed inset-0 bg-black/70 z-[94] flex items-center justify-center p-4 hidden modal-focus-backdrop">
+    <div class="bg-white rounded-3xl w-full max-w-sm p-6 slide-up text-center shadow-2xl">
+        <div id="pushConfirmIcon" class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-yellow-50 text-yellow-600 flex items-center justify-center text-3xl">🔔</div>
+        <h3 id="pushConfirmTitle" class="font-black text-xl text-navy mb-2">تفعيل إشعارات المكتب</h3>
+        <p id="pushConfirmText" class="text-sm text-gray-500 font-bold leading-relaxed mb-4"></p>
+        <div id="pushConfirmBenefits" class="bg-gray-50 border border-gray-100 rounded-2xl p-3 text-right text-xs text-gray-500 font-bold leading-7 mb-5">
+            <p>• مبروك، لديك هدية حصلها الآن</p>
+            <p>• لديك طلب سداد دين</p>
+            <p>• يوجد صنف ناقص في طلبك</p>
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+            <button id="pushConfirmOkBtn" onclick="submitPushConfirmModal(true)" class="bg-navy text-white py-3 rounded-xl font-black shadow hover:bg-opacity-90 transition-all">تفعيل</button>
+            <button id="pushConfirmCancelBtn" onclick="submitPushConfirmModal(false)" class="bg-gray-100 text-gray-600 py-3 rounded-xl font-black hover:bg-gray-200 transition-all">لاحقاً</button>
+        </div>
+    </div>
+</div>
 <div id="newOfficePinModal" class="fixed inset-0 bg-black/70 z-[86] flex items-center justify-center p-4 hidden">
     <div class="bg-white rounded-3xl w-full max-w-sm p-6 slide-up text-center help-status-loading">
         <h3 class="font-black text-lg text-navy mb-2">تم إنشاء كلمة سر جديدة لك</h3>
@@ -869,6 +885,7 @@ let pushConfig = null;
 let pushActive = false;
 let pushBusy = false;
 let pushPinResolve = null;
+let pushConfirmResolve = null;
 const debtTransferDefaults = {
     bank: 'بنك فلسطين',
     bankOwner: 'محمد محمد سلمان جندية',
@@ -1651,6 +1668,41 @@ function cancelPushPinModal() {
     pushPinResolve = null;
 }
 
+function askPushConfirm(mode='enable') {
+    return new Promise(resolve => {
+        pushConfirmResolve = resolve;
+        const modal = document.getElementById('pushConfirmModal');
+        const icon = document.getElementById('pushConfirmIcon');
+        const title = document.getElementById('pushConfirmTitle');
+        const text = document.getElementById('pushConfirmText');
+        const benefits = document.getElementById('pushConfirmBenefits');
+        const okBtn = document.getElementById('pushConfirmOkBtn');
+        const cancelBtn = document.getElementById('pushConfirmCancelBtn');
+        const isDisable = mode === 'disable';
+        icon.innerText = isDisable ? '🔕' : '🔔';
+        icon.className = isDisable
+            ? 'w-16 h-16 mx-auto mb-4 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center text-3xl'
+            : 'w-16 h-16 mx-auto mb-4 rounded-2xl bg-yellow-50 text-yellow-600 flex items-center justify-center text-3xl';
+        title.innerText = isDisable ? 'إيقاف إشعارات المكتب' : 'تفعيل إشعارات المكتب';
+        text.innerText = isDisable
+            ? 'هل تريد إيقاف إشعارات هذا المكتب على هذا الجهاز؟'
+            : 'سنرسل فقط التنبيهات المهمة جداً حتى تعرف أي شيء يحتاج متابعة.';
+        benefits.classList.toggle('hidden', isDisable);
+        okBtn.innerText = isDisable ? 'إيقاف' : 'تفعيل';
+        okBtn.className = isDisable
+            ? 'bg-red-600 text-white py-3 rounded-xl font-black shadow hover:bg-red-700 transition-all'
+            : 'bg-navy text-white py-3 rounded-xl font-black shadow hover:bg-opacity-90 transition-all';
+        cancelBtn.innerText = isDisable ? 'إلغاء' : 'لاحقاً';
+        modal.classList.remove('hidden');
+    });
+}
+
+function submitPushConfirmModal(ok) {
+    document.getElementById('pushConfirmModal').classList.add('hidden');
+    if (pushConfirmResolve) pushConfirmResolve(Boolean(ok));
+    pushConfirmResolve = null;
+}
+
 async function enablePushNotifications(pin) {
     const config = await loadPushConfig();
     const supportIssue = pushSupportIssue();
@@ -1769,7 +1821,7 @@ async function togglePushNotifications() {
         const pin = await askPushPin(pushActive ? 'disable' : 'enable');
         if (!pin) return;
         if (pushActive) {
-            if (!window.confirm('إيقاف إشعارات هذا المكتب على هذا الجهاز؟')) return;
+            if (!await askPushConfirm('disable')) return;
             await disablePushNotifications(pin);
         } else {
             await enablePushNotifications(pin);
@@ -1788,7 +1840,7 @@ async function maybeOfferPushNotifications(pin) {
     if (postponedAt && Date.now() - postponedAt < 3 * 24 * 60 * 60 * 1000) return;
     const config = await loadPushConfig();
     if (!config.enabled) return;
-    const ok = window.confirm('هل تريد تفعيل إشعارات المكتب؟\nسنرسل فقط التنبيهات المهمة جداً: الهدايا، طلبات سداد الدين، والأصناف الناقصة.');
+    const ok = await askPushConfirm('enable');
     if (!ok) {
         localStorage.setItem(pushPromptKey(), String(Date.now()));
         updatePushBell();
@@ -2065,9 +2117,9 @@ function defaultRewardsProgress() {
         amount_total: 0,
         has_ready_reward: false,
         tiers: [
-            { key: 'orders_3', title: 'أكملت 10 طلبات هذا الأسبوع', kind: 'count', target: 10, progress: 0, raw_progress: 0, eligible: false, status: 'locked', can_claim: false, can_redeem: false, reward: null },
-            { key: 'amount_30', title: 'مجموع طلباتك وصل 60 شيكل', kind: 'amount', target: 60, progress: 0, raw_progress: 0, eligible: false, status: 'locked', can_claim: false, can_redeem: false, reward: null },
-            { key: 'amount_60', title: 'مجموع طلباتك وصل 100 شيكل', kind: 'amount', target: 100, progress: 0, raw_progress: 0, eligible: false, status: 'locked', can_claim: false, can_redeem: false, reward: null }
+            { key: 'orders_3', title: 'أكملت 12 طلب هذا الأسبوع', kind: 'count', target: 12, progress: 0, raw_progress: 0, eligible: false, status: 'locked', can_claim: false, can_redeem: false, reward: null },
+            { key: 'amount_30', title: 'مجموع طلباتك وصل 80 شيكل', kind: 'amount', target: 80, progress: 0, raw_progress: 0, eligible: false, status: 'locked', can_claim: false, can_redeem: false, reward: null },
+            { key: 'amount_60', title: 'مجموع طلباتك وصل 140 شيكل', kind: 'amount', target: 140, progress: 0, raw_progress: 0, eligible: false, status: 'locked', can_claim: false, can_redeem: false, reward: null }
         ]
     };
 }
@@ -2538,6 +2590,7 @@ function toggleLedger(forceOpen=null) {
     }
     screen.classList.add('hidden');
     cancelPushPinModal();
+    if (pushConfirmResolve) submitPushConfirmModal(false);
 }
 
 function showReviewModal(reviewData) {
