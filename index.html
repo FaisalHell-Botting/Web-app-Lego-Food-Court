@@ -2401,9 +2401,9 @@ function renderStructuredPaymentInfo(source, ussdAction='') {
                 </div>
             </div>
             <div class="space-y-2">
+                ${paymentInfoCard('Mobile number', parsed.bankMobile, parsed.bankMobile)}
                 ${paymentInfoCard('ID', parsed.id, parsed.id)}
                 ${paymentInfoCard('IBAN', parsed.iban, parsed.iban)}
-                ${paymentInfoCard('Mobile number', parsed.bankMobile, parsed.bankMobile)}
             </div>
         </div>
         <div class="bg-blue-50 rounded-2xl border border-blue-100 p-3">
