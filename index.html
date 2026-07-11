@@ -888,11 +888,11 @@ let pushPinResolve = null;
 let pushConfirmResolve = null;
 const debtTransferDefaults = {
     bank: 'بنك فلسطين',
-    bankOwner: 'محمد محمد سلمان جندية',
+    bankOwner: 'سليم جبريل سلمان جندية',
     bankIcon: 'bank-of-palestine.png',
-    id: '1512081',
-    iban: 'PS11PALS045115120810993100000',
-    bankMobile: '',
+    id: '1510926',
+    iban: 'PS35PALS045115109260993100000',
+    bankMobile: '0599302732',
     walletTitle: 'محفظة بال باي',
     walletOwner: 'أحمد سليم جبريل جندية',
     walletIcon: 'palpay.png',
@@ -2361,6 +2361,9 @@ function parsePaymentInfo(info) {
     lines.forEach(line => {
         if (line.startsWith('ID:')) parsed.id = line.replace('ID:', '').trim();
         else if (line.startsWith('IBAN:')) parsed.iban = line.replace('IBAN:', '').trim();
+        else if (line.startsWith('اسم الحساب:')) parsed.bankOwner = line.replace('اسم الحساب:', '').trim();
+        else if (line.startsWith('رقم جوال البنك:')) parsed.bankMobile = line.replace('رقم جوال البنك:', '').trim();
+        else if (line.startsWith('رقم المحفظة:')) parsed.wallet = line.replace('رقم المحفظة:', '').trim();
         else if (/^\d{10,}$/.test(line.replace(/\s+/g, ''))) parsed.wallet = line.trim();
         else if (line.includes('بنك')) parsed.bank = line;
     });
@@ -2400,6 +2403,7 @@ function renderStructuredPaymentInfo(source, ussdAction='') {
             <div class="space-y-2">
                 ${paymentInfoCard('ID', parsed.id, parsed.id)}
                 ${paymentInfoCard('IBAN', parsed.iban, parsed.iban)}
+                ${paymentInfoCard('Mobile number', parsed.bankMobile, parsed.bankMobile)}
             </div>
         </div>
         <div class="bg-blue-50 rounded-2xl border border-blue-100 p-3">
@@ -2410,7 +2414,7 @@ function renderStructuredPaymentInfo(source, ussdAction='') {
                     <p class="text-[11px] text-navy font-bold">${parsed.walletOwner || debtTransferDefaults.walletOwner}</p>
                 </div>
             </div>
-            ${paymentInfoCard('Mobile Number', parsed.wallet, parsed.wallet)}
+            ${paymentInfoCard('Mobile number', parsed.wallet, parsed.wallet)}
             ${ussdButton}
         </div>
     `;
