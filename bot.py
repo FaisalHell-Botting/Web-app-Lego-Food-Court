@@ -1,13 +1,22 @@
 ﻿import hashlib
+import base64
 import json
 import os
 import random
 import re
+import threading
+import time
 from difflib import SequenceMatcher
 from datetime import datetime, timedelta
 
 import google.generativeai as genai
 import psycopg2
+try:
+    from google import genai as google_genai
+    from google.genai import types as google_genai_types
+except Exception:
+    google_genai = None
+    google_genai_types = None
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -35,6 +44,10 @@ GEMINI_KEYS_ENV = os.environ.get("GEMINI_API_KEY", "")
 GEMINI_KEYS = [k.strip() for k in GEMINI_KEYS_ENV.split(",") if k.strip()] if GEMINI_KEYS_ENV else []
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-1.5-flash")
 AI_CHAT_ENABLED = os.environ.get("AI_CHAT_ENABLED", "0") == "1"
+GEMINI_RECEIPT_MODEL = os.environ.get("GEMINI_RECEIPT_MODEL", "gemini-2.5-flash-lite")
+AI_RECEIPT_DAILY_LIMIT = max(1, int(os.environ.get("AI_RECEIPT_DAILY_LIMIT", "20") or 20))
+AI_RECEIPT_BATCH_SIZE = max(1, min(10, int(os.environ.get("AI_RECEIPT_BATCH_SIZE", "5") or 5)))
+AI_RECEIPT_INTERNAL_SCHEDULER = os.environ.get("AI_RECEIPT_INTERNAL_SCHEDULER", "1") == "1"
 DEBT_PAYMENT_INFO = os.environ.get(
     "DEBT_PAYMENT_INFO",
     "بنك فلسطين\nاسم الحساب: سليم جبريل سلمان جندية\nرقم جوال البنك: 0599302732\nID: 1510926\nIBAN: PS35PALS045115109260993100000\nأو محفظة بال باي\nأحمد سليم جبريل جندية\nرقم المحفظة: 0592127473",
@@ -517,6 +530,209 @@ def get_db():
     return psycopg2.connect(DATABASE_URL)
 
 
+def payment_archive_ai_window_open(now=None):
+    now = now or get_pal_datetime()
+    return now.hour >= 21 or now.hour < 6
+
+
+def decode_receipt_data_url(receipt):
+    value = str(receipt or "").strip()
+    match = re.match(r"^data:(image/[a-zA-Z0-9.+-]+);base64,(.+)$", value, re.DOTALL)
+    if not match:
+        raise ValueError("receipt is not a supported image data URL")
+    image_bytes = base64.b64decode(match.group(2), validate=True)
+    if not image_bytes or len(image_bytes) > 12 * 1024 * 1024:
+        raise ValueError("receipt image size is invalid")
+    return match.group(1), image_bytes
+
+
+def parse_receipt_ai_response(raw_text):
+    raw = str(raw_text or "").strip()
+    if raw.startswith("```"):
+        raw = raw.split("```", 2)[1] if raw.count("```") >= 2 else raw
+        raw = raw.replace("json", "", 1).strip()
+    start = raw.find("{")
+    end = raw.rfind("}")
+    if start < 0 or end <= start:
+        raise ValueError("AI response did not contain JSON")
+    payload = json.loads(raw[start : end + 1])
+    method = str(payload.get("method") or "unknown").strip().lower()
+    if method not in ("bank", "wallet", "unknown"):
+        method = "unknown"
+    confidence = max(0, min(100, int(payload.get("confidence", 0) or 0)))
+    evidence = str(payload.get("evidence") or "").strip()[:240]
+    return {"method": method, "confidence": confidence, "evidence": evidence}
+
+
+def classify_payment_receipt_with_ai(receipt):
+    if not GEMINI_KEYS:
+        raise RuntimeError("GEMINI_API_KEY is not configured")
+    if google_genai is None or google_genai_types is None:
+        raise RuntimeError("google-genai is not installed")
+    mime_type, image_bytes = decode_receipt_data_url(receipt)
+    prompt = """
+حلل صورة إشعار التحويل وحدد حساب المستفيد الذي وصل إليه المبلغ، وليس حساب المرسل.
+
+صنف BANK إذا ظهر أن المستفيد هو بنك فلسطين ووجد واحد أو أكثر من الآتي:
+- اسم المستفيد: سليم جبريل سلمان جندية
+- رقم الجوال: 0599302732
+- ID: 1510926
+- IBAN: PS35PALS045115109260993100000
+
+صنف WALLET إذا ظهر أن المستفيد هو محفظة بال باي ووجد واحد أو أكثر من الآتي:
+- اسم المستفيد: أحمد سليم جبريل جندية
+- رقم المحفظة: 0592127473
+
+إذا كانت البيانات تخص المرسل، أو ظهر الحسابان دون وضوح المستفيد، أو الصورة غير واضحة، اختر UNKNOWN.
+أعد JSON فقط بهذا الشكل:
+{"method":"bank|wallet|unknown","confidence":0,"evidence":"سبب مختصر دون نسخ أرقام الحساب كاملة"}
+""".strip()
+    client = google_genai.Client(api_key=GEMINI_KEYS[0])
+    response = client.models.generate_content(
+        model=GEMINI_RECEIPT_MODEL,
+        contents=[
+            google_genai_types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
+            prompt,
+        ],
+        config=google_genai_types.GenerateContentConfig(response_mime_type="application/json"),
+    )
+    return parse_receipt_ai_response(getattr(response, "text", ""))
+
+
+def run_payment_archive_ai_batch(force=False):
+    now = get_pal_datetime()
+    if not force and not payment_archive_ai_window_open(now):
+        return {"status": "outside_window", "processed": 0, "classified": 0}
+    if not GEMINI_KEYS:
+        return {"status": "disabled", "message": "GEMINI_API_KEY is not configured", "processed": 0}
+
+    usage_date = now.strftime("%Y-%m-%d")
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("SELECT value FROM app_settings WHERE key='ai_receipt_usage_date' LIMIT 1")
+    date_row = c.fetchone()
+    c.execute("SELECT value FROM app_settings WHERE key='ai_receipt_usage_count' LIMIT 1")
+    count_row = c.fetchone()
+    used = int(count_row[0] or 0) if date_row and date_row[0] == usage_date and count_row else 0
+    remaining = max(0, AI_RECEIPT_DAILY_LIMIT - used)
+    limit = min(AI_RECEIPT_BATCH_SIZE, remaining)
+    if limit <= 0:
+        c.close()
+        conn.close()
+        return {"status": "daily_limit", "processed": 0, "classified": 0, "used": used}
+
+    c.execute(
+        """
+        SELECT source, id, receipt
+        FROM (
+            SELECT 'debt_payment'::TEXT AS source, id, receipt, created_at
+            FROM debt_payment_requests
+            WHERE status='paid'
+              AND receipt IS NOT NULL AND receipt <> ''
+              AND COALESCE(archive_hidden,0)=0
+              AND payment_method IS NULL
+              AND ai_checked_at IS NULL
+            UNION ALL
+            SELECT 'guest_order'::TEXT AS source, id, receipt, COALESCE(approved_at, timestamp) AS created_at
+            FROM orders
+            WHERE location LIKE 'زائر%%'
+              AND status='مقبول'
+              AND receipt IS NOT NULL AND receipt <> ''
+              AND COALESCE(archive_hidden,0)=0
+              AND payment_method IS NULL
+              AND ai_checked_at IS NULL
+        ) pending_receipts
+        ORDER BY created_at ASC NULLS LAST
+        LIMIT %s
+        """,
+        (limit,),
+    )
+    candidates = c.fetchall()
+    c.close()
+    conn.close()
+
+    processed = 0
+    classified = 0
+    unknown = 0
+    errors = []
+    for source, item_id, receipt in candidates:
+        try:
+            decision = classify_payment_receipt_with_ai(receipt)
+        except Exception as exc:
+            message = str(exc)[:300]
+            if "429" in message or "RESOURCE_EXHAUSTED" in message.upper() or "RATE" in message.upper():
+                return {"status": "rate_limited", "processed": processed, "classified": classified, "unknown": unknown, "errors": errors}
+            errors.append({"source": source, "id": item_id, "error": message})
+            break
+
+        processed += 1
+        used += 1
+        selected_method = decision["method"] if decision["method"] in ("bank", "wallet") and decision["confidence"] >= 80 else None
+        if selected_method:
+            classified += 1
+        else:
+            unknown += 1
+
+        conn = get_db()
+        c = conn.cursor()
+        table = "debt_payment_requests" if source == "debt_payment" else "orders"
+        c.execute(
+            f"""
+            UPDATE {table}
+            SET ai_payment_method=%s,
+                ai_confidence=%s,
+                ai_evidence=%s,
+                ai_checked_at=%s,
+                ai_error=NULL,
+                payment_method=%s,
+                payment_method_source=CASE WHEN %s IS NULL THEN payment_method_source ELSE 'ai' END
+            WHERE id=%s AND payment_method IS NULL
+            """,
+            (decision["method"], decision["confidence"], decision["evidence"], get_pal_time(), selected_method, selected_method, item_id),
+        )
+        set_app_setting(c, "ai_receipt_usage_date", usage_date)
+        set_app_setting(c, "ai_receipt_usage_count", str(used))
+        conn.commit()
+        c.close()
+        conn.close()
+
+    return {
+        "status": "success",
+        "processed": processed,
+        "classified": classified,
+        "unknown": unknown,
+        "remaining_candidates": max(0, len(candidates) - processed),
+        "used": used,
+        "errors": errors,
+    }
+
+
+_receipt_ai_scheduler_started = False
+
+
+def payment_archive_ai_scheduler_loop():
+    while True:
+        try:
+            if payment_archive_ai_window_open():
+                result = run_payment_archive_ai_batch()
+                print(f"Payment archive AI: {json.dumps(result, ensure_ascii=False)}")
+        except Exception as exc:
+            print(f"Payment archive AI error: {exc}")
+        time.sleep(15 * 60)
+
+
+def start_payment_archive_ai_scheduler():
+    global _receipt_ai_scheduler_started
+    if _receipt_ai_scheduler_started or not AI_RECEIPT_INTERNAL_SCHEDULER or not GEMINI_KEYS:
+        return
+    _receipt_ai_scheduler_started = True
+    threading.Thread(
+        target=payment_archive_ai_scheduler_loop,
+        name="payment-archive-ai",
+        daemon=True,
+    ).start()
+
+
 def push_is_configured():
     return bool(webpush and VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY)
 
@@ -932,6 +1148,12 @@ def init_db():
             guest_phone TEXT,
             item_snapshot TEXT,
             payment_method TEXT,
+            payment_method_source TEXT,
+            ai_payment_method TEXT,
+            ai_confidence INTEGER,
+            ai_evidence TEXT,
+            ai_checked_at TEXT,
+            ai_error TEXT,
             archive_hidden INTEGER DEFAULT 0
         )
         """
@@ -958,6 +1180,12 @@ def init_db():
         ("guest_phone", "TEXT"),
         ("item_snapshot", "TEXT"),
         ("payment_method", "TEXT"),
+        ("payment_method_source", "TEXT"),
+        ("ai_payment_method", "TEXT"),
+        ("ai_confidence", "INTEGER"),
+        ("ai_evidence", "TEXT"),
+        ("ai_checked_at", "TEXT"),
+        ("ai_error", "TEXT"),
         ("archive_hidden", "INTEGER DEFAULT 0"),
     ]:
         try:
@@ -1002,11 +1230,23 @@ def init_db():
             created_at TEXT,
             reminder_id INTEGER,
             payment_method TEXT,
+            payment_method_source TEXT,
+            ai_payment_method TEXT,
+            ai_confidence INTEGER,
+            ai_evidence TEXT,
+            ai_checked_at TEXT,
+            ai_error TEXT,
             archive_hidden INTEGER DEFAULT 0
         )
         """
     )
     c.execute("ALTER TABLE debt_payment_requests ADD COLUMN IF NOT EXISTS payment_method TEXT")
+    c.execute("ALTER TABLE debt_payment_requests ADD COLUMN IF NOT EXISTS payment_method_source TEXT")
+    c.execute("ALTER TABLE debt_payment_requests ADD COLUMN IF NOT EXISTS ai_payment_method TEXT")
+    c.execute("ALTER TABLE debt_payment_requests ADD COLUMN IF NOT EXISTS ai_confidence INTEGER")
+    c.execute("ALTER TABLE debt_payment_requests ADD COLUMN IF NOT EXISTS ai_evidence TEXT")
+    c.execute("ALTER TABLE debt_payment_requests ADD COLUMN IF NOT EXISTS ai_checked_at TEXT")
+    c.execute("ALTER TABLE debt_payment_requests ADD COLUMN IF NOT EXISTS ai_error TEXT")
     c.execute("ALTER TABLE debt_payment_requests ADD COLUMN IF NOT EXISTS archive_hidden INTEGER DEFAULT 0")
 
     c.execute(
@@ -1215,6 +1455,7 @@ def init_db():
 try:
     init_db()
     load_store_closure_settings()
+    start_payment_archive_ai_scheduler()
 except Exception as exc:
     print(f"DB init error: {exc}")
 
@@ -2704,17 +2945,21 @@ async def admin_dashboard():
         c.execute(
             """
             SELECT 'debt_payment' AS source, id, office AS payer, amount, status, created_at,
-                   (receipt IS NOT NULL AND receipt <> '') AS has_receipt, payment_method, NULL::TEXT AS note
+                   (receipt IS NOT NULL AND receipt <> '') AS has_receipt, payment_method, NULL::TEXT AS note,
+                   ai_payment_method, ai_confidence, ai_checked_at, payment_method_source, ai_evidence
             FROM debt_payment_requests
             WHERE status <> 'pending' AND COALESCE(archive_hidden, 0)=0
             UNION ALL
             SELECT 'guest_order' AS source, id, location AS payer, total_price AS amount, status, COALESCE(approved_at, timestamp) AS created_at,
-                   (receipt IS NOT NULL AND receipt <> '') AS has_receipt, payment_method, missing_note AS note
+                   (receipt IS NOT NULL AND receipt <> '') AS has_receipt, payment_method, missing_note AS note,
+                   ai_payment_method, ai_confidence, ai_checked_at, payment_method_source, ai_evidence
             FROM orders
             WHERE location LIKE 'زائر%%' AND status IN ('مقبول','فاتورة_زائر_مرفوضة') AND COALESCE(archive_hidden, 0)=0
             UNION ALL
             SELECT 'manual_debt_payment' AS source, id, location AS payer, ABS(total_price) AS amount, status, COALESCE(approved_at, timestamp) AS created_at,
-                   FALSE AS has_receipt, payment_method, details AS note
+                   FALSE AS has_receipt, payment_method, details AS note,
+                   NULL::TEXT AS ai_payment_method, NULL::INTEGER AS ai_confidence, NULL::TEXT AS ai_checked_at,
+                   payment_method_source, NULL::TEXT AS ai_evidence
             FROM orders
             WHERE location NOT LIKE 'زائر%%'
               AND status='مقبول'
@@ -2735,6 +2980,11 @@ async def admin_dashboard():
                 "has_receipt": bool(row[6]),
                 "payment_method": row[7],
                 "note": row[8],
+                "ai_payment_method": row[9],
+                "ai_confidence": row[10],
+                "ai_checked_at": row[11],
+                "payment_method_source": row[12],
+                "ai_evidence": row[13],
             }
             for row in c.fetchall()
         ]
@@ -3057,11 +3307,10 @@ async def admin_action(request: Request):
                 (get_pal_time(), order_id),
             )
         elif action == "confirm_visitor_payment":
-            if not payment_method:
-                c.close()
-                conn.close()
-                return {"status": "error", "message": "اختر طريقة حفظ التحويل"}
-            c.execute("UPDATE orders SET status='مقبول', is_paid=1, approved_at=%s, missing_note=NULL, payment_method=%s WHERE id=%s AND location LIKE 'زائر%%'", (get_pal_time(), payment_method, order_id))
+            c.execute(
+                "UPDATE orders SET status='مقبول', is_paid=1, approved_at=%s, missing_note=NULL, payment_method=%s, payment_method_source=%s WHERE id=%s AND location LIKE 'زائر%%'",
+                (get_pal_time(), payment_method, "manual" if payment_method else None, order_id),
+            )
         elif action == "reject_visitor_payment":
             note = clean_office_name(data.get("note"))
             if not note:
@@ -3104,10 +3353,6 @@ async def admin_action(request: Request):
             conn.close()
             return {"status": "error", "message": "تم إيقاف السداد اليدوي. استخدم طلب سداد الدين أو تعديل الدين فقط."}
         elif action == "confirm_debt_payment":
-            if not payment_method:
-                c.close()
-                conn.close()
-                return {"status": "error", "message": "اختر طريقة حفظ التحويل"}
             c.execute(
                 "SELECT office, amount FROM debt_payment_requests WHERE id=%s AND status='pending'",
                 (order_id,),
@@ -3123,7 +3368,10 @@ async def admin_action(request: Request):
                 c.close()
                 conn.close()
                 return {"status": "error", "message": "invalid payment amount"}
-            c.execute("UPDATE debt_payment_requests SET status='paid', payment_method=%s WHERE id=%s", (payment_method, order_id))
+            c.execute(
+                "UPDATE debt_payment_requests SET status='paid', payment_method=%s, payment_method_source=%s WHERE id=%s",
+                (payment_method, "manual" if payment_method else None, order_id),
+            )
             c.execute(
                 """
                 INSERT INTO orders (user_id, details, total_price, location, timestamp, status, is_paid, order_type, approved_at)
@@ -3142,11 +3390,11 @@ async def admin_action(request: Request):
                 conn.close()
                 return {"status": "error", "message": "اختر طريقة حفظ التحويل"}
             if source == "debt_payment":
-                c.execute("UPDATE debt_payment_requests SET payment_method=%s WHERE id=%s AND status='paid'", (payment_method, order_id))
+                c.execute("UPDATE debt_payment_requests SET payment_method=%s, payment_method_source='manual' WHERE id=%s AND status='paid'", (payment_method, order_id))
             elif source == "guest_order":
-                c.execute("UPDATE orders SET payment_method=%s WHERE id=%s AND location LIKE 'زائر%%' AND status='مقبول'", (payment_method, order_id))
+                c.execute("UPDATE orders SET payment_method=%s, payment_method_source='manual' WHERE id=%s AND location LIKE 'زائر%%' AND status='مقبول'", (payment_method, order_id))
             elif source == "manual_debt_payment":
-                c.execute("UPDATE orders SET payment_method=%s WHERE id=%s AND location NOT LIKE 'زائر%%' AND status='مقبول' AND order_type='سداد دين' AND details LIKE 'سداد دين:%%'", (payment_method, order_id))
+                c.execute("UPDATE orders SET payment_method=%s, payment_method_source='manual' WHERE id=%s AND location NOT LIKE 'زائر%%' AND status='مقبول' AND order_type='سداد دين' AND details LIKE 'سداد دين:%%'", (payment_method, order_id))
             else:
                 c.close()
                 conn.close()
@@ -3155,14 +3403,16 @@ async def admin_action(request: Request):
             c.execute(
                 """
                 UPDATE debt_payment_requests
-                SET receipt=NULL, payment_method=NULL
+                SET receipt=NULL, payment_method=NULL, payment_method_source=NULL,
+                    ai_payment_method=NULL, ai_confidence=NULL, ai_evidence=NULL, ai_checked_at=NULL, ai_error=NULL
                 WHERE status <> 'pending'
                 """
             )
             c.execute(
                 """
                 UPDATE orders
-                SET receipt=NULL, payment_method=NULL
+                SET receipt=NULL, payment_method=NULL, payment_method_source=NULL,
+                    ai_payment_method=NULL, ai_confidence=NULL, ai_evidence=NULL, ai_checked_at=NULL, ai_error=NULL
                 WHERE (
                     (location LIKE 'زائر%%' AND status IN ('مقبول','فاتورة_زائر_مرفوضة'))
                     OR (
@@ -3275,8 +3525,8 @@ async def admin_action(request: Request):
                 return {"status": "error", "message": "قيمة السداد أكبر من الدين الحالي"}
             c.execute(
                 """
-                INSERT INTO orders (user_id, details, total_price, location, timestamp, status, is_paid, order_type, approved_at, payment_method)
-                VALUES (%s,%s,%s,%s,%s,'مقبول',0,'سداد دين',%s,%s)
+                INSERT INTO orders (user_id, details, total_price, location, timestamp, status, is_paid, order_type, approved_at, payment_method, payment_method_source)
+                VALUES (%s,%s,%s,%s,%s,'مقبول',0,'سداد دين',%s,%s,'manual')
                 """,
                 (0, f"سداد دين: {note}", -amount, office, get_pal_time(), get_pal_time(), payment_method),
             )

@@ -4,5 +4,6 @@ psycopg2-binary
 requests
 pydantic
 google-generativeai
+google-genai
 python-multipart
 pywebpush

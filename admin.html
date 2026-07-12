@@ -1300,6 +1300,13 @@ function renderPaymentArchive(items, stats={}) {
                     <div class="bg-gray-50 rounded-xl p-3">
                         <p class="text-[11px] text-gray-400 font-bold mb-1">التصنيف</p>
                         <p class="font-black text-[#2E3468]">${paymentMethodLabel(item.payment_method)}</p>
+                        ${item.payment_method_source === 'ai'
+                            ? `<p class="text-[10px] text-emerald-600 font-bold mt-1">صُنفت تلقائيًا${item.ai_confidence != null ? ` · ${item.ai_confidence}%` : ''}</p>`
+                            : (item.ai_checked_at && !item.payment_method
+                                ? '<p class="text-[10px] text-amber-600 font-bold mt-1">بحاجة إلى مراجعة</p>'
+                                : (!item.payment_method && item.has_receipt && isAccepted
+                                    ? '<p class="text-[10px] text-gray-400 font-bold mt-1">بانتظار التحليل الليلي</p>'
+                                    : ''))}
                     </div>
                 </div>
                 ${isRejected && item.note ? `<div class="bg-red-50 border border-red-100 text-red-700 rounded-xl p-3 mb-3 text-xs font-bold leading-relaxed">سبب الرفض: ${item.note}</div>` : ''}
@@ -1704,9 +1711,7 @@ async function action(act, id, office=null, note=null, extra={}, options={}) {
 }
 
 async function confirmPaymentWithMethod(act, id) {
-    const method = await askPaymentMethod();
-    if (!method) return;
-    await action(act, id, null, null, { payment_method: method }, { loadingMessage: 'جاري اعتماد عملية السداد...' });
+    await action(act, id, null, null, {}, { loadingMessage: 'جاري اعتماد عملية السداد...' });
 }
 
 async function updateArchivePaymentMethod(source, id) {
