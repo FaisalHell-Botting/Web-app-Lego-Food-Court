@@ -1266,7 +1266,12 @@ function renderLedger(debts) {
 }
 
 function renderPaymentArchive(items, stats={}) {
-    latestPaymentArchive = items || [];
+    latestPaymentArchive = [...(items || [])].sort((a, b) => {
+        const aNeedsReview = !!a.ai_checked_at && !a.payment_method && (a.status === 'paid' || a.status === 'مقبول');
+        const bNeedsReview = !!b.ai_checked_at && !b.payment_method && (b.status === 'paid' || b.status === 'مقبول');
+        if (aNeedsReview !== bNeedsReview) return aNeedsReview ? -1 : 1;
+        return 0;
+    });
     document.getElementById('archiveWalletTotal').innerText = `${Number(stats.wallet_total || 0)} ₪`;
     document.getElementById('archiveBankTotal').innerText = `${Number(stats.bank_total || 0)} ₪`;
     const list = document.getElementById('paymentArchiveList');
