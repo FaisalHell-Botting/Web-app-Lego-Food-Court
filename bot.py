@@ -48,7 +48,7 @@ GEMINI_RECEIPT_MODEL = os.environ.get("GEMINI_RECEIPT_MODEL", "gemini-3.1-flash-
 AI_RECEIPT_DAILY_LIMIT = max(1, int(os.environ.get("AI_RECEIPT_DAILY_LIMIT", "30") or 30))
 AI_RECEIPT_BATCH_SIZE = max(1, min(10, int(os.environ.get("AI_RECEIPT_BATCH_SIZE", "5") or 5)))
 AI_RECEIPT_INTERNAL_SCHEDULER = os.environ.get("AI_RECEIPT_INTERNAL_SCHEDULER", "1") == "1"
-AI_RECEIPT_ANALYSIS_VERSION = 2
+AI_RECEIPT_ANALYSIS_VERSION = 3
 DEBT_PAYMENT_INFO = os.environ.get(
     "DEBT_PAYMENT_INFO",
     "بنك فلسطين\nاسم الحساب: سليم جبريل سلمان جندية\nرقم جوال البنك: 0599302732\nID: 1510926\nIBAN: PS35PALS045115109260993100000\nأو محفظة بال باي\nأحمد سليم جبريل جندية\nرقم المحفظة: 0592127473",
