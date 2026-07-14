@@ -591,12 +591,20 @@ def classify_extracted_payment_recipient(extracted):
         bank_hits.append("رقم ID")
     if "PS35PALS045115109260993100000" == recipient_iban:
         bank_hits.append("رقم IBAN")
-    if receipt_name_matches(recipient_name, "سليم جبريل سلمان جندية"):
+    bank_account_names = (
+        "سليم جبريل سلمان جندية",
+        "SALEEM JEBRIL SALMAN JENDEYA",
+    )
+    if any(receipt_name_matches(recipient_name, name) for name in bank_account_names):
         bank_hits.append("اسم حساب البنك")
 
     if "0592127473" in phone_digits:
         wallet_hits.append("رقم المحفظة")
-    if receipt_name_matches(recipient_name, "أحمد سليم جبريل جندية"):
+    wallet_account_names = (
+        "أحمد سليم جبريل جندية",
+        "Ahmed Salim Jibril Jendea",
+    )
+    if any(receipt_name_matches(recipient_name, name) for name in wallet_account_names):
         wallet_hits.append("اسم حساب المحفظة")
 
     if bank_hits and not wallet_hits:
