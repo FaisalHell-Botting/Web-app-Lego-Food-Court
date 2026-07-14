@@ -44,10 +44,11 @@ GEMINI_KEYS_ENV = os.environ.get("GEMINI_API_KEY", "")
 GEMINI_KEYS = [k.strip() for k in GEMINI_KEYS_ENV.split(",") if k.strip()] if GEMINI_KEYS_ENV else []
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-1.5-flash")
 AI_CHAT_ENABLED = os.environ.get("AI_CHAT_ENABLED", "0") == "1"
-GEMINI_RECEIPT_MODEL = os.environ.get("GEMINI_RECEIPT_MODEL", "gemini-2.5-flash-lite")
+GEMINI_RECEIPT_MODEL = os.environ.get("GEMINI_RECEIPT_MODEL", "gemini-3.1-flash-lite")
 AI_RECEIPT_DAILY_LIMIT = max(1, int(os.environ.get("AI_RECEIPT_DAILY_LIMIT", "20") or 20))
 AI_RECEIPT_BATCH_SIZE = max(1, min(10, int(os.environ.get("AI_RECEIPT_BATCH_SIZE", "5") or 5)))
 AI_RECEIPT_INTERNAL_SCHEDULER = os.environ.get("AI_RECEIPT_INTERNAL_SCHEDULER", "1") == "1"
+AI_RECEIPT_ANALYSIS_VERSION = 2
 DEBT_PAYMENT_INFO = os.environ.get(
     "DEBT_PAYMENT_INFO",
     "بنك فلسطين\nاسم الحساب: سليم جبريل سلمان جندية\nرقم جوال البنك: 0599302732\nID: 1510926\nIBAN: PS35PALS045115109260993100000\nأو محفظة بال باي\nأحمد سليم جبريل جندية\nرقم المحفظة: 0592127473",
@@ -556,12 +557,59 @@ def parse_receipt_ai_response(raw_text):
     if start < 0 or end <= start:
         raise ValueError("AI response did not contain JSON")
     payload = json.loads(raw[start : end + 1])
-    method = str(payload.get("method") or "unknown").strip().lower()
-    if method not in ("bank", "wallet", "unknown"):
-        method = "unknown"
-    confidence = max(0, min(100, int(payload.get("confidence", 0) or 0)))
-    evidence = str(payload.get("evidence") or "").strip()[:240]
-    return {"method": method, "confidence": confidence, "evidence": evidence}
+    return {
+        "recipient_name": str(payload.get("recipient_name") or "").strip()[:160],
+        "recipient_phone": str(payload.get("recipient_phone") or "").strip()[:80],
+        "recipient_id": str(payload.get("recipient_id") or "").strip()[:80],
+        "recipient_iban": str(payload.get("recipient_iban") or "").strip()[:100],
+        "recipient_context": str(payload.get("recipient_context") or "").strip()[:240],
+        "evidence": str(payload.get("evidence") or "").strip()[:240],
+    }
+
+
+def receipt_name_matches(value, expected):
+    actual = normalize_ai_text(value)
+    target = normalize_ai_text(expected)
+    if not actual or not target:
+        return False
+    if target in actual or actual in target:
+        return True
+    return SequenceMatcher(None, actual, target).ratio() >= 0.84
+
+
+def classify_extracted_payment_recipient(extracted):
+    recipient_name = extracted.get("recipient_name", "")
+    phone_digits = re.sub(r"\D", "", normalize_digits(extracted.get("recipient_phone", "")))
+    recipient_id = re.sub(r"\D", "", normalize_digits(extracted.get("recipient_id", "")))
+    recipient_iban = re.sub(r"[^A-Z0-9]", "", str(extracted.get("recipient_iban", "")).upper())
+
+    bank_hits = []
+    wallet_hits = []
+    if "0599302732" in phone_digits:
+        bank_hits.append("رقم جوال البنك")
+    if "1510926" == recipient_id:
+        bank_hits.append("رقم ID")
+    if "PS35PALS045115109260993100000" == recipient_iban:
+        bank_hits.append("رقم IBAN")
+    if receipt_name_matches(recipient_name, "سليم جبريل سلمان جندية"):
+        bank_hits.append("اسم حساب البنك")
+
+    if "0592127473" in phone_digits:
+        wallet_hits.append("رقم المحفظة")
+    if receipt_name_matches(recipient_name, "أحمد سليم جبريل جندية"):
+        wallet_hits.append("اسم حساب المحفظة")
+
+    if bank_hits and not wallet_hits:
+        return {"method": "bank", "confidence": 100, "evidence": f"تطابق {bank_hits[0]}"}
+    if wallet_hits and not bank_hits:
+        return {"method": "wallet", "confidence": 100, "evidence": f"تطابق {wallet_hits[0]}"}
+    if bank_hits and wallet_hits:
+        return {"method": "unknown", "confidence": 0, "evidence": "ظهرت بيانات البنك والمحفظة معًا"}
+    return {
+        "method": "unknown",
+        "confidence": 0,
+        "evidence": extracted.get("evidence") or "لم تتطابق بيانات المستفيد مع وسائل الدفع المسجلة",
+    }
 
 
 def classify_payment_receipt_with_ai(receipt):
@@ -571,21 +619,11 @@ def classify_payment_receipt_with_ai(receipt):
         raise RuntimeError("google-genai is not installed")
     mime_type, image_bytes = decode_receipt_data_url(receipt)
     prompt = """
-حلل صورة إشعار التحويل وحدد حساب المستفيد الذي وصل إليه المبلغ، وليس حساب المرسل.
-
-صنف BANK إذا ظهر أن المستفيد هو بنك فلسطين ووجد واحد أو أكثر من الآتي:
-- اسم المستفيد: سليم جبريل سلمان جندية
-- رقم الجوال: 0599302732
-- ID: 1510926
-- IBAN: PS35PALS045115109260993100000
-
-صنف WALLET إذا ظهر أن المستفيد هو محفظة بال باي ووجد واحد أو أكثر من الآتي:
-- اسم المستفيد: أحمد سليم جبريل جندية
-- رقم المحفظة: 0592127473
-
-إذا كانت البيانات تخص المرسل، أو ظهر الحسابان دون وضوح المستفيد، أو الصورة غير واضحة، اختر UNKNOWN.
+اقرأ صورة إشعار التحويل واستخرج بيانات المستفيد الذي وصل إليه المبلغ، وليس بيانات المرسل.
+مهمتك نسخ البيانات الظاهرة فقط. لا تقرر هل التحويل بنك أو محفظة، فالكود سيطابق البيانات لاحقًا.
+إذا ظهر الاسم أو الرقم داخل إشعار مختصر أو إشعار هاتف، اعتبره بيانات المستفيد عندما تصفه العبارة بأنه تم الدفع أو التحويل إليه.
 أعد JSON فقط بهذا الشكل:
-{"method":"bank|wallet|unknown","confidence":0,"evidence":"سبب مختصر دون نسخ أرقام الحساب كاملة"}
+{"recipient_name":"","recipient_phone":"","recipient_id":"","recipient_iban":"","recipient_context":"وصف مختصر لموضع البيانات","evidence":"ما الذي كان واضحًا أو غير واضح"}
 """.strip()
     client = google_genai.Client(api_key=GEMINI_KEYS[0])
     response = client.models.generate_content(
@@ -596,7 +634,8 @@ def classify_payment_receipt_with_ai(receipt):
         ],
         config=google_genai_types.GenerateContentConfig(response_mime_type="application/json"),
     )
-    return parse_receipt_ai_response(getattr(response, "text", ""))
+    extracted = parse_receipt_ai_response(getattr(response, "text", ""))
+    return classify_extracted_payment_recipient(extracted)
 
 
 def run_payment_archive_ai_batch(force=False):
@@ -631,7 +670,7 @@ def run_payment_archive_ai_batch(force=False):
               AND receipt IS NOT NULL AND receipt <> ''
               AND COALESCE(archive_hidden,0)=0
               AND payment_method IS NULL
-              AND ai_checked_at IS NULL
+              AND COALESCE(ai_analysis_version,0) < %s
             UNION ALL
             SELECT 'guest_order'::TEXT AS source, id, receipt, COALESCE(approved_at, timestamp) AS created_at
             FROM orders
@@ -640,12 +679,12 @@ def run_payment_archive_ai_batch(force=False):
               AND receipt IS NOT NULL AND receipt <> ''
               AND COALESCE(archive_hidden,0)=0
               AND payment_method IS NULL
-              AND ai_checked_at IS NULL
+              AND COALESCE(ai_analysis_version,0) < %s
         ) pending_receipts
         ORDER BY created_at ASC NULLS LAST
         LIMIT %s
         """,
-        (limit,),
+        (AI_RECEIPT_ANALYSIS_VERSION, AI_RECEIPT_ANALYSIS_VERSION, limit),
     )
     candidates = c.fetchall()
     c.close()
@@ -683,12 +722,13 @@ def run_payment_archive_ai_batch(force=False):
                 ai_confidence=%s,
                 ai_evidence=%s,
                 ai_checked_at=%s,
+                ai_analysis_version=%s,
                 ai_error=NULL,
                 payment_method=%s,
                 payment_method_source=CASE WHEN %s IS NULL THEN payment_method_source ELSE 'ai' END
             WHERE id=%s AND payment_method IS NULL
             """,
-            (decision["method"], decision["confidence"], decision["evidence"], get_pal_time(), selected_method, selected_method, item_id),
+            (decision["method"], decision["confidence"], decision["evidence"], get_pal_time(), AI_RECEIPT_ANALYSIS_VERSION, selected_method, selected_method, item_id),
         )
         set_app_setting(c, "ai_receipt_usage_date", usage_date)
         set_app_setting(c, "ai_receipt_usage_count", str(used))
@@ -1153,6 +1193,7 @@ def init_db():
             ai_confidence INTEGER,
             ai_evidence TEXT,
             ai_checked_at TEXT,
+            ai_analysis_version INTEGER DEFAULT 0,
             ai_error TEXT,
             archive_hidden INTEGER DEFAULT 0
         )
@@ -1185,6 +1226,7 @@ def init_db():
         ("ai_confidence", "INTEGER"),
         ("ai_evidence", "TEXT"),
         ("ai_checked_at", "TEXT"),
+        ("ai_analysis_version", "INTEGER DEFAULT 0"),
         ("ai_error", "TEXT"),
         ("archive_hidden", "INTEGER DEFAULT 0"),
     ]:
@@ -1235,6 +1277,7 @@ def init_db():
             ai_confidence INTEGER,
             ai_evidence TEXT,
             ai_checked_at TEXT,
+            ai_analysis_version INTEGER DEFAULT 0,
             ai_error TEXT,
             archive_hidden INTEGER DEFAULT 0
         )
@@ -1246,6 +1289,7 @@ def init_db():
     c.execute("ALTER TABLE debt_payment_requests ADD COLUMN IF NOT EXISTS ai_confidence INTEGER")
     c.execute("ALTER TABLE debt_payment_requests ADD COLUMN IF NOT EXISTS ai_evidence TEXT")
     c.execute("ALTER TABLE debt_payment_requests ADD COLUMN IF NOT EXISTS ai_checked_at TEXT")
+    c.execute("ALTER TABLE debt_payment_requests ADD COLUMN IF NOT EXISTS ai_analysis_version INTEGER DEFAULT 0")
     c.execute("ALTER TABLE debt_payment_requests ADD COLUMN IF NOT EXISTS ai_error TEXT")
     c.execute("ALTER TABLE debt_payment_requests ADD COLUMN IF NOT EXISTS archive_hidden INTEGER DEFAULT 0")
 
@@ -3404,7 +3448,8 @@ async def admin_action(request: Request):
                 """
                 UPDATE debt_payment_requests
                 SET receipt=NULL, payment_method=NULL, payment_method_source=NULL,
-                    ai_payment_method=NULL, ai_confidence=NULL, ai_evidence=NULL, ai_checked_at=NULL, ai_error=NULL
+                    ai_payment_method=NULL, ai_confidence=NULL, ai_evidence=NULL, ai_checked_at=NULL,
+                    ai_analysis_version=0, ai_error=NULL
                 WHERE status <> 'pending'
                 """
             )
@@ -3412,7 +3457,8 @@ async def admin_action(request: Request):
                 """
                 UPDATE orders
                 SET receipt=NULL, payment_method=NULL, payment_method_source=NULL,
-                    ai_payment_method=NULL, ai_confidence=NULL, ai_evidence=NULL, ai_checked_at=NULL, ai_error=NULL
+                    ai_payment_method=NULL, ai_confidence=NULL, ai_evidence=NULL, ai_checked_at=NULL,
+                    ai_analysis_version=0, ai_error=NULL
                 WHERE (
                     (location LIKE 'زائر%%' AND status IN ('مقبول','فاتورة_زائر_مرفوضة'))
                     OR (
