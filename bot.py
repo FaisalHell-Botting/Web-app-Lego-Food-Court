@@ -45,7 +45,7 @@ GEMINI_KEYS = [k.strip() for k in GEMINI_KEYS_ENV.split(",") if k.strip()] if GE
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-1.5-flash")
 AI_CHAT_ENABLED = os.environ.get("AI_CHAT_ENABLED", "0") == "1"
 GEMINI_RECEIPT_MODEL = os.environ.get("GEMINI_RECEIPT_MODEL", "gemini-3.1-flash-lite")
-AI_RECEIPT_DAILY_LIMIT = max(1, int(os.environ.get("AI_RECEIPT_DAILY_LIMIT", "20") or 20))
+AI_RECEIPT_DAILY_LIMIT = max(1, int(os.environ.get("AI_RECEIPT_DAILY_LIMIT", "30") or 30))
 AI_RECEIPT_BATCH_SIZE = max(1, min(10, int(os.environ.get("AI_RECEIPT_BATCH_SIZE", "5") or 5)))
 AI_RECEIPT_INTERNAL_SCHEDULER = os.environ.get("AI_RECEIPT_INTERNAL_SCHEDULER", "1") == "1"
 AI_RECEIPT_ANALYSIS_VERSION = 2
@@ -533,7 +533,7 @@ def get_db():
 
 def payment_archive_ai_window_open(now=None):
     now = now or get_pal_datetime()
-    return now.hour >= 21 or now.hour < 6
+    return now.hour < 6 or now.hour > 20 or (now.hour == 20 and now.minute >= 30)
 
 
 def decode_receipt_data_url(receipt):
