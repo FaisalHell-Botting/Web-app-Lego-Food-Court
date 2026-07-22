@@ -106,6 +106,14 @@ PRICES = {
 MENU_ITEMS = []
 
 AR_NUMBERS = str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789")
+SPECIAL_OFFICE_IDS = {
+    "211-2", "211-3",
+    "212-2", "212-3",
+    "213-2", "213-3",
+    "214-2", "214-3",
+    "215-2", "215-3",
+    "216-2", "216-3",
+}
 ITEM_ALIASES = {
     "قهوة": "قهوة مزاج وسط",
     "مزاج": "قهوة مزاج وسط",
@@ -491,6 +499,9 @@ def clean_office_name(office):
     value = normalize_digits(office or "").strip()
     if re.fullmatch(r"\d{3}", value):
         return f"مكتب {value}"
+    special_match = re.fullmatch(r"(?:مكتب\s*)?(\d{3}-[23])", value)
+    if special_match and special_match.group(1) in SPECIAL_OFFICE_IDS:
+        return f"مكتب {special_match.group(1)}"
     return value
 
 
@@ -501,17 +512,17 @@ def clean_push_endpoint(endpoint):
 def office_location_variants(office):
     value = clean_office_name(office)
     variants = [value]
-    match = re.fullmatch(r"مكتب\s*(\d{3})", value)
+    match = re.fullmatch(r"مكتب\s*(\d{3}(?:-[23])?)", value)
     if match:
-        number = match.group(1)
-        variants.extend([number, f"مكتب{number}", f"مكتب {number}"])
+        office_id = match.group(1)
+        variants.extend([office_id, f"مكتب{office_id}", f"مكتب {office_id}"])
     return tuple(dict.fromkeys(v for v in variants if v))
 
 
 def office_number_value(office):
     value = clean_office_name(office)
-    match = re.search(r"\d{3}", value)
-    return match.group(0) if match else "__no_office_number__"
+    match = re.fullmatch(r"مكتب\s*(\d{3})", value)
+    return match.group(1) if match else "__no_office_number__"
 
 
 def is_guest_office(office):
@@ -520,11 +531,13 @@ def is_guest_office(office):
 
 def is_valid_office_number(office):
     office = clean_office_name(office)
-    match = re.fullmatch(r"مكتب\s*(\d{3})", office)
+    match = re.fullmatch(r"مكتب\s*(\d{3}(?:-[23])?)", office)
     if not match:
         return False
-    number = match.group(1)
-    return number.startswith(("2", "4"))
+    office_id = match.group(1)
+    if office_id in SPECIAL_OFFICE_IDS:
+        return True
+    return bool(re.fullmatch(r"[24]\d{2}", office_id))
 
 
 def get_db():
@@ -1692,7 +1705,7 @@ async def push_config():
 async def office_pin_status(office: str):
     office = clean_office_name(office)
     if not office or is_guest_office(office) or not is_valid_office_number(office):
-        return {"status": "error", "message": "رقم المكتب يجب أن يكون 3 أرقام ويبدأ بـ 2 أو 4"}
+        return {"status": "error", "message": "رقم المكتب غير صحيح"}
     try:
         conn = get_db()
         c = conn.cursor()
@@ -1711,7 +1724,7 @@ async def setup_office_pin(request: Request):
     office = clean_office_name(data.get("office"))
     pin = str(data.get("pin", "")).strip()
     if not office or is_guest_office(office) or not is_valid_office_number(office):
-        return {"status": "error", "message": "رقم المكتب يجب أن يكون 3 أرقام ويبدأ بـ 2 أو 4"}
+        return {"status": "error", "message": "رقم المكتب غير صحيح"}
     if not is_valid_pin(pin):
         return {"status": "error", "message": "الرقم السري يجب أن يكون 4 أرقام"}
     try:
@@ -1740,7 +1753,7 @@ async def verify_office_pin(request: Request):
     office = clean_office_name(data.get("office"))
     pin = str(data.get("pin", "")).strip()
     if not office or not is_valid_office_number(office):
-        return {"status": "error", "message": "رقم المكتب يجب أن يكون 3 أرقام ويبدأ بـ 2 أو 4"}
+        return {"status": "error", "message": "رقم المكتب غير صحيح"}
     if not is_valid_pin(pin):
         return {"status": "error", "message": "رقم سري غير صحيح"}
     try:
@@ -1932,7 +1945,7 @@ async def request_office_pin_help(request: Request):
     data = await request.json()
     office = clean_office_name(data.get("office"))
     if not office or is_guest_office(office) or not is_valid_office_number(office):
-        return {"status": "error", "message": "رقم المكتب يجب أن يكون 3 أرقام ويبدأ بـ 2 أو 4"}
+        return {"status": "error", "message": "رقم المكتب غير صحيح"}
     try:
         conn = get_db()
         c = conn.cursor()
@@ -2051,7 +2064,7 @@ async def create_order(request: Request):
         return {"status": "error", "message": "قيمة الدفع السريع مطلوبة"}
 
     if not is_guest and not is_valid_office_number(office):
-        return {"status": "error", "message": "رقم المكتب يجب أن يكون 3 أرقام ويبدأ بـ 2 أو 4"}
+        return {"status": "error", "message": "رقم المكتب غير صحيح"}
     if is_guest and not re.fullmatch(r"05\d{8}", guest_phone or ""):
         return {"status": "error", "message": "رقم الجوال يجب أن يبدأ بـ 05 ويتكون من 10 أرقام"}
     if is_guest and not receipt:
@@ -2200,7 +2213,7 @@ async def update_order(order_id: int, request: Request):
     if not office or not items:
         return {"status": "error", "message": "missing order data"}
     if not is_valid_office_number(office):
-        return {"status": "error", "message": "رقم المكتب يجب أن يكون 3 أرقام ويبدأ بـ 2 أو 4"}
+        return {"status": "error", "message": "رقم المكتب غير صحيح"}
 
     try:
         conn = get_db()

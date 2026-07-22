@@ -367,7 +367,7 @@
     </div>
     <div class="bg-white p-8 rounded-3xl w-full max-w-sm text-navy shadow-2xl">
         <h2 class="text-xl font-bold mb-6 text-center">أهلاً بك</h2>
-        <input type="text" id="loginOffice" placeholder="رقم المكتب (مثلاً: 220)"
+        <input type="text" id="loginOffice" placeholder="رقم المكتب (مثلاً: 220 أو 211-2)"
                class="w-full border-2 border-gray-200 p-3.5 rounded-xl mb-4 text-center font-bold text-lg focus:outline-none focus:border-navy transition-colors"
                onkeyup="if(event.key==='Enter') login('office')">
         <button onclick="login('office')" class="w-full bg-navy text-white font-bold py-3.5 rounded-xl mb-3 shadow-lg hover:bg-opacity-90 transition-all text-base">
@@ -914,13 +914,26 @@ function normalizeDigits(value) {
     return String(value || '').replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
 }
 
+const SPECIAL_OFFICE_IDS = new Set([
+    '211-2', '211-3',
+    '212-2', '212-3',
+    '213-2', '213-3',
+    '214-2', '214-3',
+    '215-2', '215-3',
+    '216-2', '216-3'
+]);
+
 function isValidOfficeNumber(value) {
-    return /^[24]\d{2}$/.test(normalizeDigits(value).trim());
+    const normalized = normalizeDigits(value).trim();
+    return /^[24]\d{2}$/.test(normalized) || SPECIAL_OFFICE_IDS.has(normalized);
 }
 
 function normalizeOfficeIdentity(value) {
     const normalized = normalizeDigits(value || '').trim();
     if (/^\d{3}$/.test(normalized)) return `مكتب ${normalized}`;
+    if (SPECIAL_OFFICE_IDS.has(normalized)) return `مكتب ${normalized}`;
+    const specialMatch = normalized.match(/^مكتب\s*(\d{3}-[23])$/);
+    if (specialMatch && SPECIAL_OFFICE_IDS.has(specialMatch[1])) return `مكتب ${specialMatch[1]}`;
     return normalized;
 }
 
@@ -946,11 +959,11 @@ async function login(type) {
         return;
     }
     if (type === 'office' && !isValidOfficeNumber(val)) {
-        showToast('رقم المكتب يجب أن يكون 3 أرقام ويبدأ بـ 2 أو 4');
+        showToast('رقم المكتب غير صحيح');
         return;
     }
     user.isGuest = type === 'guest';
-    user.id = type === 'office' ? `مكتب ${normalizeDigits(val).trim()}` : `زائر-${Math.floor(Math.random() * 9000 + 1000)}`;
+    user.id = type === 'office' ? normalizeOfficeIdentity(val) : `زائر-${Math.floor(Math.random() * 9000 + 1000)}`;
     document.getElementById('headerIdentityLabel').innerText = user.id;
     document.getElementById('authScreen').classList.add('hidden');
     document.getElementById('mainHeader').classList.remove('hidden');
