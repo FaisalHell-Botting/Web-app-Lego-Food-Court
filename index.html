@@ -367,9 +367,11 @@
     </div>
     <div class="bg-white p-8 rounded-3xl w-full max-w-sm text-navy shadow-2xl">
         <h2 class="text-xl font-bold mb-6 text-center">أهلاً بك</h2>
-        <input type="text" id="loginOffice" placeholder="رقم المكتب (مثلاً: 220 أو 211-2)"
-               class="w-full border-2 border-gray-200 p-3.5 rounded-xl mb-4 text-center font-bold text-lg focus:outline-none focus:border-navy transition-colors"
-               onkeyup="if(event.key==='Enter') login('office')">
+        <input type="text" id="loginOffice" placeholder="رقم المكتب" aria-describedby="loginOfficeError"
+               class="w-full border-2 border-gray-200 p-3.5 rounded-xl text-center font-bold text-lg focus:outline-none focus:border-navy transition-colors"
+               oninput="clearLoginOfficeError()" onkeyup="if(event.key==='Enter') login('office')">
+        <p id="loginOfficeError" class="hidden text-red-500 text-xs font-bold text-right mt-1.5 mb-3">مسموح فقط مكاتب 3 أرقام</p>
+        <div id="loginOfficeSpacing" class="h-4"></div>
         <button onclick="login('office')" class="w-full bg-navy text-white font-bold py-3.5 rounded-xl mb-3 shadow-lg hover:bg-opacity-90 transition-all text-base">
             دخول بالمكتب
         </button>
@@ -937,6 +939,28 @@ function normalizeOfficeIdentity(value) {
     return normalized;
 }
 
+function clearLoginOfficeError() {
+    const input = document.getElementById('loginOffice');
+    const error = document.getElementById('loginOfficeError');
+    const spacing = document.getElementById('loginOfficeSpacing');
+    input.classList.remove('border-red-500', 'focus:border-red-500');
+    input.classList.add('border-gray-200', 'focus:border-navy');
+    input.removeAttribute('aria-invalid');
+    error.classList.add('hidden');
+    spacing.classList.remove('hidden');
+}
+
+function showLoginOfficeError() {
+    const input = document.getElementById('loginOffice');
+    const error = document.getElementById('loginOfficeError');
+    const spacing = document.getElementById('loginOfficeSpacing');
+    input.classList.remove('border-gray-200', 'focus:border-navy');
+    input.classList.add('border-red-500', 'focus:border-red-500');
+    input.setAttribute('aria-invalid', 'true');
+    error.classList.remove('hidden');
+    spacing.classList.add('hidden');
+}
+
 let fullMenu = [];
 
 async function loadMenu() {
@@ -955,13 +979,14 @@ async function loadMenu() {
 async function login(type) {
     const val = document.getElementById('loginOffice').value.trim();
     if (type === 'office' && !val) {
-        showToast('أدخل رقم مكتبك');
+        showLoginOfficeError();
         return;
     }
     if (type === 'office' && !isValidOfficeNumber(val)) {
-        showToast('رقم المكتب غير صحيح');
+        showLoginOfficeError();
         return;
     }
+    if (type === 'office') clearLoginOfficeError();
     user.isGuest = type === 'guest';
     user.id = type === 'office' ? normalizeOfficeIdentity(val) : `زائر-${Math.floor(Math.random() * 9000 + 1000)}`;
     document.getElementById('headerIdentityLabel').innerText = user.id;
